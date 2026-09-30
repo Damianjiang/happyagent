@@ -1,11 +1,11 @@
-package com.agenz.mobile;
+package com.happyagent.mobile;
 
 import android.app.Application;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Build;
 
-import com.agenz.mobile.ui.CrashActivity;
+import com.happyagent.mobile.ui.CrashActivity;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
@@ -41,13 +41,13 @@ public final class CrashHandler implements Thread.UncaughtExceptionHandler {
 
     // 业务代码里 catch 到了想手动上报的，走这里
     public static void showFrom(Throwable t) {
-        Application app = AgenApplication.get();
+        Application app = HappyAgentApplication.get();
         if (app == null) return;
         openCrashPage(buildReport("manual-report", t));
     }
 
     public static void showFrom(String report) {
-        Application app = AgenApplication.get();
+        Application app = HappyAgentApplication.get();
         if (app == null) return;
         openCrashPage(report);
     }
@@ -65,7 +65,7 @@ public final class CrashHandler implements Thread.UncaughtExceptionHandler {
     }
 
     private static void openCrashPage(String report) {
-        Application app = AgenApplication.get();
+        Application app = HappyAgentApplication.get();
         if (app == null) return;
         Intent intent = new Intent(app, CrashActivity.class);
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);

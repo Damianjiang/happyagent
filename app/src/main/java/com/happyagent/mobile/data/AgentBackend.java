@@ -1,13 +1,13 @@
-package com.agenz.mobile.data;
+package com.happyagent.mobile.data;
 
 import android.content.Context;
 import android.util.Log;
 
-import com.agenz.mobile.AgenApplication;
-import com.agenz.mobile.model.Models.Config;
-import com.agenz.mobile.model.Models.Message;
-import com.agenz.mobile.model.Models.Session;
-import com.agenz.mobile.model.Models.Tool;
+import com.happyagent.mobile.HappyAgentApplication;
+import com.happyagent.mobile.model.Models.Config;
+import com.happyagent.mobile.model.Models.Message;
+import com.happyagent.mobile.model.Models.Session;
+import com.happyagent.mobile.model.Models.Tool;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -42,7 +42,7 @@ public final class AgentBackend {
     private volatile boolean loaded;
 
     private AgentBackend() {
-        Context ctx = AgenApplication.get();
+        Context ctx = HappyAgentApplication.get();
         storeDir = new File(ctx.getFilesDir(), "agent-store");
         if (!storeDir.exists()) storeDir.mkdirs();
     }
@@ -318,7 +318,7 @@ public final class AgentBackend {
         msgs.add(new Message("assistant",
                 "Hello! I'm your local agent. Create a session and run a task; "
                         + "I'll show a full plan -> tool -> summary trace.", now - 60000));
-        sessions.add(new Session("s-seed-1", "欢迎使用爱思办公", config.agentName, 2, now, msgs));
+        sessions.add(new Session("s-seed-1", "欢迎使用HappyAgent", config.agentName, 2, now, msgs));
         persistNow();
     }
 

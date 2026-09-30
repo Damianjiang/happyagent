@@ -1,4 +1,4 @@
-package com.agenz.mobile.ui;
+package com.happyagent.mobile.ui;
 
 import android.content.Intent;
 import android.os.Bundle;
@@ -13,9 +13,9 @@ import androidx.fragment.app.Fragment;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
-import com.agenz.mobile.R;
-import com.agenz.mobile.data.AgentBackend;
-import com.agenz.mobile.model.Models.Tool;
+import com.happyagent.mobile.R;
+import com.happyagent.mobile.data.AgentBackend;
+import com.happyagent.mobile.model.Models.Tool;
 
 import java.util.ArrayList;
 import java.util.List;

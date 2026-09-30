@@ -1,16 +1,16 @@
-package com.agenz.mobile;
+package com.happyagent.mobile;
 
 import android.app.Application;
 
 import androidx.appcompat.app.AppCompatDelegate;
 
-import com.agenz.mobile.data.AgentBackend;
-import com.agenz.mobile.data.Prefs;
+import com.happyagent.mobile.data.AgentBackend;
+import com.happyagent.mobile.data.Prefs;
 
 // 启动入口：先装崩溃兜底，再套主题，最后后台把 agent 存档读出来
-public class AgenApplication extends Application {
+public class HappyAgentApplication extends Application {
 
-    private static AgenApplication instance;
+    private static HappyAgentApplication instance;
 
     @Override
     public void onCreate() {
@@ -27,7 +27,7 @@ public class AgenApplication extends Application {
         AgentBackend.get().preload();
     }
 
-    public static AgenApplication get() {
+    public static HappyAgentApplication get() {
         return instance;
     }
 }

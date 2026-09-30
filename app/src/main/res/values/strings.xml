@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">爱思办公</string>
+    <string name="app_name">HappyAgent</string>
     <string name="tab_sessions">会话</string>
     <string name="tab_tools">工具</string>
     <string name="tab_config">配置</string>

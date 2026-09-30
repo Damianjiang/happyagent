@@ -1,4 +1,4 @@
-package com.agenz.mobile.data;
+package com.happyagent.mobile.data;
 
 import android.content.Context;
 import android.content.SharedPreferences;

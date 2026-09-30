@@ -1,4 +1,4 @@
-package com.agenz.mobile.ui;
+package com.happyagent.mobile.ui;
 
 import android.os.Bundle;
 import android.view.View;
@@ -10,10 +10,10 @@ import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 
-import com.agenz.mobile.CrashHandler;
-import com.agenz.mobile.R;
-import com.agenz.mobile.data.AgentBackend;
-import com.agenz.mobile.model.Models.Session;
+import com.happyagent.mobile.CrashHandler;
+import com.happyagent.mobile.R;
+import com.happyagent.mobile.data.AgentBackend;
+import com.happyagent.mobile.model.Models.Session;
 
 import java.util.concurrent.Future;
 

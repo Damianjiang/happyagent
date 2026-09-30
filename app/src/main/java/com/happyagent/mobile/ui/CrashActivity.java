@@ -1,4 +1,4 @@
-package com.agenz.mobile.ui;
+package com.happyagent.mobile.ui;
 
 import android.content.ClipData;
 import android.content.ClipboardManager;
@@ -14,8 +14,8 @@ import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 
-import com.agenz.mobile.CrashHandler;
-import com.agenz.mobile.R;
+import com.happyagent.mobile.CrashHandler;
+import com.happyagent.mobile.R;
 
 import java.text.SimpleDateFormat;
 import java.util.Date;
@@ -88,7 +88,7 @@ public class CrashActivity extends AppCompatActivity {
         try {
             Intent i = new Intent(Intent.ACTION_SEND);
             i.setType("text/plain");
-            i.putExtra(Intent.EXTRA_SUBJECT, "爱思办公崩溃日志");
+            i.putExtra(Intent.EXTRA_SUBJECT, "HappyAgent崩溃日志");
             i.putExtra(Intent.EXTRA_TEXT, text);
             startActivity(Intent.createChooser(i, "分享崩溃日志"));
         } catch (Exception ignored) {

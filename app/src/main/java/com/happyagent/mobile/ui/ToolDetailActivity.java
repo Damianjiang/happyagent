@@ -1,4 +1,4 @@
-package com.agenz.mobile.ui;
+package com.happyagent.mobile.ui;
 
 import android.os.Bundle;
 import android.widget.TextView;
@@ -6,9 +6,9 @@ import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 
-import com.agenz.mobile.R;
-import com.agenz.mobile.data.AgentBackend;
-import com.agenz.mobile.model.Models.Tool;
+import com.happyagent.mobile.R;
+import com.happyagent.mobile.data.AgentBackend;
+import com.happyagent.mobile.model.Models.Tool;
 import com.google.android.material.switchmaterial.SwitchMaterial;
 
 // 工具详情：完整说明 + 启停，和原版的插件详情一个用法

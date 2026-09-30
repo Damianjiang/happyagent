@@ -16,7 +16,7 @@
         android:theme="@style/AppTheme"
         android:hardwareAccelerated="true"
         android:largeHeap="true"
-        android:name=".AgenApplication">
+        android:name=".HappyAgentApplication">
 
         <activity
             android:name=".ui.MainActivity"

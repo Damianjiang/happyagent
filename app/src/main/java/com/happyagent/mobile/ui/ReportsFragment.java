@@ -1,4 +1,4 @@
-package com.agenz.mobile.ui;
+package com.happyagent.mobile.ui;
 
 import android.os.Bundle;
 import android.view.LayoutInflater;
@@ -11,10 +11,10 @@ import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.fragment.app.Fragment;
 
-import com.agenz.mobile.R;
-import com.agenz.mobile.data.AgentBackend;
-import com.agenz.mobile.model.Models.Session;
-import com.agenz.mobile.model.Models.Tool;
+import com.happyagent.mobile.R;
+import com.happyagent.mobile.data.AgentBackend;
+import com.happyagent.mobile.model.Models.Session;
+import com.happyagent.mobile.model.Models.Tool;
 
 import java.text.SimpleDateFormat;
 import java.util.Date;

@@ -1,4 +1,4 @@
-package com.agenz.mobile.model;
+package com.happyagent.mobile.model;
 
 import java.io.Serializable;
 import java.util.ArrayList;

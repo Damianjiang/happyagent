@@ -1,4 +1,4 @@
-package com.agenz.mobile.ui;
+package com.happyagent.mobile.ui;
 
 import android.content.Intent;
 import android.os.Bundle;
@@ -11,9 +11,9 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentTransaction;
 
-import com.agenz.mobile.R;
-import com.agenz.mobile.data.AgentBackend;
-import com.agenz.mobile.data.Prefs;
+import com.happyagent.mobile.R;
+import com.happyagent.mobile.data.AgentBackend;
+import com.happyagent.mobile.data.Prefs;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 import com.google.android.material.snackbar.Snackbar;
 
@@ -107,7 +107,7 @@ public class MainActivity extends AppCompatActivity {
         }
         if (id == R.id.action_about) {
             Snackbar.make(findViewById(R.id.coordinator),
-                    "爱思办公 1.0 - 端侧 agent 引擎", Snackbar.LENGTH_LONG).show();
+                    "HappyAgent 1.0 - 端侧 agent 引擎", Snackbar.LENGTH_LONG).show();
             return true;
         }
         return super.onOptionsItemSelected(item);

@@ -1,4 +1,4 @@
-package com.agenz.mobile.ui;
+package com.happyagent.mobile.ui;
 
 import android.os.Bundle;
 import android.view.View;
@@ -9,8 +9,8 @@ import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.app.AppCompatDelegate;
 
-import com.agenz.mobile.R;
-import com.agenz.mobile.data.Prefs;
+import com.happyagent.mobile.R;
+import com.happyagent.mobile.data.Prefs;
 import com.google.android.material.switchmaterial.SwitchMaterial;
 
 import java.util.Locale;
