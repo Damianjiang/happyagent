@@ -4,6 +4,28 @@
     android:layout_height="match_parent"
     android:orientation="vertical">
 
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingLeft="@dimen/list_inset"
+        android:paddingRight="@dimen/list_inset"
+        android:paddingTop="@dimen/space_l"
+        android:paddingBottom="@dimen/space_s"
+        android:text="工具 / 插件"
+        android:textSize="@dimen/title_size"
+        android:textStyle="bold"
+        android:textColor="?attr/colorOnSurface" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingLeft="@dimen/list_inset"
+        android:paddingRight="@dimen/list_inset"
+        android:paddingBottom="@dimen/space_s"
+        android:text="行内开关即时生效，点卡片看说明"
+        android:textSize="@dimen/caption_size"
+        android:textColor="?attr/colorOnSurfaceVariant" />
+
     <ProgressBar
         android:id="@+id/tools_progress"
         android:layout_width="wrap_content"
@@ -12,12 +34,23 @@
         android:layout_margin="24dp"
         android:visibility="gone" />
 
+    <TextView
+        android:id="@+id/tools_empty"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:padding="40dp"
+        android:text="暂无工具"
+        android:textColor="?attr/colorOnSurfaceVariant"
+        android:visibility="gone" />
+
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/tools_recycler"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:clipToPadding="false"
-        android:padding="12dp"
+        android:paddingLeft="@dimen/list_inset"
+        android:paddingRight="@dimen/list_inset"
+        android:paddingTop="@dimen/space_s"
         android:scrollbars="vertical" />
-
 </LinearLayout>

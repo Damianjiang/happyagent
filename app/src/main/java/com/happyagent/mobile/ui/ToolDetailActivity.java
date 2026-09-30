@@ -44,6 +44,12 @@ public class ToolDetailActivity extends AppCompatActivity {
                     t.name + (isChecked ? " 已启用" : " 已停用"), Toast.LENGTH_SHORT).show();
         });
 
+        com.google.android.material.appbar.MaterialToolbar toolbar =
+                findViewById(R.id.toold_toolbar);
+        if (toolbar != null) {
+            toolbar.setTitle(t.name);
+            toolbar.setNavigationOnClickListener(v -> finish());
+        }
         findViewById(R.id.toold_close).setOnClickListener(v -> finish());
     }
 }

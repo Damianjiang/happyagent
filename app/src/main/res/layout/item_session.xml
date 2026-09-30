@@ -4,9 +4,9 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginBottom="10dp"
+    android:layout_marginBottom="8dp"
     app:cardCornerRadius="12dp"
-    app:cardElevation="1dp"
+    app:cardElevation="0dp"
     app:cardBackgroundColor="?attr/colorSurface"
     android:foreground="?android:attr/selectableItemBackground">
 
@@ -14,7 +14,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:padding="14dp"
+        android:padding="16dp"
         android:gravity="center_vertical">
 
         <LinearLayout
@@ -37,15 +37,17 @@
                 android:id="@+id/session_agent"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:textSize="12sp"
+                android:textSize="13sp"
                 android:textColor="?attr/colorOnSurfaceVariant"
-                android:layout_marginTop="3dp" />
+                android:layout_marginTop="4dp"
+                android:maxLines="1"
+                android:ellipsize="end" />
 
             <TextView
                 android:id="@+id/session_date"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:textSize="11sp"
+                android:textSize="12sp"
                 android:textColor="?attr/colorOnSurfaceVariant"
                 android:layout_marginTop="2dp" />
         </LinearLayout>
@@ -54,8 +56,7 @@
             android:id="@+id/session_status"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
             style="@style/StatusBadge" />
-
     </LinearLayout>
-
 </com.google.android.material.card.MaterialCardView>

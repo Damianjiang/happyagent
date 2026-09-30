@@ -12,9 +12,6 @@ import com.happyagent.mobile.tools.FileTools;
 import com.happyagent.mobile.tools.ReactAgent;
 import com.happyagent.mobile.tools.ShellExecutor;
 
-import org.json.JSONArray;
-import org.json.JSONObject;
-
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -22,11 +19,6 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.Serializable;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.net.HttpURLConnection;
-import java.net.URL;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
@@ -47,8 +39,8 @@ public final class AgentBackend {
     private final ExecutorService io = Executors.newSingleThreadExecutor();
     private final Object lock = new Object();
 
-    private List<Session> sessions = new ArrayList<>();
-    private List<Tool> tools = new ArrayList<>();
+    private List<Session> sessions = new ArrayList<Session>();
+    private List<Tool> tools = new ArrayList<Tool>();
     private Config config = new Config();
     private volatile boolean loaded;
 
@@ -108,7 +100,7 @@ public final class AgentBackend {
     public List<Session> getSessions() {
         ensureLoaded();
         synchronized (lock) {
-            return new ArrayList<>(sessions);
+            return new ArrayList<Session>(sessions);
         }
     }
 
@@ -136,7 +128,7 @@ public final class AgentBackend {
         return s.id;
     }
 
-    // 跑一次任务：计划 -> 工具调用 -> 总结，全程离线
+    // 跑一次任务：ReAct 多步，带多轮上下文，持久化 user+工具步骤+assistant
     public Future<Session> runTask(String sessionId, String prompt, String model) {
         ensureLoaded();
         final Session session = getSession(sessionId);
@@ -153,33 +145,40 @@ public final class AgentBackend {
                 List<Message> trace = new ArrayList<Message>();
                 trace.add(new Message("user", prompt, System.currentTimeMillis()));
                 try {
-                      // 取本会话已有 user/assistant 对话作为多轮上下文
-                      List<Message> history = new ArrayList<Message>();
-                      for (Message m : session.messages) {
-                          if (m.role.equals("user") || m.role.equals("assistant")) {
-                              history.add(m);
-                          }
-                      }
-                      // 多步 ReAct：有 OpenAI Key 时 LLM 带历史驱动工具，没 Key 降级本地
-                      ReactAgent agent = new ReactAgent(getConfig(),
-                              new FileTools(HappyAgentApplication.get()),
-                              new ShellExecutor(HappyAgentApplication.get()),
-                              trace);
-                      final String summary = agent.run(prompt, history);
-                      // 只持久化 user + 本轮 assistant，对话保持干净
-                      synchronized (lock) {
-                          session.messages.add(new Message("user", prompt, System.currentTimeMillis()));
-                          session.messages.add(new Message("assistant", summary, System.currentTimeMillis()));
-                          session.status = 2;
-                          session.updatedAt = System.currentTimeMillis();
-                      }
-                      persistNow();
+                    // 取本会话已有 user/assistant 对话作为多轮上下文
+                    List<Message> history = new ArrayList<Message>();
+                    for (Message m : session.messages) {
+                        if (m.role.equals("user") || m.role.equals("assistant")) {
+                            history.add(m);
+                        }
+                    }
+                    // 多步 ReAct：有 OpenAI Key 时 LLM 带历史驱动工具，没 Key 降级本地
+                    ReactAgent agent = new ReactAgent(getConfig(),
+                            new FileTools(HappyAgentApplication.get()),
+                            new ShellExecutor(HappyAgentApplication.get()),
+                            trace);
+                    final String summary = agent.run(prompt, history);
+                    // 收集工具调用步骤（trace 里 role=tool），存进会话用于聊天里可见
+                    List<Message> toolSteps = new ArrayList<Message>();
+                    for (Message m : trace) {
+                        if (m.role.equals("tool")) toolSteps.add(m);
+                    }
+                    // 持久化：user + 工具步骤 + assistant（工具步骤只在界面展示，不喂回 LLM）
+                    synchronized (lock) {
+                        session.messages.add(new Message("user", prompt, System.currentTimeMillis()));
+                        for (Message t : toolSteps) session.messages.add(t);
+                        session.messages.add(new Message("assistant", summary, System.currentTimeMillis()));
+                        session.status = 2;
+                        session.updatedAt = System.currentTimeMillis();
+                    }
+                    persistNow();
                     return session;
                 } catch (Exception e) {
                     Log.e(TAG, "runTask failed", e);
                     synchronized (lock) {
                         session.status = 3;
-                        session.messages.add(new Message("system", "Task failed: " + e.getMessage(), System.currentTimeMillis()));
+                        session.messages.add(new Message("system", "Task failed: " + e.getMessage(),
+                                System.currentTimeMillis()));
                         session.updatedAt = System.currentTimeMillis();
                     }
                     persistNow();
@@ -194,7 +193,7 @@ public final class AgentBackend {
     public List<Tool> getTools() {
         ensureLoaded();
         synchronized (lock) {
-            return new ArrayList<>(tools);
+            return new ArrayList<Tool>(tools);
         }
     }
 
@@ -239,7 +238,6 @@ public final class AgentBackend {
         persist();
     }
 
-
     // ---- 存档 ----
 
     // 统一丢给后台线程写，避免界面线程碰磁盘
@@ -256,8 +254,8 @@ public final class AgentBackend {
         synchronized (lock) {
             try {
                 State st = new State();
-                st.sessions = new ArrayList<>(sessions);
-                st.tools = new ArrayList<>(tools);
+                st.sessions = new ArrayList<Session>(sessions);
+                st.tools = new ArrayList<Tool>(tools);
                 st.config = config;
 
                 FileOutputStream fos = new FileOutputStream(new File(storeDir, "state.ser"));
@@ -298,9 +296,9 @@ public final class AgentBackend {
         long now = System.currentTimeMillis();
         List<Message> msgs = new ArrayList<Message>();
         msgs.add(new Message("assistant",
-                "Hello! I'm your local agent. Create a session and run a task; "
-                        + "I'll show a full plan -> tool -> summary trace.", now - 60000));
-        sessions.add(new Session("s-seed-1", "欢迎使用HappyAgent", config.agentName, 2, now, msgs));
+                "你好，我是 Happy Agent。直接和我对话；配置 OpenAI Key 后我能真正理解并回答你。",
+                now - 60000));
+        sessions.add(new Session("s-seed-1", "欢迎使用 Happy Agent", config.agentName, 2, now, msgs));
         persistNow();
     }
 

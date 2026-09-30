@@ -25,7 +25,7 @@ import java.util.Locale;
 public class ReportsFragment extends Fragment {
 
     private TextView sessionsCount, toolsEnabled, toolsDisabled;
-    private TextView modelLabel, lastUpdate;
+    private TextView modelLabel, lastUpdate, openaiLabel, baseUrlLabel;
     private ProgressBar progress;
 
     @Override
@@ -36,6 +36,8 @@ public class ReportsFragment extends Fragment {
         toolsDisabled = v.findViewById(R.id.reports_tools_disabled);
         modelLabel = v.findViewById(R.id.reports_model);
         lastUpdate = v.findViewById(R.id.reports_last_update);
+        openaiLabel = v.findViewById(R.id.reports_openai);
+        baseUrlLabel = v.findViewById(R.id.reports_baseurl);
         progress = v.findViewById(R.id.reports_progress);
         load();
         return v;
@@ -56,6 +58,8 @@ public class ReportsFragment extends Fragment {
                 }
                 final int e = enabled, d = disabled;
                 final String model = backend.getConfig().model;
+                final String openaiState = backend.getConfig().hasOpenAIKey() ? "已配置" : "未配置";
+                final String baseUrl = backend.getConfig().openaiBaseUrl;
                 final String lastUpdated = sessions.isEmpty() ? "无" :
                         new SimpleDateFormat("MM-dd HH:mm", Locale.getDefault())
                                 .format(new Date(sessions.get(0).updatedAt));
@@ -70,6 +74,8 @@ public class ReportsFragment extends Fragment {
                         toolsDisabled.setText(String.valueOf(d));
                         modelLabel.setText(model);
                         lastUpdate.setText(lastUpdated);
+                        openaiLabel.setText(openaiState);
+                        baseUrlLabel.setText(baseUrl);
                     }
                 });
             }

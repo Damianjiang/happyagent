@@ -1,25 +1,29 @@
 package com.happyagent.mobile.tools;
 
-import com.happyagent.mobile.model.Models.Message;
 import com.happyagent.mobile.model.Models.Config;
+import com.happyagent.mobile.model.Models.Message;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-import java.net.HttpURLConnection;
-import java.net.URL;
+import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
-// 多步 ReAct agent 循环：think → act(tool) → observe → think → ... → answer
-// 对应 Operit 的 PhoneAgent while(step < maxSteps) 设计
-// 有 OpenAI Key 时走真 LLM 驱动多步工具调用，没 Key 时降级单步本地模拟
+// 多步 ReAct agent：think → act(tool) → observe → ... → answer（对应 Operit PhoneAgent）
+// 有 OpenAI Key 时 LLM 带多轮历史驱动工具调用，没 Key 降级本地模拟。
+// 工具调用带参数校验：缺必填参数不崩，把"缺哪些"作为反馈喂回模型补齐（对齐 Operit ToolPackage）。
 public final class ReactAgent {
 
     private static final int MAX_STEPS = 10;
+    private static final int HISTORY_WINDOW = 12;   // 只喂最近 12 条 user/assistant，治聊天卡
     private static final int CONNECT_TIMEOUT = 30000;
     private static final int READ_TIMEOUT = 120000;
 
@@ -35,48 +39,50 @@ public final class ReactAgent {
         this.trace = trace;
     }
 
-    // 跑多步循环。history 是本会话之前已有的 user/assistant 对话，喂给 LLM 形成多轮上下文
     public String run(String task, List<Message> history) {
-        // 系统提示：告诉模型它能用什么工具
         String systemPrompt = buildSystemPrompt();
         trace.add(new Message("system", "PLAN: " + task, System.currentTimeMillis()));
 
-        // 如果没配 OpenAI Key，走本地单步模拟（带上历史长度，说明是多轮）
         if (!cfg.hasOpenAIKey()) {
             return localFallback(task, history);
         }
 
-        // 多步循环：先放历史对话，再放本轮 user 提问
+        // 只喂最近 HISTORY_WINDOW 条 user/assistant，控制上下文长度，避免聊多了卡
+        List<Message> window = recentWindow(history, HISTORY_WINDOW);
         List<JSONObject> messages = new ArrayList<JSONObject>();
         addMsg(messages, "system", systemPrompt);
-        for (Message h : history) {
-            // 只把 user / assistant 喂回去，形成多轮上下文
-            if (h.role.equals("user") || h.role.equals("assistant")) {
-                addMsg(messages, h.role, h.text);
-            }
+        for (Message h : window) {
+            addMsg(messages, h.role, h.text);
         }
         addMsg(messages, "user", task);
 
         for (int step = 1; step <= MAX_STEPS; step++) {
-            trace.add(new Message("system", "STEP " + step + "/ " + MAX_STEPS, System.currentTimeMillis()));
+            trace.add(new Message("system", "STEP " + step + " / " + MAX_STEPS, System.currentTimeMillis()));
             try {
                 String llmResponse = callLlm(messages);
                 JSONObject parsed = parseLlmResponse(llmResponse);
 
-                // 看模型是给了工具调用还是最终答案
                 if (parsed.has("tool_call")) {
                     JSONObject tc = parsed.getJSONObject("tool_call");
-                    String toolName = tc.getString("name");
+                    String toolName = tc.optString("name", "");
                     JSONObject args = tc.has("arguments") ? tc.getJSONObject("arguments") : new JSONObject();
+
+                    // 参数校验：缺必填且无默认 → 不崩，把缺的喂回模型补齐（Operit 的做法）
+                    String missing = missingRequired(toolName, args);
+                    if (missing != null) {
+                        addMsg(messages, "assistant", llmResponse);
+                        addMsg(messages, "user",
+                                "Tool [" + toolName + "] is missing required parameter(s): "
+                                        + missing + ". Please provide all required parameters and call again.");
+                        trace.add(new Message("tool", "missing params: " + missing, System.currentTimeMillis()));
+                        continue;   // 下一步让模型补参数
+                    }
 
                     String result = dispatchTool(toolName, args);
                     trace.add(new Message("tool", toolName + " -> " + result, System.currentTimeMillis()));
-
-                    // 把工具结果喂回去，让模型继续
                     addMsg(messages, "assistant", llmResponse);
                     addMsg(messages, "user", "Tool [" + toolName + "] returned: " + result + ". Continue.");
                 } else {
-                    // 模型认为任务完成，返回最终答案
                     String answer = parsed.optString("answer", llmResponse);
                     trace.add(new Message("assistant", answer, System.currentTimeMillis()));
                     return answer;
@@ -87,33 +93,73 @@ public final class ReactAgent {
                 return "Agent stopped at step " + step + ": " + e.getMessage();
             }
         }
-        return "Reached max steps (" + MAX_STEPS + "). Last trace:\n" + trace.get(trace.size() - 1).text;
+        return "Reached max steps (" + MAX_STEPS + ").";
     }
 
-    // 分发工具调用
+    // 每个工具的必填参数 + 默认值。缺必填且无默认 → 返回缺失名单；否则 null（可执行）
+    private String missingRequired(String tool, JSONObject args) {
+        switch (tool) {
+            case "file_read":
+            case "file_info":
+            case "file_grep":
+                return need(args, "path", null);
+            case "file_write":
+                if (need(args, "path", null) != null) return "path";
+                return need(args, "content", "");
+            case "file_list":
+                return need(args, "path", fileTools.getWorkspace());
+            case "file_find":
+                if (need(args, "path", fileTools.getWorkspace()) != null) return "path";
+                return need(args, "name", null);
+            case "shell_exec":
+                return need(args, "command", null);
+            case "http_get":
+                return need(args, "url", null);
+            case "shell_detect":
+            case "memory_recall":
+                return null;
+            default:
+                return "unknown tool " + tool;
+        }
+    }
+
+    private String need(JSONObject args, String key, String def) {
+        if (args.has(key)) {
+            String v = args.optString(key, "").trim();
+            if (v.length() > 0) return null;
+        }
+        if (def != null) return null;   // 有默认值，不记缺失
+        return key;
+    }
+
+    private List<Message> recentWindow(List<Message> all, int n) {
+        if (all.size() <= n) return all;
+        return all.subList(all.size() - n, all.size());
+    }
+
+    // 工具分发。args 已校验，缺值用默认
     private String dispatchTool(String name, JSONObject args) {
         try {
             switch (name) {
                 case "file_read":
-                    return fileTools.read(args.getString("path"));
+                    return fileTools.read(str(args, "path", ""));
                 case "file_write":
-                    return fileTools.write(args.getString("path"), args.getString("content"));
+                    return fileTools.write(str(args, "path", ""), str(args, "content", ""));
                 case "file_list":
-                    return fileTools.list(args.optString("path", fileTools.getWorkspace()));
+                    return fileTools.list(str(args, "path", fileTools.getWorkspace()));
                 case "file_find":
-                    return fileTools.find(args.optString("path", fileTools.getWorkspace()),
-                            args.getString("name"));
+                    return fileTools.find(str(args, "path", fileTools.getWorkspace()), str(args, "name", ""));
                 case "file_grep":
-                    return fileTools.grep(args.getString("path"), args.getString("keyword"));
+                    return fileTools.grep(str(args, "path", ""), str(args, "keyword", ""));
                 case "file_info":
-                    return fileTools.info(args.optString("path", fileTools.getWorkspace()));
+                    return fileTools.info(str(args, "path", fileTools.getWorkspace()));
                 case "shell_exec":
-                    int timeout = args.has("timeout_ms") ? args.getInt("timeout_ms") : 15000;
-                    return shell.exec(args.getString("command"), timeout);
+                    int timeout = args.has("timeout_ms") ? args.optInt("timeout_ms", 15000) : 15000;
+                    return shell.exec(str(args, "command", ""), timeout);
                 case "shell_detect":
                     return shell.detectProot();
                 case "http_get":
-                    return httpGet(args.getString("url"));
+                    return httpGet(str(args, "url", ""));
                 case "memory_recall":
                     return "workspace: " + fileTools.getWorkspace();
                 default:
@@ -124,35 +170,35 @@ public final class ReactAgent {
         }
     }
 
-    // 构建系统提示（告诉模型可用的工具）
-    private String buildSystemPrompt() {
-        return "You are an AI agent running on an Android device. "
-                + "You can use tools to complete tasks. "
-                + "Available tools (respond with JSON):\n"
-                + "{\"tool_call\": {\"name\": \"<tool>\", \"arguments\": {...}}} for tool calls, or\n"
-                + "{\"answer\": \"<final answer>\"} when done.\n\n"
-                + "Tools:\n"
-                + "- file_read: {\"path\": \"<path>\"}\n"
-                + "- file_write: {\"path\": \"<path>\", \"content\": \"<text>\"}\n"
-                + "- file_list: {\"path\": \"<dir>\"}\n"
-                + "- file_find: {\"path\": \"<dir>\", \"name\": \"<filename>\"}\n"
-                + "- file_grep: {\"path\": \"<file>\", \"keyword\": \"<text>\"}\n"
-                + "- file_info: {\"path\": \"<path>\"}\n"
-                + "- shell_exec: {\"command\": \"<cmd>\", \"timeout_ms\": 15000}\n"
-                + "- shell_detect: {}\n"
-                + "- http_get: {\"url\": \"<url>\"}\n"
-                + "- memory_recall: {}\n\n"
-                + "Workspace: " + fileTools.getWorkspace() + "\n"
-                + "You have up to " + MAX_STEPS + " steps. Think step by step.";
+    private String str(JSONObject o, String key, String def) {
+        String v = o.optString(key, "");
+        return v.isEmpty() ? def : v;
     }
 
-    // 调 OpenAI /chat/completions（用 function calling 风格的 prompt）
+    private String buildSystemPrompt() {
+        return "You are an AI agent on an Android device. Complete tasks using tools. "
+                + "Respond as JSON: {\"tool_call\":{\"name\":\"<tool>\",\"arguments\":{...}}} to call a tool, "
+                + "or {\"answer\":\"<final>\"} to finish. Always provide ALL required arguments.\n"
+                + "Tools:\n"
+                + "- file_read {path}\n"
+                + "- file_write {path, content}\n"
+                + "- file_list {path}\n"
+                + "- file_find {path, name}\n"
+                + "- file_grep {path, keyword}\n"
+                + "- file_info {path}\n"
+                + "- shell_exec {command, timeout_ms}\n"
+                + "- shell_detect {}\n"
+                + "- http_get {url}\n"
+                + "- memory_recall {}\n"
+                + "Workspace: " + fileTools.getWorkspace() + "\n"
+                + "Up to " + MAX_STEPS + " steps. Think step by step.";
+    }
+
     private String callLlm(List<JSONObject> messages) throws Exception {
         JSONObject body = new JSONObject();
         body.put("model", cfg.model);
         body.put("temperature", cfg.temperature / 100.0);
         body.put("max_tokens", cfg.maxTokens);
-        // messages 是 List<JSONObject>，JSONArray 不能直接 put，手动拼
         JSONArray arr = new JSONArray();
         for (JSONObject m : messages) arr.put(m);
         body.put("messages", arr);
@@ -176,8 +222,8 @@ public final class ReactAgent {
 
         int code = conn.getResponseCode();
         InputStream is = (code >= 200 && code < 300) ? conn.getInputStream() : conn.getErrorStream();
+        ByteArrayOutputStream bo = new ByteArrayOutputStream();
         byte[] buf = new byte[8192];
-        java.io.ByteArrayOutputStream bo = new java.io.ByteArrayOutputStream();
         int n;
         while ((n = is.read(buf)) != -1) bo.write(buf, 0, n);
         is.close();
@@ -200,20 +246,16 @@ public final class ReactAgent {
         } catch (Exception ignored) {}
     }
 
-    // 解析模型返回（可能是 JSON 或纯文本）
     private JSONObject parseLlmResponse(String raw) {
         try {
-            // 尝试直接解析
             return new JSONObject(raw);
         } catch (Exception e) {
-            // 从文本里找 JSON 块
             int start = raw.indexOf('{');
             int end = raw.lastIndexOf('}');
             if (start >= 0 && end > start) {
                 try {
                     return new JSONObject(raw.substring(start, end + 1));
                 } catch (Exception e2) {
-                    // 纯文本答案
                     JSONObject o = new JSONObject();
                     try { o.put("answer", raw.trim()); } catch (Exception ignored) {}
                     return o;
@@ -225,18 +267,16 @@ public final class ReactAgent {
         }
     }
 
-    // 降级：没 Key 时单步本地模拟（带上历史轮数，说明是多轮对话）
     private String localFallback(String task, List<Message> history) {
         StringBuilder sb = new StringBuilder();
         sb.append("Task: ").append(task).append("\n");
         sb.append("Local engine (no API key configured)\n");
-        sb.append("Conversation rounds so far: ").append(history.size()).append("\n");
-        sb.append("Reply: 已收到「").append(task)
-          .append("」。当前处于离线本地模式，配置 OpenAI Key 后我会真正理解并回答你。");
+        sb.append("Rounds so far: ").append(history.size()).append("\n");
+        sb.append("Reply: 收到「").append(task)
+          .append("」。离线本地模式，配置 OpenAI Key 后我会真正理解并回答你。");
         return sb.toString();
     }
 
-    // 简单 HTTP GET
     private String httpGet(String url) {
         try {
             HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
@@ -244,13 +284,14 @@ public final class ReactAgent {
             conn.setReadTimeout(15000);
             int code = conn.getResponseCode();
             InputStream is = conn.getInputStream();
+            ByteArrayOutputStream bo = new ByteArrayOutputStream();
             byte[] buf = new byte[8192];
-            java.io.ByteArrayOutputStream bo = new java.io.ByteArrayOutputStream();
             int n;
             while ((n = is.read(buf)) != -1 && bo.size() < 65536) bo.write(buf, 0, n);
             is.close();
             conn.disconnect();
-            return "HTTP " + code + ": " + new String(bo.toByteArray(), StandardCharsets.UTF_8).substring(0, Math.min(4096, bo.size()));
+            String body = new String(bo.toByteArray(), StandardCharsets.UTF_8);
+            return "HTTP " + code + ": " + body.substring(0, Math.min(4096, body.length()));
         } catch (Exception e) {
             return "http error: " + e.getMessage();
         }

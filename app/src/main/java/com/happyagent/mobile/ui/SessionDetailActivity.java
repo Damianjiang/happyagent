@@ -26,7 +26,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Future;
 
-// 对话页：聊天气泡流 + 底部输入发送，支持多轮上下文，全程离线/在线可用
+// 对话页：聊天气泡流（user/tool/assistant 三类）+ 底部输入发送，多轮上下文，
+// 列表局部刷新，工具调用可见，全程离线/在线可用
 public class SessionDetailActivity extends AppCompatActivity {
 
     public static final String EXTRA_SESSION_ID = "session_id";
@@ -35,6 +36,7 @@ public class SessionDetailActivity extends AppCompatActivity {
     private EditText promptBox;
     private ImageButton sendBtn;
     private RecyclerView recycler;
+    private LinearLayoutManager layoutMgr;
 
     private String sessionId;
     private ChatAdapter adapter;
@@ -75,9 +77,13 @@ public class SessionDetailActivity extends AppCompatActivity {
         refreshStatus(s);
 
         adapter = new ChatAdapter();
-        recycler.setLayoutManager(new LinearLayoutManager(this));
+        layoutMgr = new LinearLayoutManager(this);
+        layoutMgr.setStackFromEnd(true);   // 从底部往上排，聊天习惯
+        recycler.setLayoutManager(layoutMgr);
         recycler.setAdapter(adapter);
-        ui = userAssistantOf(s.messages);
+        recycler.setNestedScrollingEnabled(false);
+
+        ui = chatOf(s.messages);
         adapter.submit(ui);
         updateEmpty();
         if (!ui.isEmpty()) scrollBottom();
@@ -94,9 +100,10 @@ public class SessionDetailActivity extends AppCompatActivity {
         if (p.isEmpty()) return;
         if (running != null && !running.isDone()) return;   // 正在跑就不重复发
 
-        // 立刻显示用户气泡
-        ui.add(new Message("user", p, System.currentTimeMillis()));
-        adapter.notifyItemInserted(ui.size() - 1);
+        // 立刻显示用户气泡（局部 insert，不全量刷新）
+        Message bubble = new Message("user", p, System.currentTimeMillis());
+        ui.add(bubble);
+        adapter.notifyTailAdded(1);
         updateEmpty();
         scrollBottom();
 
@@ -110,7 +117,7 @@ public class SessionDetailActivity extends AppCompatActivity {
                     checkRunning();
                 }
             };
-            mainHandler.postDelayed(pollTask, 200);
+            mainHandler.postDelayed(pollTask, 250);
         } catch (Exception e) {
             CrashHandler.showFrom(e);
         }
@@ -119,13 +126,18 @@ public class SessionDetailActivity extends AppCompatActivity {
     private void checkRunning() {
         if (running == null) return;
         if (!running.isDone()) {
-            mainHandler.postDelayed(pollTask, 200);
+            mainHandler.postDelayed(pollTask, 250);
             return;
         }
         try {
             Session s = running.get();
-            ui = userAssistantOf(s.messages);
-            adapter.submit(ui);
+            // 全量刷新为持久化后的对话；只 insert 新增段（会话是纯追加）
+            int oldCount = adapter.count();
+            List<Message> full = chatOf(s.messages);
+            ui = full;
+            adapter.submit(full);
+            int added = full.size() - oldCount;
+            if (added > 0) adapter.notifyTailAdded(added);
             refreshStatus(s);
             updateEmpty();
             scrollBottom();
@@ -146,11 +158,11 @@ public class SessionDetailActivity extends AppCompatActivity {
         status.setBackgroundResource(bg);
     }
 
-    // 只保留 user / assistant 用于聊天流
-    private List<Message> userAssistantOf(List<Message> all) {
+    // 聊天流展示 user / tool / assistant 三类（工具调用可见，对齐 Operit）
+    private List<Message> chatOf(List<Message> all) {
         List<Message> out = new ArrayList<Message>();
         for (Message m : all) {
-            if (m.role.equals("user") || m.role.equals("assistant")) out.add(m);
+            if (m.role.equals("user") || m.role.equals("tool") || m.role.equals("assistant")) out.add(m);
         }
         return out;
     }
@@ -169,7 +181,9 @@ public class SessionDetailActivity extends AppCompatActivity {
     }
 
     private void scrollBottom() {
-        recycler.post(() -> recycler.scrollToPosition(ui.size() - 1));
+        recycler.post(() -> {
+            if (adapter.count() > 0) layoutMgr.scrollToPosition(adapter.count() - 1);
+        });
     }
 
     @Override
@@ -179,14 +193,25 @@ public class SessionDetailActivity extends AppCompatActivity {
         super.onDestroy();
     }
 
-    // 聊天气泡 adapter：user 靠右、assistant 靠左
+    // 聊天气泡 adapter：user 靠右、assistant 靠左、tool 中间小灰字
     static class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.VH> {
         private final List<Message> items = new ArrayList<Message>();
+
+        int count() {
+            return items.size();
+        }
 
         void submit(List<Message> data) {
             items.clear();
             items.addAll(data);
             notifyDataSetChanged();
+        }
+
+        // 只标记新增的尾部条目，避免全量 rebind（聊天性能关键）
+        void notifyTailAdded(int n) {
+            int from = items.size() - n;
+            if (from < 0) from = 0;
+            notifyItemRangeInserted(from, n);
         }
 
         @NonNull
@@ -201,12 +226,17 @@ public class SessionDetailActivity extends AppCompatActivity {
         public void onBindViewHolder(@NonNull VH h, int pos) {
             Message m = items.get(pos);
             boolean isUser = m.role.equals("user");
+            boolean isTool = m.role.equals("tool");
+            boolean isAi = m.role.equals("assistant");
             h.userBubble.setVisibility(isUser ? View.VISIBLE : View.GONE);
-            h.aiWrap.setVisibility(isUser ? View.GONE : View.VISIBLE);
+            h.aiWrap.setVisibility(isAi ? View.VISIBLE : View.GONE);
+            h.toolLine.setVisibility(isTool ? View.VISIBLE : View.GONE);
             if (isUser) {
                 h.userBubble.setText(m.text);
-            } else {
+            } else if (isAi) {
                 h.aiBubble.setText(m.text);
+            } else if (isTool) {
+                h.toolLine.setText(m.text);
             }
         }
 
@@ -216,7 +246,7 @@ public class SessionDetailActivity extends AppCompatActivity {
         }
 
         static class VH extends RecyclerView.ViewHolder {
-            final TextView userBubble, aiBubble;
+            final TextView userBubble, aiBubble, toolLine;
             final View aiWrap;
 
             VH(View v) {
@@ -224,6 +254,7 @@ public class SessionDetailActivity extends AppCompatActivity {
                 userBubble = v.findViewById(R.id.bubble_user);
                 aiBubble = v.findViewById(R.id.bubble_ai);
                 aiWrap = v.findViewById(R.id.bubble_ai_wrap);
+                toolLine = v.findViewById(R.id.bubble_tool);
             }
         }
     }

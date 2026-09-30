@@ -25,6 +25,7 @@ public class ToolsFragment extends Fragment {
 
     private RecyclerView recycler;
     private ProgressBar progress;
+    private TextView empty;
     private ToolAdapter adapter;
 
     @Override
@@ -32,6 +33,7 @@ public class ToolsFragment extends Fragment {
         View v = inflater.inflate(R.layout.fragment_tools, container, false);
         recycler = v.findViewById(R.id.tools_recycler);
         progress = v.findViewById(R.id.tools_progress);
+        empty = v.findViewById(R.id.tools_empty);
         recycler.setLayoutManager(new LinearLayoutManager(getContext()));
         adapter = new ToolAdapter(new ArrayList<Tool>());
         recycler.setAdapter(adapter);
@@ -52,6 +54,8 @@ public class ToolsFragment extends Fragment {
                         if (!isAdded()) return;
                         progress.setVisibility(View.GONE);
                         adapter.update(data);
+                        empty.setVisibility(data.isEmpty() ? View.VISIBLE : View.GONE);
+                        recycler.setVisibility(data.isEmpty() ? View.GONE : View.VISIBLE);
                     }
                 });
             }

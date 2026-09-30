@@ -7,17 +7,23 @@
     android:background="?android:colorBackground">
 
     <com.google.android.material.appbar.MaterialToolbar
+        android:id="@+id/toold_toolbar"
         android:layout_width="match_parent"
         android:layout_height="?attr/actionBarSize"
         android:background="?attr/colorSurface"
-        app:navigationIcon="@drawable/ic_close"
-        app:title="Tool details" />
+        app:navigationIcon="@drawable/ic_back"
+        app:title="工具详情"
+        app:titleTextColor="?attr/colorOnSurface" />
 
     <ScrollView
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:padding="20dp">
+        android:clipToPadding="false"
+        android:paddingLeft="@dimen/list_inset"
+        android:paddingRight="@dimen/list_inset"
+        android:paddingTop="@dimen/space_l"
+        android:paddingBottom="@dimen/space_l">
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -36,20 +42,19 @@
                 android:id="@+id/toold_category"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
+                android:layout_marginTop="@dimen/space_s"
                 android:background="@drawable/bg_chip"
-                android:paddingStart="8dp"
-                android:paddingEnd="8dp"
+                android:paddingLeft="8dp"
+                android:paddingRight="8dp"
                 android:paddingTop="2dp"
                 android:paddingBottom="2dp"
                 android:textSize="11sp"
-                android:textStyle="bold"
                 android:textColor="?attr/colorOnSurfaceVariant" />
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="18dp"
+                android:layout_marginTop="@dimen/space_xl"
                 android:text="说明"
                 style="@style/SectionHeader" />
 
@@ -57,38 +62,51 @@
                 android:id="@+id/toold_desc"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
+                android:layout_marginTop="@dimen/space_s"
                 android:textSize="14sp"
-                android:lineSpacingExtra="3dp"
+                android:lineSpacingExtra="4dp"
                 android:textColor="?attr/colorOnSurface" />
 
             <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="20dp"
-                app:cardCornerRadius="10dp"
-                app:cardElevation="1dp"
+                android:layout_marginTop="@dimen/space_l"
+                app:cardCornerRadius="12dp"
+                app:cardElevation="0dp"
                 app:cardBackgroundColor="?attr/colorSurface">
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="horizontal"
-                    android:padding="16dp"
+                    android:padding="@dimen/space_l"
                     android:gravity="center_vertical">
 
-                    <TextView
+                    <LinearLayout
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:text="已启用"
-                        android:textSize="15sp"
-                        android:textColor="?attr/colorOnSurface" />
+                        android:orientation="vertical">
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="启用该工具"
+                            android:textSize="15sp"
+                            android:textColor="?attr/colorOnSurface" />
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:text="关闭后下次任务不再调用它"
+                            android:textSize="12sp"
+                            android:textColor="?attr/colorOnSurfaceVariant" />
+                    </LinearLayout>
 
                     <com.google.android.material.switchmaterial.SwitchMaterial
                         android:id="@+id/toold_switch"
                         android:layout_width="wrap_content"
-                        android:layout_height="wrap_content" />
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="@dimen/space_m" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
@@ -98,17 +116,18 @@
     <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="?attr/colorSurface"
-        android:padding="12dp">
+        android:background="?attr/colorSurface">
 
         <ImageButton
             android:id="@+id/toold_close"
             android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:src="@drawable/ic_close"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:layout_gravity="end"
-            android:contentDescription="Close" />
+            android:layout_height="48dp"
+            android:paddingLeft="@dimen/space_l"
+            android:paddingRight="@dimen/space_l"
+            android:src="@drawable/ic_back"
+            android:background="?attr/selectableItemBackground"
+            android:layout_gravity="center"
+            android:contentDescription="返回" />
     </FrameLayout>
 
 </LinearLayout>
