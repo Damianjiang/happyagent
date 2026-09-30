@@ -88,7 +88,7 @@ public class CrashActivity extends AppCompatActivity {
         try {
             Intent i = new Intent(Intent.ACTION_SEND);
             i.setType("text/plain");
-            i.putExtra(Intent.EXTRA_SUBJECT, "Agen 移动版崩溃日志");
+            i.putExtra(Intent.EXTRA_SUBJECT, "爱思办公崩溃日志");
             i.putExtra(Intent.EXTRA_TEXT, text);
             startActivity(Intent.createChooser(i, "分享崩溃日志"));
         } catch (Exception ignored) {

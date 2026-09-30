@@ -318,7 +318,7 @@ public final class AgentBackend {
         msgs.add(new Message("assistant",
                 "Hello! I'm your local agent. Create a session and run a task; "
                         + "I'll show a full plan -> tool -> summary trace.", now - 60000));
-        sessions.add(new Session("s-seed-1", "Welcome to Agen Mobile", config.agentName, 2, now, msgs));
+        sessions.add(new Session("s-seed-1", "欢迎使用爱思办公", config.agentName, 2, now, msgs));
         persistNow();
     }
 
