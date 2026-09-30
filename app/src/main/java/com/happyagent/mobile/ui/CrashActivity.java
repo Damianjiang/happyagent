@@ -80,7 +80,7 @@ public class CrashActivity extends AppCompatActivity {
     private boolean copy(String text) {
         ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
         if (cm == null) return false;
-        cm.setPrimaryClip(ClipData.newPlainText("agen-crash-log", text));
+        cm.setPrimaryClip(ClipData.newPlainText("happy-agent-crash-log", text));
         return true;
     }
 

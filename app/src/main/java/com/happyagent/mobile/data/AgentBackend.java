@@ -9,6 +9,9 @@ import com.happyagent.mobile.model.Models.Message;
 import com.happyagent.mobile.model.Models.Session;
 import com.happyagent.mobile.model.Models.Tool;
 
+import org.json.JSONArray;
+import org.json.JSONObject;
+
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -16,6 +19,11 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.Serializable;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
@@ -142,7 +150,13 @@ public final class AgentBackend {
                 List<Message> trace = new ArrayList<Message>();
                 trace.add(new Message("user", prompt, System.currentTimeMillis()));
                 try {
-                    String summary = localEngine(prompt, model, trace);
+                    String summary;
+                    // 配了 OpenAI Key 就调真接口，否则降级本地模拟
+                    if (getConfig().hasOpenAIKey()) {
+                        summary = openaiEngine(prompt, model, trace);
+                    } else {
+                        summary = localEngine(prompt, model, trace);
+                    }
                     synchronized (lock) {
                         session.messages.add(new Message("assistant", summary, System.currentTimeMillis()));
                         session.status = 2;
@@ -212,6 +226,76 @@ public final class AgentBackend {
             this.config = c;
         }
         persist();
+    }
+
+    // 真调 OpenAI（或任意 OpenAI 兼容接口）：POST /chat/completions，带 Bearer Key
+    // 用的是 Android 自带的 HttpURLConnection + org.json，不引第三方依赖，API 23 安全
+    private String openaiEngine(String prompt, String model, List<Message> trace) {
+        final Config cfg = getConfig();
+        trace.add(new Message("system", "CALL -> " + cfg.openaiBaseUrl + "/chat/completions (" + model + ")",
+                System.currentTimeMillis()));
+        try {
+            JSONObject body = new JSONObject();
+            JSONArray messages = new JSONArray();
+            JSONObject m = new JSONObject();
+            m.put("role", "user");
+            m.put("content", prompt);
+            messages.put(m);
+            body.put("model", model);
+            body.put("messages", messages);
+            body.put("temperature", cfg.temperature / 100.0);
+            body.put("max_tokens", cfg.maxTokens);
+
+            // 归一化 Base URL：去掉结尾斜杠，补上 /chat/completions
+            String base = cfg.openaiBaseUrl.trim();
+            while (base.endsWith("/")) base = base.substring(0, base.length() - 1);
+            String url = base + "/chat/completions";
+
+            HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
+            conn.setRequestMethod("POST");
+            conn.setDoOutput(true);
+            conn.setConnectTimeout(30000);
+            conn.setReadTimeout(60000);
+            conn.setRequestProperty("Authorization", "Bearer " + cfg.openaiKey.trim());
+            conn.setRequestProperty("Content-Type", "application/json");
+
+            byte[] out = body.toString().getBytes(StandardCharsets.UTF_8);
+            OutputStream os = conn.getOutputStream();
+            os.write(out);
+            os.flush();
+            os.close();
+
+            int code = conn.getResponseCode();
+            InputStream is = (code >= 200 && code < 300) ? conn.getInputStream() : conn.getErrorStream();
+            String resp = readAll(is);
+            conn.disconnect();
+
+            if (code < 200 || code >= 300) {
+                throw new IOException("HTTP " + code + " " + resp);
+            }
+
+            // 取 choices[0].message.content
+            JSONObject jo = new JSONObject(resp);
+            JSONArray choices = jo.getJSONArray("choices");
+            String content = choices.getJSONObject(0).getJSONObject("message").getString("content");
+            trace.add(new Message("tool", "openai -> " + content, System.currentTimeMillis()));
+            return content;
+        } catch (Exception e) {
+            // 真接口挂了就降级本地模拟，保证任务仍能出结果
+            trace.add(new Message("system", "OpenAI 调用失败（" + e.getMessage() + "），已降级本地模拟",
+                    System.currentTimeMillis()));
+            return localEngine(prompt, model, trace);
+        }
+    }
+
+    private String readAll(InputStream is) throws IOException {
+        if (is == null) return "";
+        java.io.ByteArrayOutputStream bo = new java.io.ByteArrayOutputStream();
+        byte[] buf = new byte[8192];
+        int n;
+        while ((n = is.read(buf)) != -1) bo.write(buf, 0, n);
+        is.close();
+        return new String(bo.toByteArray(), StandardCharsets.UTF_8);
     }
 
     // 本地引擎：不走网络，把启用的工具挨个跑一遍，拼出可查的轨迹

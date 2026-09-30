@@ -17,10 +17,10 @@ import com.happyagent.mobile.R;
 import com.happyagent.mobile.data.AgentBackend;
 import com.happyagent.mobile.model.Models.Config;
 
-// 运行配置页：改模型、温度、token、工作区这些，保存后下次任务直接生效
+// 运行配置页：模型、温度、token、工作区、OpenAI Key / Base URL
 public class ConfigFragment extends Fragment {
 
-    private EditText modelBox, agentBox, workspaceBox, maxTokensBox;
+    private EditText modelBox, agentBox, workspaceBox, maxTokensBox, openaiKeyBox, openaiUrlBox;
     private SeekBar tempBar;
     private TextView tempLabel;
     private com.google.android.material.switchmaterial.SwitchMaterial autoCommit;
@@ -31,9 +31,11 @@ public class ConfigFragment extends Fragment {
         modelBox = v.findViewById(R.id.config_model);
         agentBox = v.findViewById(R.id.config_agent);
         workspaceBox = v.findViewById(R.id.config_workspace);
+        maxTokensBox = v.findViewById(R.id.config_max_tokens);
+        openaiKeyBox = v.findViewById(R.id.config_openai_key);
+        openaiUrlBox = v.findViewById(R.id.config_openai_url);
         tempBar = v.findViewById(R.id.config_temp);
         tempLabel = v.findViewById(R.id.config_temp_label);
-        maxTokensBox = v.findViewById(R.id.config_max_tokens);
         autoCommit = v.findViewById(R.id.config_autocommit);
         Button saveBtn = v.findViewById(R.id.config_save);
 
@@ -42,6 +44,8 @@ public class ConfigFragment extends Fragment {
         agentBox.setText(c.agentName);
         workspaceBox.setText(c.workspace);
         maxTokensBox.setText(String.valueOf(c.maxTokens));
+        openaiKeyBox.setText(c.openaiKey);
+        openaiUrlBox.setText(c.openaiBaseUrl);
         autoCommit.setChecked(c.autoCommit);
 
         tempBar.setMax(2000);
@@ -52,14 +56,8 @@ public class ConfigFragment extends Fragment {
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
                 tempLabel.setText("温度: " + (progress / 100.0));
             }
-
-            @Override
-            public void onStartTrackingTouch(SeekBar seekBar) {
-            }
-
-            @Override
-            public void onStopTrackingTouch(SeekBar seekBar) {
-            }
+            @Override public void onStartTrackingTouch(SeekBar seekBar) {}
+            @Override public void onStopTrackingTouch(SeekBar seekBar) {}
         });
 
         saveBtn.setOnClickListener(new View.OnClickListener() {
@@ -71,7 +69,9 @@ public class ConfigFragment extends Fragment {
                         tempBar.getProgress(),
                         parseIntSafe(maxTokensBox.getText().toString(), 4096),
                         autoCommit.isChecked(),
-                        workspaceBox.getText().toString().trim());
+                        workspaceBox.getText().toString().trim(),
+                        openaiKeyBox.getText().toString().trim(),
+                        openaiUrlBox.getText().toString().trim());
                 AgentBackend.get().updateConfig(nc);
                 Toast.makeText(getContext(), "配置已保存", Toast.LENGTH_SHORT).show();
             }
@@ -80,10 +80,7 @@ public class ConfigFragment extends Fragment {
     }
 
     private int parseIntSafe(String s, int def) {
-        try {
-            return Integer.parseInt(s.trim());
-        } catch (Exception e) {
-            return def;
-        }
+        try { return Integer.parseInt(s.trim()); }
+        catch (Exception e) { return def; }
     }
 }

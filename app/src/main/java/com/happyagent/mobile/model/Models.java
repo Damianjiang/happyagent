@@ -66,12 +66,15 @@ public final class Models {
     }
 
     public static class Config implements Serializable {
-        public String agentName = "Agen-Primary";
-        public String model = "agnes-3.0-flash";
+        public String agentName = "Happy-Agent";
+        public String model = "gpt-4o-mini";
         public int temperature = 0;      // 百分制，0~2000
         public int maxTokens = 4096;
         public boolean autoCommit = true;
-        public String workspace = "~/.agnes";
+        public String workspace = "~/workspace";
+        // OpenAI 接入：填了 Key 就调真 API，没填就降级本地模拟
+        public String openaiKey = "";
+        public String openaiBaseUrl = "https://api.openai.com/v1";
 
         public Config() {}
 
@@ -85,13 +88,29 @@ public final class Models {
             this.workspace = workspace;
         }
 
+        public Config(String agentName, String model, int temperature,
+                     int maxTokens, boolean autoCommit, String workspace,
+                     String openaiKey, String openaiBaseUrl) {
+            this(agentName, model, temperature, maxTokens, autoCommit, workspace);
+            this.openaiKey = openaiKey == null ? "" : openaiKey;
+            this.openaiBaseUrl = openaiBaseUrl == null || openaiBaseUrl.isEmpty()
+                    ? "https://api.openai.com/v1" : openaiBaseUrl;
+        }
+
+        public boolean hasOpenAIKey() {
+            return openaiKey != null && openaiKey.trim().length() > 0;
+        }
+
         @Override
         public String toString() {
+            String key = hasOpenAIKey() ? "已配置（" + openaiKey.substring(0, Math.min(8, openaiKey.length())) + "…）" : "未配置";
             return "Agent: " + agentName + "\nModel: " + model
                     + "\nTemperature: " + (temperature / 100.0)
                     + "\nMax tokens: " + maxTokens
                     + "\nAuto commit: " + autoCommit
-                    + "\nWorkspace: " + workspace;
+                    + "\nWorkspace: " + workspace
+                    + "\nOpenAI Base URL: " + openaiBaseUrl
+                    + "\nOpenAI Key: " + key;
         }
     }
 }

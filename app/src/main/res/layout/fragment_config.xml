@@ -114,6 +114,52 @@
             android:inputType="text"
             android:textColor="?attr/colorOnSurface" />
 
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="18dp"
+            android:text="OpenAI 接入"
+            style="@style/SectionHeader" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="填了 API Key 就调真接口，留空则降级本地模拟"
+            android:textSize="12sp"
+            android:textColor="?attr/colorOnSurfaceVariant" />
+
+        <EditText
+            android:id="@+id/config_openai_key"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:background="@drawable/bg_input"
+            android:padding="14dp"
+            android:textSize="14sp"
+            android:inputType="textPassword"
+            android:hint="sk-..."
+            android:textColor="?attr/colorOnSurface" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:text="OpenAI Base URL"
+            style="@style/SectionHeader" />
+
+        <EditText
+            android:id="@+id/config_openai_url"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:background="@drawable/bg_input"
+            android:padding="14dp"
+            android:textSize="14sp"
+            android:inputType="textUri"
+            android:hint="https://api.openai.com/v1"
+            android:textColor="?attr/colorOnSurface" />
+
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
