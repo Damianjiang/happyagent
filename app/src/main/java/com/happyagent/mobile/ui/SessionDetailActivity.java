@@ -1,33 +1,45 @@
 package com.happyagent.mobile.ui;
 
 import android.os.Bundle;
+import android.view.LayoutInflater;
 import android.view.View;
-import android.widget.Button;
+import android.view.ViewGroup;
 import android.widget.EditText;
-import android.widget.ProgressBar;
+import android.widget.ImageButton;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
+
+import com.google.android.material.appbar.MaterialToolbar;
 
 import com.happyagent.mobile.CrashHandler;
 import com.happyagent.mobile.R;
 import com.happyagent.mobile.data.AgentBackend;
+import com.happyagent.mobile.model.Models.Message;
 import com.happyagent.mobile.model.Models.Session;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.Future;
 
-// 会话详情：输入任务 -> 跑本地引擎 -> 显示"计划/工具/总结"轨迹
+// 对话页：聊天气泡流 + 底部输入发送，支持多轮上下文，全程离线/在线可用
 public class SessionDetailActivity extends AppCompatActivity {
 
     public static final String EXTRA_SESSION_ID = "session_id";
 
-    private TextView title, agent, status, summary, modelLabel;
+    private TextView modelLabel, status, empty;
     private EditText promptBox;
-    private Button runBtn;
-    private ProgressBar progress;
+    private ImageButton sendBtn;
+    private RecyclerView recycler;
 
     private String sessionId;
+    private ChatAdapter adapter;
+    private List<Message> ui = new ArrayList<Message>();
+
     private Future<Session> running;
     private android.os.Handler mainHandler;
     private Runnable pollTask;
@@ -40,14 +52,12 @@ public class SessionDetailActivity extends AppCompatActivity {
         sessionId = getIntent().getStringExtra(EXTRA_SESSION_ID);
         mainHandler = new android.os.Handler(getMainLooper());
 
-        title = findViewById(R.id.detail_title);
-        agent = findViewById(R.id.detail_agent);
-        status = findViewById(R.id.detail_status);
-        summary = findViewById(R.id.detail_summary);
         modelLabel = findViewById(R.id.detail_model);
+        status = findViewById(R.id.detail_status);
         promptBox = findViewById(R.id.detail_prompt);
-        runBtn = findViewById(R.id.detail_run);
-        progress = findViewById(R.id.detail_progress);
+        sendBtn = findViewById(R.id.detail_send);
+        recycler = findViewById(R.id.chat_recycler);
+        empty = findViewById(R.id.chat_empty);
 
         AgentBackend backend = AgentBackend.get();
         Session s = backend.getSession(sessionId);
@@ -56,72 +66,165 @@ public class SessionDetailActivity extends AppCompatActivity {
             finish();
             return;
         }
-        title.setText(s.title);
-        agent.setText(s.agent);
-        refreshStatus(s);
-        modelLabel.setText("模型: " + backend.getConfig().model);
-        if (!s.messages.isEmpty()) {
-            summary.setText(s.messages.get(s.messages.size() - 1).text);
-        }
 
-        runBtn.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                String p = promptBox.getText().toString().trim();
-                if (p.isEmpty()) {
-                    Toast.makeText(SessionDetailActivity.this, "先输入任务", Toast.LENGTH_SHORT).show();
-                    return;
-                }
-                runBtn.setEnabled(false);
-                progress.setVisibility(View.VISIBLE);
-                summary.setText("正在执行…");
-                try {
-                    running = AgentBackend.get().runTask(sessionId, p, AgentBackend.get().getConfig().model);
-                    pollTask = new Runnable() {
-                        @Override
-                        public void run() {
-                            checkRunning();
-                        }
-                    };
-                    mainHandler.postDelayed(pollTask, 150);
-                } catch (Exception e) {
-                    CrashHandler.showFrom(e);
-                }
-            }
+        MaterialToolbar toolbar = findViewById(R.id.detail_toolbar);
+        toolbar.setTitle(s.title);
+        toolbar.setNavigationOnClickListener(v -> finish());
+
+        modelLabel.setText("模型: " + backend.getConfig().model);
+        refreshStatus(s);
+
+        adapter = new ChatAdapter();
+        recycler.setLayoutManager(new LinearLayoutManager(this));
+        recycler.setAdapter(adapter);
+        ui = userAssistantOf(s.messages);
+        adapter.submit(ui);
+        updateEmpty();
+        if (!ui.isEmpty()) scrollBottom();
+
+        sendBtn.setOnClickListener(v -> send());
+        promptBox.setOnEditorActionListener((tv, actionId, event) -> {
+            send();
+            return true;
         });
     }
 
-    // 每 150ms 看一眼任务完没完，完了就收尾
+    private void send() {
+        String p = promptBox.getText().toString().trim();
+        if (p.isEmpty()) return;
+        if (running != null && !running.isDone()) return;   // 正在跑就不重复发
+
+        // 立刻显示用户气泡
+        ui.add(new Message("user", p, System.currentTimeMillis()));
+        adapter.notifyItemInserted(ui.size() - 1);
+        updateEmpty();
+        scrollBottom();
+
+        promptBox.setText("");
+        sendBtn.setEnabled(false);
+        try {
+            running = AgentBackend.get().runTask(sessionId, p, AgentBackend.get().getConfig().model);
+            pollTask = new Runnable() {
+                @Override
+                public void run() {
+                    checkRunning();
+                }
+            };
+            mainHandler.postDelayed(pollTask, 200);
+        } catch (Exception e) {
+            CrashHandler.showFrom(e);
+        }
+    }
+
     private void checkRunning() {
         if (running == null) return;
         if (!running.isDone()) {
-            mainHandler.postDelayed(pollTask, 150);
+            mainHandler.postDelayed(pollTask, 200);
             return;
         }
         try {
-            final Session s = running.get();
-            progress.setVisibility(View.GONE);
-            runBtn.setEnabled(true);
+            Session s = running.get();
+            ui = userAssistantOf(s.messages);
+            adapter.submit(ui);
             refreshStatus(s);
-            if (!s.messages.isEmpty()) {
-                summary.setText(s.messages.get(s.messages.size() - 1).text);
+            updateEmpty();
+            scrollBottom();
+            if (s.status == 3) {
+                Toast.makeText(this, "任务失败：" + lastSystem(s), Toast.LENGTH_LONG).show();
             }
-            Toast.makeText(this, "任务完成", Toast.LENGTH_SHORT).show();
-        } catch (Exception e) {
-            progress.setVisibility(View.GONE);
-            runBtn.setEnabled(true);
+        } catch (Exception ignored) {
+        } finally {
+            running = null;
+            sendBtn.setEnabled(true);
         }
     }
 
     private void refreshStatus(Session s) {
         status.setText(s.statusLabel());
+        int bg = s.status == 0 ? R.drawable.bg_status_running
+                : (s.status == 3 ? R.drawable.bg_status_failed : R.drawable.bg_status_done);
+        status.setBackgroundResource(bg);
+    }
+
+    // 只保留 user / assistant 用于聊天流
+    private List<Message> userAssistantOf(List<Message> all) {
+        List<Message> out = new ArrayList<Message>();
+        for (Message m : all) {
+            if (m.role.equals("user") || m.role.equals("assistant")) out.add(m);
+        }
+        return out;
+    }
+
+    private String lastSystem(Session s) {
+        for (int i = s.messages.size() - 1; i >= 0; i--) {
+            Message m = s.messages.get(i);
+            if (m.role.equals("system")) return m.text;
+        }
+        return "未知错误";
+    }
+
+    private void updateEmpty() {
+        empty.setVisibility(ui.isEmpty() ? View.VISIBLE : View.GONE);
+        recycler.setVisibility(ui.isEmpty() ? View.GONE : View.VISIBLE);
+    }
+
+    private void scrollBottom() {
+        recycler.post(() -> recycler.scrollToPosition(ui.size() - 1));
     }
 
     @Override
     protected void onDestroy() {
-        // 清掉挂着的轮询，避免页面关了还在后台找
         if (pollTask != null) mainHandler.removeCallbacks(pollTask);
         if (running != null) running.cancel(true);
         super.onDestroy();
+    }
+
+    // 聊天气泡 adapter：user 靠右、assistant 靠左
+    static class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.VH> {
+        private final List<Message> items = new ArrayList<Message>();
+
+        void submit(List<Message> data) {
+            items.clear();
+            items.addAll(data);
+            notifyDataSetChanged();
+        }
+
+        @NonNull
+        @Override
+        public VH onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+            View v = LayoutInflater.from(parent.getContext())
+                    .inflate(R.layout.item_chat_message, parent, false);
+            return new VH(v);
+        }
+
+        @Override
+        public void onBindViewHolder(@NonNull VH h, int pos) {
+            Message m = items.get(pos);
+            boolean isUser = m.role.equals("user");
+            h.userBubble.setVisibility(isUser ? View.VISIBLE : View.GONE);
+            h.aiWrap.setVisibility(isUser ? View.GONE : View.VISIBLE);
+            if (isUser) {
+                h.userBubble.setText(m.text);
+            } else {
+                h.aiBubble.setText(m.text);
+            }
+        }
+
+        @Override
+        public int getItemCount() {
+            return items.size();
+        }
+
+        static class VH extends RecyclerView.ViewHolder {
+            final TextView userBubble, aiBubble;
+            final View aiWrap;
+
+            VH(View v) {
+                super(v);
+                userBubble = v.findViewById(R.id.bubble_user);
+                aiBubble = v.findViewById(R.id.bubble_ai);
+                aiWrap = v.findViewById(R.id.bubble_ai_wrap);
+            }
+        }
     }
 }

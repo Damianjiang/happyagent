@@ -86,6 +86,9 @@ public class SettingsActivity extends AppCompatActivity {
         });
 
         findViewById(R.id.set_back).setOnClickListener(v -> finish());
+
+        // 版本卡点开关于
+        findViewById(R.id.set_about_card).setOnClickListener(v -> AboutDialog.show(this));
     }
 
     private void setAccent(String color) {

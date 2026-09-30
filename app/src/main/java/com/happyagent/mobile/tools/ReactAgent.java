@@ -35,20 +35,26 @@ public final class ReactAgent {
         this.trace = trace;
     }
 
-    // 跑多步循环，返回最终答案
-    public String run(String task) {
+    // 跑多步循环。history 是本会话之前已有的 user/assistant 对话，喂给 LLM 形成多轮上下文
+    public String run(String task, List<Message> history) {
         // 系统提示：告诉模型它能用什么工具
         String systemPrompt = buildSystemPrompt();
         trace.add(new Message("system", "PLAN: " + task, System.currentTimeMillis()));
 
-        // 如果没配 OpenAI Key，走本地单步模拟（和之前一样）
+        // 如果没配 OpenAI Key，走本地单步模拟（带上历史长度，说明是多轮）
         if (!cfg.hasOpenAIKey()) {
-            return localFallback(task);
+            return localFallback(task, history);
         }
 
-        // 多步循环
+        // 多步循环：先放历史对话，再放本轮 user 提问
         List<JSONObject> messages = new ArrayList<JSONObject>();
         addMsg(messages, "system", systemPrompt);
+        for (Message h : history) {
+            // 只把 user / assistant 喂回去，形成多轮上下文
+            if (h.role.equals("user") || h.role.equals("assistant")) {
+                addMsg(messages, h.role, h.text);
+            }
+        }
         addMsg(messages, "user", task);
 
         for (int step = 1; step <= MAX_STEPS; step++) {
@@ -219,13 +225,14 @@ public final class ReactAgent {
         }
     }
 
-    // 降级：没 Key 时单步本地模拟
-    private String localFallback(String task) {
+    // 降级：没 Key 时单步本地模拟（带上历史轮数，说明是多轮对话）
+    private String localFallback(String task, List<Message> history) {
         StringBuilder sb = new StringBuilder();
         sb.append("Task: ").append(task).append("\n");
         sb.append("Local engine (no API key configured)\n");
-        sb.append("Steps completed: 1\n");
-        sb.append("Result: task acknowledged in local mode.\n");
+        sb.append("Conversation rounds so far: ").append(history.size()).append("\n");
+        sb.append("Reply: 已收到「").append(task)
+          .append("」。当前处于离线本地模式，配置 OpenAI Key 后我会真正理解并回答你。");
         return sb.toString();
     }
 

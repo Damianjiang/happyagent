@@ -106,8 +106,7 @@ public class MainActivity extends AppCompatActivity {
             return true;
         }
         if (id == R.id.action_about) {
-            Snackbar.make(findViewById(R.id.coordinator),
-                    "Happy Agent 1.0 - 端侧 agent 引擎", Snackbar.LENGTH_LONG).show();
+            AboutDialog.show(this);
             return true;
         }
         return super.onOptionsItemSelected(item);

@@ -153,25 +153,27 @@ public final class AgentBackend {
                 List<Message> trace = new ArrayList<Message>();
                 trace.add(new Message("user", prompt, System.currentTimeMillis()));
                 try {
-                    String summary;
-                    // 走多步 ReAct agent：有 OpenAI Key 时 LLM 驱动工具调用，没 Key 降级本地模拟
-                    ReactAgent agent = new ReactAgent(getConfig(),
-                            new FileTools(HappyAgentApplication.get()),
-                            new ShellExecutor(HappyAgentApplication.get()),
-                            trace);
-                    summary = agent.run(prompt);
-                    // 把轨迹里的关键节点也并进会话消息
-                    for (Message m : trace) {
-                        if (m.role.equals("system") || m.role.equals("tool")) {
-                            session.messages.add(m);
-                        }
-                    }
-                    synchronized (lock) {
-                        session.messages.add(new Message("assistant", summary, System.currentTimeMillis()));
-                        session.status = 2;
-                        session.updatedAt = System.currentTimeMillis();
-                    }
-                    persistNow();
+                      // 取本会话已有 user/assistant 对话作为多轮上下文
+                      List<Message> history = new ArrayList<Message>();
+                      for (Message m : session.messages) {
+                          if (m.role.equals("user") || m.role.equals("assistant")) {
+                              history.add(m);
+                          }
+                      }
+                      // 多步 ReAct：有 OpenAI Key 时 LLM 带历史驱动工具，没 Key 降级本地
+                      ReactAgent agent = new ReactAgent(getConfig(),
+                              new FileTools(HappyAgentApplication.get()),
+                              new ShellExecutor(HappyAgentApplication.get()),
+                              trace);
+                      final String summary = agent.run(prompt, history);
+                      // 只持久化 user + 本轮 assistant，对话保持干净
+                      synchronized (lock) {
+                          session.messages.add(new Message("user", prompt, System.currentTimeMillis()));
+                          session.messages.add(new Message("assistant", summary, System.currentTimeMillis()));
+                          session.status = 2;
+                          session.updatedAt = System.currentTimeMillis();
+                      }
+                      persistNow();
                     return session;
                 } catch (Exception e) {
                     Log.e(TAG, "runTask failed", e);

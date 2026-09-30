@@ -9,9 +9,10 @@
     <com.google.android.material.appbar.MaterialToolbar
         android:layout_width="match_parent"
         android:layout_height="?attr/actionBarSize"
-        android:background="?attr/colorSurface"
-        app:navigationIcon="@drawable/ic_close"
-        app:title="Settings" />
+        android:background="@drawable/bg_toolbar_gradient"
+        app:titleTextColor="@android:color/white"
+        app:navigationIcon="@drawable/ic_back"
+        app:title="设置" />
 
     <ScrollView
         android:layout_width="match_parent"
@@ -227,9 +228,12 @@
                 style="@style/SectionHeader" />
 
             <com.google.android.material.card.MaterialCardView
+                android:id="@+id/set_about_card"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
+                android:clickable="true"
+                android:focusable="true"
                 app:cardCornerRadius="12dp"
                 app:cardElevation="1dp"
                 app:cardBackgroundColor="?attr/colorSurface">
@@ -238,7 +242,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:padding="14dp"
-                    android:text="Happy Agent 1.0 - 端侧智能体引擎\n兼容安卓 6 及以上"
+                    android:text="Happy Agent 1.0 - 端侧智能体引擎\n兼容安卓 6 及以上\n点我查看关于信息"
                     android:textSize="13sp"
                     android:lineSpacingExtra="3dp"
                     android:textColor="?attr/colorOnSurfaceVariant" />

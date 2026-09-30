@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:paddingLeft="14dp"
+    android:paddingRight="14dp"
+    android:paddingTop="6dp"
+    android:paddingBottom="6dp">
+
+    <!-- 用户消息：靠右，品牌色气泡 -->
+    <TextView
+        android:id="@+id/bubble_user"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="end"
+        android:background="@drawable/bg_bubble_user"
+        android:maxWidth="290dp"
+        android:paddingLeft="14dp"
+        android:paddingRight="14dp"
+        android:paddingTop="10dp"
+        android:paddingBottom="10dp"
+        android:textSize="14sp"
+        android:lineSpacingExtra="3dp"
+        android:textColor="@android:color/white"
+        android:visibility="gone" />
+
+    <!-- AI 消息：靠左，表面色气泡 -->
+    <LinearLayout
+        android:id="@+id/bubble_ai_wrap"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="start"
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Happy Agent"
+            android:textSize="11sp"
+            android:textStyle="bold"
+            android:textColor="?attr/colorOnSurfaceVariant"
+            android:paddingLeft="4dp"
+            android:paddingBottom="2dp" />
+
+        <TextView
+            android:id="@+id/bubble_ai"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/bg_bubble_ai"
+            android:maxWidth="290dp"
+            android:paddingLeft="14dp"
+            android:paddingRight="14dp"
+            android:paddingTop="10dp"
+            android:paddingBottom="10dp"
+            android:textSize="14sp"
+            android:lineSpacingExtra="3dp"
+            android:textColor="?attr/colorOnSurface" />
+    </LinearLayout>
+
+</FrameLayout>
