@@ -1,0 +1,12 @@
+// Root build file - Agenz Mobile
+// AGP version is declared in :app via the plugins block; repositories come
+// from settings.gradle (Aliyun-first for domestic speed).
+allprojects {
+    repositories {
+        maven { url 'https://maven.aliyun.com/repository/google' }
+        maven { url 'https://maven.aliyun.com/repository/public' }
+        maven { url 'https://maven.aliyun.com/repository/gradle-plugin' }
+        google()
+        mavenCentral()
+    }
+}

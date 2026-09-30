@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">爱格</string>
+    <string name="tab_sessions">会话</string>
+    <string name="tab_tools">工具</string>
+    <string name="tab_config">配置</string>
+    <string name="tab_reports">诊断</string>
+    <string name="new_task">新建任务</string>
+    <string name="settings">设置</string>
+    <string name="about">关于</string>
+    <string name="crash_title">出错了</string>
+    <string name="crash_subtitle">复制下面这段日志，发给开发同学帮你定位问题。</string>
+    <string name="copy_log">复制日志</string>
+    <string name="share_log">分享</string>
+    <string name="back_to_app">返回首页</string>
+    <string name="run_task">运行</string>
+    <string name="task_prompt_hint">给智能体描述一个任务…</string>
+    <string name="save">保存</string>
+    <string name="agent_config">智能体配置</string>
+    <string name="model">模型</string>
+    <string name="agent_name">智能体名称</string>
+    <string name="workspace">工作目录</string>
+    <string name="max_tokens">最大 token 数</string>
+    <string name="auto_commit">自动提交</string>
+    <string name="temperature">温度</string>
+    <string name="tool_category">分类</string>
+    <string name="reports_sessions">会话数</string>
+    <string name="reports_tools_enabled">启用工具</string>
+    <string name="reports_tools_disabled">停用工具</string>
+    <string name="reports_last_update">最近更新</string>
+    <string name="personalization">个性化</string>
+    <string name="accent_color">强调色</string>
+    <string name="font_scale">字号缩放</string>
+    <string name="night_mode">深色模式</string>
+    <string name="haptics">震动反馈</string>
+    <string name="shake_to_log">摇一摇抓取日志</string>
+    <string name="start_page">起始停在工具页</string>
+    <string name="detail_summary_header">结果</string>
+    <string name="no_sessions_hint">还没有会话，点右下角加号新建一个。</string>
+</resources>

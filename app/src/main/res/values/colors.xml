@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Enterprise palette -->
+    <color name="seed_blue">#1E40AF</color>
+    <color name="primary_light">#EFF4FF</color>
+    <color name="primary_dark">#0F172A</color>
+    <color name="on_primary">#FFFFFF</color>
+    <color name="on_primary_dark">#93C5FD</color>
+    <color name="background">#F8FAFC</color>
+    <color name="surface">#FFFFFF</color>
+    <color name="surface_variant">#F1F5F9</color>
+    <color name="on_surface">#0F172A</color>
+    <color name="on_surface_variant">#475569</color>
+    <color name="outline">#CBD5E1</color>
+    <color name="error">#DC2626</color>
+    <color name="status_running">#2563EB</color>
+    <color name="status_done">#16A34A</color>
+    <color name="status_failed">#DC2626</color>
+    <color name="status_paused">#F59E0B</color>
+
+    <!-- Accent presets for personalization -->
+    <color name="accent_blue">#1E40AF</color>
+    <color name="accent_teal">#0F766E</color>
+    <color name="accent_purple">#6D28D9</color>
+    <color name="accent_rose">#BE123C</color>
+
+    <!-- Night colors -->
+    <color name="background_night">#0F172A</color>
+    <color name="surface_night">#1E293B</color>
+    <color name="on_surface_night">#E2E8F0</color>
+    <color name="on_surface_variant_night">#94A3B8</color>
+    <color name="outline_night">#334155</color>
+</resources>

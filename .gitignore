@@ -1,0 +1,15 @@
+# 构建产物，不入库
+build/
+.gradle/
+*.iml
+.idea/
+local.properties
+
+# 签名库只提交占位，密码别进仓库
+gradle/agenz-release.keystore
+
+# 本地缓存
+.DS_Store
+*.log
+captures/
+.cxx/
