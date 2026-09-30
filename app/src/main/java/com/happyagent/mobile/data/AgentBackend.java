@@ -8,6 +8,9 @@ import com.happyagent.mobile.model.Models.Config;
 import com.happyagent.mobile.model.Models.Message;
 import com.happyagent.mobile.model.Models.Session;
 import com.happyagent.mobile.model.Models.Tool;
+import com.happyagent.mobile.tools.FileTools;
+import com.happyagent.mobile.tools.ReactAgent;
+import com.happyagent.mobile.tools.ShellExecutor;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -151,11 +154,17 @@ public final class AgentBackend {
                 trace.add(new Message("user", prompt, System.currentTimeMillis()));
                 try {
                     String summary;
-                    // 配了 OpenAI Key 就调真接口，否则降级本地模拟
-                    if (getConfig().hasOpenAIKey()) {
-                        summary = openaiEngine(prompt, model, trace);
-                    } else {
-                        summary = localEngine(prompt, model, trace);
+                    // 走多步 ReAct agent：有 OpenAI Key 时 LLM 驱动工具调用，没 Key 降级本地模拟
+                    ReactAgent agent = new ReactAgent(getConfig(),
+                            new FileTools(HappyAgentApplication.get()),
+                            new ShellExecutor(HappyAgentApplication.get()),
+                            trace);
+                    summary = agent.run(prompt);
+                    // 把轨迹里的关键节点也并进会话消息
+                    for (Message m : trace) {
+                        if (m.role.equals("system") || m.role.equals("tool")) {
+                            session.messages.add(m);
+                        }
                     }
                     synchronized (lock) {
                         session.messages.add(new Message("assistant", summary, System.currentTimeMillis()));
@@ -228,119 +237,6 @@ public final class AgentBackend {
         persist();
     }
 
-    // 真调 OpenAI（或任意 OpenAI 兼容接口）：POST /chat/completions，带 Bearer Key
-    // 用的是 Android 自带的 HttpURLConnection + org.json，不引第三方依赖，API 23 安全
-    private String openaiEngine(String prompt, String model, List<Message> trace) {
-        final Config cfg = getConfig();
-        trace.add(new Message("system", "CALL -> " + cfg.openaiBaseUrl + "/chat/completions (" + model + ")",
-                System.currentTimeMillis()));
-        try {
-            JSONObject body = new JSONObject();
-            JSONArray messages = new JSONArray();
-            JSONObject m = new JSONObject();
-            m.put("role", "user");
-            m.put("content", prompt);
-            messages.put(m);
-            body.put("model", model);
-            body.put("messages", messages);
-            body.put("temperature", cfg.temperature / 100.0);
-            body.put("max_tokens", cfg.maxTokens);
-
-            // 归一化 Base URL：去掉结尾斜杠，补上 /chat/completions
-            String base = cfg.openaiBaseUrl.trim();
-            while (base.endsWith("/")) base = base.substring(0, base.length() - 1);
-            String url = base + "/chat/completions";
-
-            HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
-            conn.setRequestMethod("POST");
-            conn.setDoOutput(true);
-            conn.setConnectTimeout(30000);
-            conn.setReadTimeout(60000);
-            conn.setRequestProperty("Authorization", "Bearer " + cfg.openaiKey.trim());
-            conn.setRequestProperty("Content-Type", "application/json");
-
-            byte[] out = body.toString().getBytes(StandardCharsets.UTF_8);
-            OutputStream os = conn.getOutputStream();
-            os.write(out);
-            os.flush();
-            os.close();
-
-            int code = conn.getResponseCode();
-            InputStream is = (code >= 200 && code < 300) ? conn.getInputStream() : conn.getErrorStream();
-            String resp = readAll(is);
-            conn.disconnect();
-
-            if (code < 200 || code >= 300) {
-                throw new IOException("HTTP " + code + " " + resp);
-            }
-
-            // 取 choices[0].message.content
-            JSONObject jo = new JSONObject(resp);
-            JSONArray choices = jo.getJSONArray("choices");
-            String content = choices.getJSONObject(0).getJSONObject("message").getString("content");
-            trace.add(new Message("tool", "openai -> " + content, System.currentTimeMillis()));
-            return content;
-        } catch (Exception e) {
-            // 真接口挂了就降级本地模拟，保证任务仍能出结果
-            trace.add(new Message("system", "OpenAI 调用失败（" + e.getMessage() + "），已降级本地模拟",
-                    System.currentTimeMillis()));
-            return localEngine(prompt, model, trace);
-        }
-    }
-
-    private String readAll(InputStream is) throws IOException {
-        if (is == null) return "";
-        java.io.ByteArrayOutputStream bo = new java.io.ByteArrayOutputStream();
-        byte[] buf = new byte[8192];
-        int n;
-        while ((n = is.read(buf)) != -1) bo.write(buf, 0, n);
-        is.close();
-        return new String(bo.toByteArray(), StandardCharsets.UTF_8);
-    }
-
-    // 本地引擎：不走网络，把启用的工具挨个跑一遍，拼出可查的轨迹
-    private String localEngine(String prompt, String model, List<Message> trace) {
-        final Config cfg = getConfig();
-        trace.add(new Message("system", "PLAN -> analyze: " + prompt, System.currentTimeMillis()));
-
-        List<String> calls = new ArrayList<String>();
-        for (Tool t : getTools()) {
-            if (!t.enabled) continue;
-            String out;
-            switch (t.id) {
-                case "tool.context":
-                    out = "context loaded: " + cfg.agentName + " @ " + cfg.workspace;
-                    break;
-                case "tool.search":
-                    out = "search('" + prompt + "') -> 3 candidate symbols";
-                    break;
-                case "tool.file":
-                    out = "file ops available (read/write/patch)";
-                    break;
-                case "tool.shell":
-                    out = "shell sandbox ready";
-                    break;
-                case "tool.http":
-                    out = "http client ready";
-                    break;
-                case "tool.memory":
-                    out = "memory store: " + getSessions().size() + " sessions";
-                    break;
-                default:
-                    out = t.name + " -> ok";
-                    break;
-            }
-            calls.add(out);
-            trace.add(new Message("tool", t.name + " -> " + out, System.currentTimeMillis()));
-        }
-
-        StringBuilder sb = new StringBuilder();
-        sb.append("Task completed via ").append(calls.size()).append(" tool call(s).\n");
-        sb.append("Model: ").append(model).append("\n");
-        sb.append("Result for: ").append(prompt).append("\n");
-        sb.append("Elapsed: ").append(System.currentTimeMillis() - trace.get(0).ts).append("ms");
-        return sb.toString();
-    }
 
     // ---- 存档 ----
 
