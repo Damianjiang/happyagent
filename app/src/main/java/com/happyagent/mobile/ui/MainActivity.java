@@ -25,6 +25,7 @@ public class MainActivity extends AppCompatActivity {
     private ToolsFragment toolsFragment;
     private ConfigFragment configFragment;
     private ReportsFragment reportsFragment;
+    private FilesFragment filesFragment;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -75,6 +76,8 @@ public class MainActivity extends AppCompatActivity {
             target = lazyTools();
         } else if (id == R.id.nav_config) {
             target = lazyConfig();
+        } else if (id == R.id.nav_files) {
+            target = lazyFiles();
         } else if (id == R.id.nav_reports) {
             target = lazyReports();
         } else {
@@ -104,6 +107,11 @@ public class MainActivity extends AppCompatActivity {
     private Fragment lazyReports() {
         if (reportsFragment == null) reportsFragment = new ReportsFragment();
         return reportsFragment;
+    }
+
+    private Fragment lazyFiles() {
+        if (filesFragment == null) filesFragment = new FilesFragment();
+        return filesFragment;
     }
 
     // 右下角加号：随手开个新会话就去跑任务

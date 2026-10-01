@@ -28,6 +28,7 @@
 | 系统诊断 | 会话数、工具启用/停用数、模型、当前供应商与 Key 状态 | 否 |
 | 崩溃兜底 | 任意线程崩溃自动进崩溃页，一键复制日志 | 否 |
 | Web 服务 | 在手机上起一个本地 HTTP 服务，电脑/手机浏览器打开即可跟智能体对话；可开关，开启时通知栏常驻并显示内网/外网地址与端口 | 否（服务端自身）；真回答需对应 Key |
+| 文件管理 | 内置文件浏览器 + 文本编辑器；SAF 选一个文件夹授权后即可浏览/编辑/把文件发给智能体；权限自动申请（系统弹窗） | 否 |
 | 首次欢迎页 | 首次打开进入全屏欢迎页：logo + 要点 + 醒目的「开源项目 · 完全免费，向用户收费即属诈骗」警示；点「开始使用」进主界面，只显示一次 | 否 |
 
 > 说明：聊天、工具、配置、诊断、崩溃兜底这些**不填 Key 也能用**；"AI 真正聪明地回答 / 驱动多步工具"这一项需要你在配置页选供应商并填对应 Key（OpenAI 或任意兼容接口 / Google / Anthropic）。
@@ -69,7 +70,8 @@ app/src/main/java/com/happyagent/mobile/
 ├─ CrashHandler.java            全局异常处理
 ├─ data/
 │  ├─ AgentBackend.java         会话/工具/配置 + ReAct 接线 + 持久化
-│  └─ Prefs.java               个性化设置持久化
+│  ├─ Prefs.java               个性化设置持久化
+│  └─ StorageAccess.java       SAF 文件访问（选文件夹授权 + 浏览/读写/发给 agent）
 ├─ model/Models.java            数据壳（Session/Message/Tool/Config）
 ├─ tools/                       端侧能力
 │  ├─ ReactAgent.java           多步 agent 循环 + 工具参数校验/补齐 + 供应商适配 + 协作式取消
@@ -91,7 +93,17 @@ app/src/main/res/raw/web_chat.html  Web 端聊天页（单文件，深浅色 + �
 - **实现**：`service/WebUiService.java` 用 `java.net.ServerSocket`（API 23 安全）起服务，页面是 `res/raw/web_chat.html`（单文件 HTML，无外部依赖）；对外接口 `/api/ipinfo`、`/api/state`、`/api/ask`。
 - **注意**：服务监听 `0.0.0.0`，请只在**可信的局域网**里开；外网地址要真正可达还需手机有公网出口/端口映射，App 只负责把查到的地址显示出来。
 
-## 七、构建
+## 七、文件管理（内置浏览器 + 编辑器，SAF 授权）
+
+「文件」页（底部导航第 4 个）内置了文件浏览器和文本编辑器，让你把真实文件交给智能体处理。
+
+- **自动申请权限**：第一次进「文件」页点"选择文件夹"，弹系统文档选择器；授权只覆盖你选的那个目录，重启后仍有效（SAF 持久授权，跨安卓 6→14 都可用）。
+- **浏览器**：浏览目录、进/翻文件夹；点文本文件进编辑器，点其它文件可直接"发给智能体"。
+- **编辑器**：编辑授权目录里的文本文件，直接写回原文件。
+- **发给智能体**：把文件安全拷进 agent 工作区附件目录（复用沙箱附件通道），开一个会话让它读；非文本文件也能这样交给 agent。
+- **实现**：`data/StorageAccess.java` 走 `DocumentsContract` 的 API 19 安全 API（`buildChildDocumentsUri(authority, …)`、`buildDocumentUri(authority, …)`，不碰 API 26 的 `getRootDocumentId`/`buildChildDocumentsUriUsingType`）；`FilesFragment` / `FileEditorActivity` 是界面。
+
+## 八、构建
 
 需要 **JDK 17 + Android SDK（platform-34 / build-tools 34）**，仓库源走国内镜像。
 
@@ -101,7 +113,7 @@ gradle :app:assembleRelease
 
 产物在 `app/build/outputs/apk/`。签名库在 `gradle/`，正式上架前换成你自己的并改密码。
 
-## 八、安卓 6 兼容审计记录
+## 九、安卓 6 兼容审计记录
 
 minSdk=23（API 23），逐类核对过会撞版本的项，均已在代码/构建里处理：
 
@@ -117,9 +129,10 @@ minSdk=23（API 23），逐类核对过会撞版本的项，均已在代码/构�
 | Web 服务（本地 HTTP） | 用 `java.net.ServerSocket` / `Socket` / `NetworkInterface`（全 API 1~23），前台通知走 `NotificationChannel`（API 26+ 才建通道，低于 26 走旧构造）；`PendingIntent.FLAG_IMMUTABLE` 是 API 31 常量，已做版本分支（`SDK_INT>=29` 才加），安卓 6 上只保留 `FLAG_UPDATE_CURRENT` |
 | `startForegroundService` / `stopForeground(int)` | 全是高版本 API，各做版本分支：`SDK_INT>=26` 才 `startForegroundService`，`SDK_INT>=33` 才用带 int 的 `stopForeground`，否则老签名 |
 | 内网/外网 IP | 内网 = `NetworkInterface` 取站点内 IPv4（API 1）；外网 = `HttpURLConnection` 请求 `api.ipify.org` 取，取不到就留空、界面如实显示「获取中」，不崩 |
+| 文件访问（SAF） | 用 `DocumentsContract` 的 API 19 方法（`buildChildDocumentsUri(authority, …)` / `buildDocumentUri(authority, …)` / `getDocumentId`），**不**用 API 26 的 `getRootDocumentId`/`buildChildDocumentsUriUsingType`/`getDisplayName`；`FLAG_DIR` 用字面量 2；`Collections.sort` 而非 `List.sort`（API 24）。授权走系统文档选择器，不碰 `READ/WRITE_EXTERNAL_STORAGE`（SAF 不依赖） |
 
 三家模型接口（OpenAI `/chat/completions`、Google `generateContent`、Anthropic `/v1/messages`）走 `HttpURLConnection` + `org.json`，纯 JDK/标准库，无运行时版本依赖；请求/响应格式按各家官方文档逐一核对过。
 
-## 九、关于"照搬 Operit"的边界
+## 十、关于"照搬 Operit"的边界
 
 Happy Agent 借鉴并实现了 Operit 的**agent 内核**（ReAct 循环、工具调用 + 缺参补齐、文件工具、Shell/proot、多轮聊天）。**尚未照搬**的是 Operit 里那几块重能力：GUI 自动化（无障碍操控手机 UI）、语音、插件市场、世界书/角色卡。这些属于更大的独立模块，需要 `AccessibilityService` 权限等，作为后续版本逐步补齐。当前版本是一个**真正能对话、能调工具、能诊断**的最小可用 agent 客户端。

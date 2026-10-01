@@ -14,6 +14,7 @@ public final class Prefs {
     public static final String KEY_ENABLE_HAPTICS = "enable_haptics";
     public static final String KEY_WEBUI_ON = "webui_on";
     public static final String KEY_FIRST_LAUNCH = "first_launch";
+    public static final String KEY_STORAGE_URI = "storage_uri";
 
     // 直接对齐 AppCompat 的常量，别自己造数值
     public static final int NIGHT_FOLLOW_SYSTEM = AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM;
@@ -40,5 +41,14 @@ public final class Prefs {
 
     public void putBoolean(String key, boolean value) {
         sp.edit().putBoolean(key, value).apply();
+    }
+
+    // 存储授权：存的是 SAF 的 tree uri（授权范围本身由系统管），这里只记它
+    public String getStringStorage() {
+        return sp.getString(KEY_STORAGE_URI, "");
+    }
+
+    public void putStringStorage(String value) {
+        sp.edit().putString(KEY_STORAGE_URI, value).apply();
     }
 }

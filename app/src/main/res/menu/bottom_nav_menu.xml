@@ -13,6 +13,10 @@
         android:icon="@drawable/ic_nav_config"
         android:title="@string/tab_config" />
     <item
+        android:id="@+id/nav_files"
+        android:icon="@drawable/ic_nav_files"
+        android:title="@string/tab_files" />
+    <item
         android:id="@+id/nav_reports"
         android:icon="@drawable/ic_nav_reports"
         android:title="@string/tab_reports" />
