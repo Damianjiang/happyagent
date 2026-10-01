@@ -18,9 +18,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
-// 多步 ReAct agent：think → act(tool) → observe → answer（对应 Operit PhoneAgent）。
-// 有 Key 时走各家原生 function calling 调工具，没 Key 走本地引擎。
-// 工具参数宽容：缺参/键名变体都能跑，弱模型也可驱动。
+// 多步 ReAct：思考→调工具→观察→继续，最多 MAX_STEPS 步。
+// 有 Key 走原生 function calling，没 Key 走本地引擎；工具参数按别名宽容取值。
 public final class ReactAgent {
 
     private static final int MAX_STEPS = 10;
@@ -57,7 +56,7 @@ public final class ReactAgent {
         this.enabledTools = enabledTools;
     }
 
-    // 某工具分组是否启用。enabledTools==null 视为全开（离线默认）。
+    // 工具分组是否启用；null 视为全开
     private boolean toolOn(String groupKey) {
         return enabledTools == null || enabledTools.contains(groupKey);
     }
@@ -70,8 +69,7 @@ public final class ReactAgent {
             return localFallback(task, history, currentImages);
         }
 
-        // 供应商无关的记录：每步一个 step。user/assistant 带 text，assistant 可带 calls，
-        // tool 带 results。各 provider 的 callLlm 每次从 transcript 重建请求。
+        // 供应商无关的记录；各 provider 的 callLlm 每次从 transcript 重建请求
         List<JSONObject> transcript = new ArrayList<JSONObject>();
         for (Message h : recentWindow(history, HISTORY_WINDOW)) {
             transcript.add(new JSONObject().put("role", h.role).put("text", h.text));
@@ -90,7 +88,7 @@ public final class ReactAgent {
                 JSONObject r = callLlm(transcript);
                 JSONArray calls = r.optJSONArray("calls");
                 if (calls != null && calls.length() > 0) {
-                    // 保证每个调用有 id（OpenAI tool 消息必须按 id 对应）
+                    // OpenAI tool 消息需按 id 对应，补齐缺失的 id
                     for (int i = 0; i < calls.length(); i++) {
                         JSONObject c = calls.getJSONObject(i);
                         if (c.optString("id", "").length() == 0) {
@@ -148,7 +146,7 @@ public final class ReactAgent {
         return imgs;
     }
 
-    // 供应商分发：三家都走原生 function calling，统一返回 {calls:[{id,name,args}], answer}
+    // 三家均走原生 function calling，统一返回 {calls:[{id,name,args}], answer}
     private JSONObject callLlm(List<JSONObject> transcript) throws Exception {
         String provider = cfg.getProvider();
         if (Config.PROVIDER_GOOGLE.equals(provider)) return callGoogle(transcript);
@@ -156,8 +154,7 @@ public final class ReactAgent {
         return callOpenAI(transcript);
     }
 
-    // 工具 schema（三家各自的格式）。只放出「工具页开关打开」的那几类，
-    // 让工具页的开关真正决定 agent 能用哪些工具。
+    // OpenAI 工具 schema；只放工具页开关打开的分组
     private JSONArray openAITools() throws Exception {
         JSONArray arr = new JSONArray();
         if (toolOn("tool.file")) {
@@ -367,14 +364,14 @@ public final class ReactAgent {
                                         .put("response", new JSONObject().put("result", res.optString("result", "")))));
                     }
                 }
-                // Gemini REST 里函数结果的角色是 "function"，不是 "tool"
+                // Gemini REST 函数结果角色是 "function"
                 contents.put(new JSONObject().put("role", "function").put("parts", parts));
             }
         }
 
         JSONObject body = new JSONObject();
         body.put("contents", contents);
-        // 采样参数在 REST 里必须放 generationConfig，顶层放了不生效
+        // 采样参数放 generationConfig，顶层不生效
         JSONObject gen = new JSONObject()
                 .put("temperature", cfg.temperature / 100.0)
                 .put("maxOutputTokens", cfg.maxTokens);
@@ -572,24 +569,21 @@ public final class ReactAgent {
         }
     }
 
-    // 带 HTTP 状态码的异常：让 postRetry 能区分「可重试的临时错」(超时/5xx/429) 和
-    // 「确定性错」(400/401/403/404 等——重试也不会好，只会让任务假死到用户取消)
+    // 带 HTTP 状态码的异常；postRetry 据此区分「可重试临时错」与「确定性错」
     private static final class HttpError extends Exception {
         final int code;
         HttpError(int code, String msg) {
             super(msg);
             this.code = code;
         }
-        // 只有服务侧错误(5xx)、限流(429)、请求超时(408)值得重试；其余 4xx 直接停
+        // 仅 5xx / 429 / 408 可重试；其余 4xx 确定性错误直接停
         boolean retryable() {
             return code == 408 || code == 429 || (code >= 500 && code < 600);
         }
     }
 
-    // 一次 LLM HTTP 请求，带退避重试。
-    // 连接失败（断网 / 读超时 / 被限流）不再让任务永久失败：按策略自动重连——
-    // 前 3 次失败各等 1s，之后每次等 2s，一直重试到成功；只有用户取消才停。
-    // 每次重试都新建连接（HttpURLConnection 不可复用），旧的先 disconnect。
+    // LLM 请求带退避重试：前 3 次失败各等 1s，之后每次等 2s，循环到成功；用户取消才停。
+    // 确定性 4xx 直接抛出不重试；每次重试新建连接（HttpURLConnection 不可复用）。
     private String postRetry(String url, String body, String[][] headers) throws Exception {
         int fails = 0;
         while (true) {
@@ -624,7 +618,7 @@ public final class ReactAgent {
         }
     }
 
-    // 分段休眠并随时响应取消：取消时立刻返回，不睡满整段
+    // 分段休眠，随时响应取消
     private void sleepCancellable(long ms) {
         long end = System.currentTimeMillis() + ms;
         while (!control.shouldStop()) {
@@ -654,7 +648,7 @@ public final class ReactAgent {
         }
     }
 
-    // 工具名宽容归一
+    // 工具名归一：别名/同义键映射到标准名
     private String normalizeToolName(String raw) {
         if (raw == null) return "";
         String t = raw.trim().toLowerCase().replace(' ', '_').replace('-', '_');
@@ -677,7 +671,7 @@ public final class ReactAgent {
         return raw;
     }
 
-    // 工具名 → 它所属的「工具页开关」分组
+    // 工具名 → 工具页开关分组
     private String toolGroup(String name) {
         switch (name) {
             case "file_read":
@@ -697,12 +691,9 @@ public final class ReactAgent {
         }
     }
 
-    // 工具分发。参数宽容：缺参数给可行动提示而不是干失败。
-    // 被工具页停用的分组即便模型仍发出调用，也只返回可行动提示、不执行。
+    // 工具分发；缺参给可行动提示。工具页停用的已知分组只提示、不执行。
     private String dispatchTool(String name, JSONObject args) {
         try {
-            // 只拦「已知但被工具页停用」的分组；未知工具名落进下方 switch 的 default，
-            // 仍给"未知工具"提示，而不是误报成"分组已停用"
             String group = toolGroup(name);
             if (group.length() > 0 && !toolOn(group)) {
                 return "工具分组「" + group + "」当前已停用（见「工具」页开关），本条未执行。请改用其它可用工具或在工具页重新启用。";

@@ -19,14 +19,13 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-// 文件访问统一走 SAF（存储访问框架）：用户选一次文件夹即持久授权，
-// 跨 API 23→34 都可用，且只能碰用户明确授权的目录，安全。
-// 这里不碰遗留的 READ/WRITE_EXTERNAL_STORAGE——SAF 不依赖它们，加了就是没用到的权限。
+// 文件访问统一走 SAF：用户选一次文件夹即持久授权，跨 API 23+ 可用。
+// 不用遗留 READ/WRITE_EXTERNAL_STORAGE——SAF 不依赖它们。
 public final class StorageAccess {
 
     public StorageAccess() {}
 
-    // ---- 授权：存 root tree uri，每次访问前重新取持久权限 ----
+    // ---- 授权：存 root tree uri，访问前重新取持久权限 ----
     public static Uri getRoot(Context ctx) {
         String s = new Prefs(ctx).getStringStorage();
         if (TextUtils.isEmpty(s)) return null;
@@ -46,14 +45,13 @@ public final class StorageAccess {
         return getRoot(ctx) != null;
     }
 
-    // ---- 浏览 ----
-    // 根目录的 docId：用 API 19 的 getDocumentId 取 tree uri 根（API 26 的 getRootDocumentId 老机没有）
+    // 根目录 docId；用 API 19 的 getDocumentId 取 tree 根（API 26 的 getRootDocumentId 老机没有）
     public static String rootDocumentId(Context ctx) {
         Uri root = getRoot(ctx);
         return root == null ? null : DocumentsContract.getDocumentId(root);
     }
 
-    // 列某目录下的子项。parentId 传 rootDocumentId 或某个子目录的 docId
+    // 列某目录子项；parentId 传 rootDocumentId 或某子目录 docId
     public static List<Entry> listChildren(Context ctx, String parentId) {
         List<Entry> out = new ArrayList<Entry>();
         Uri root = getRoot(ctx);
@@ -84,7 +82,7 @@ public final class StorageAccess {
             }
         } catch (Exception ignored) {
         }
-        // 目录排前面，名字排序。用 Collections.sort（API 1）而不是 List.sort（API 24，老机跑会崩）
+        // 目录排前、按名排序；用 Collections.sort（List.sort 是 API 24，老机崩）
         Collections.sort(out, new java.util.Comparator<Entry>() {
             @Override
             public int compare(Entry a, Entry b) {
@@ -101,8 +99,7 @@ public final class StorageAccess {
         return root == null ? null : DocumentsContract.buildDocumentUri(root.getAuthority(), docId);
     }
 
-    // 授权根的显示名（系统给的用户选的那个文件夹名）
-    // 授权根的显示名（用户选的那个文件夹名）：查根 uri 的 DISPLAY_NAME 列（API 19，不用 API 26 的 getDisplayName）
+    // 授权根显示名：查根 uri 的 DISPLAY_NAME 列（API 19）
     public static String rootDisplayName(Context ctx) {
         Uri root = getRoot(ctx);
         if (root == null) return "已授权根目录";
@@ -156,7 +153,7 @@ public final class StorageAccess {
         }
     }
 
-    // 把选中的文件安全拷进 agent 工作区附件目录，返回 Attachment（agent 的 file_read 能直接读）
+    // 把选中文件拷进 agent 工作区附件目录，返回 Attachment（file_read 可直接读）
     public static Attachment sendToAgent(Context ctx, String docId, String displayName) {
         FileTools ft = new FileTools(ctx);
         Attachment a = ft.saveAttachment(ctx.getContentResolver(), docUri(ctx, docId), displayName);

@@ -14,12 +14,9 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 
-// 真实 shell 沙箱：/system/bin/sh 跑命令，带超时 + 命令白名单
-// 安卓沙箱没 root 跑不了任意命令，这里做「标准执行器」+ proot 环境探测，
-// 对应 Operit 的 ShellExecutor（Standard 层 + Linux/proot 层）
-// 全程只用 API 23 可用的：无参 waitFor() + Future.get(timeout) + destroy()
+// Shell 沙箱：/system/bin/sh 跑白名单命令，带超时与 proot 探测。
+// 只用 API 23 可用的无参 waitFor() + Future.get(timeout) + destroy()
 public final class ShellExecutor {
 
     private static final String TAG = "ShellExecutor";
@@ -36,7 +33,7 @@ public final class ShellExecutor {
         this.ctx = context.getApplicationContext();
     }
 
-    // proot / Termux 环境探测：手机上有没有 proot-distro 或 Termux 可执行
+    // proot / Termux 环境探测
     public String detectProot() {
         StringBuilder sb = new StringBuilder();
         sb.append("Android ").append(Build.VERSION.RELEASE)

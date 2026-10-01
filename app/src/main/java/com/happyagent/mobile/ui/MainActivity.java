@@ -38,7 +38,7 @@ public class MainActivity extends AppCompatActivity {
             return true;
         });
 
-        // 首次打开：把主界面先铺好（欢迎页盖在上面，结束后露出），再亮出欢迎页做开源免费警示
+        // 首次打开：先把主界面铺好（欢迎页盖在上面，结束后露出），再亮出欢迎页做开源免费警示
         Prefs prefs = new Prefs(this);
         boolean firstLaunch = !prefs.getBoolean(Prefs.KEY_FIRST_LAUNCH, false);
 

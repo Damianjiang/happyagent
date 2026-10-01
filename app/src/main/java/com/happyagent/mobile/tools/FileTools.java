@@ -17,8 +17,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
-// 真实文件工具：读 / 写 / 列目录 / 找文件 / grep / 文件信息
-// 全部用 java.io.File（安卓6 没有 java.nio.file，API 26 才引入），并在私有目录沙箱内做路径校验
+// 真实文件工具：读/写/列目录/找文件/grep/文件信息。
+// 全走 java.io.File（安卓6 无 java.nio.file），在私有目录沙箱内做路径校验。
 public final class FileTools {
 
     private static final String TAG = "FileTools";

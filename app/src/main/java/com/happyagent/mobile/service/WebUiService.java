@@ -36,9 +36,7 @@ import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-// 本地 Web 服务：在手机上起一个 HTTP 服务（ServerSocket，纯 API23 安全），
-// 把 agent 对话暴露给任意浏览器；前台通知常驻，可展示内网/外网地址与端口。
-// 页面、IP 查询、agent 调用都走这里，客户端（电脑或手机浏览器）自适应渲染。
+// 本地 Web 服务：ServerSocket 纯 API23 安全；前台通知常驻，展示内网/外网 IP 与端口。
 public class WebUiService extends Service {
 
     public static final int PORT = 8177;
@@ -82,7 +80,7 @@ public class WebUiService extends Service {
         ctx.stopService(new Intent(ctx.getApplicationContext(), WebUiService.class));
     }
 
-    // 第一个非回环的站点内 IPv4，即局域网里其它设备连手机用的地址
+    // 第一个非回环站点内 IPv4，即局域网地址
     public static String lanIp() {
         try {
             Enumeration<NetworkInterface> nis = NetworkInterface.getNetworkInterfaces();
@@ -110,7 +108,7 @@ public class WebUiService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        // 先取本地内网 IP（快），立刻挂前台通知，满足系统对前台服务的时限；网络查询放后台
+        // 先取本地 IP 立刻挂前台通知，外网查询放后台
         lanIp = lanIp();
         startForeground(1, buildNotification());
         if (!running) {
@@ -138,7 +136,7 @@ public class WebUiService extends Service {
     public void onDestroy() {
         running = false;
         try {
-            if (serverSocket != null) serverSocket.close();   // 让 accept() 抛异常退出循环
+            if (serverSocket != null) serverSocket.close();   // 使 accept() 抛异常退出循环
         } catch (Exception ignored) {
         }
         if (pool != null) pool.shutdown();
@@ -341,8 +339,7 @@ public class WebUiService extends Service {
     private PendingIntent openUrl(String url) {
         Intent i = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
         i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-        // FLAG_IMMUTABLE 是 API 31 才有的常量，直接硬编码在安卓 6 上不安全；
-        // 高版本加它收紧安全性，低版本只保留 UPDATE_CURRENT（老系统默认可变，不影响打开 URL）
+        // FLAG_IMMUTABLE 是 API 31 常量；高版本加上收紧安全性，低版本只留 UPDATE_CURRENT
         int flags = PendingIntent.FLAG_UPDATE_CURRENT;
         if (Build.VERSION.SDK_INT >= 29) {
             flags |= PendingIntent.FLAG_IMMUTABLE;

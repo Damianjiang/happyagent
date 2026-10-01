@@ -35,7 +35,7 @@
 
 ## 二、安装
 
-1. 到 [Releases](https://github.com/Damianjiang/happyagent/releases) 下载 `HappyAgent-v1.0-release.apk`（R8 混淆 + 资源缩包后约 8.2 MB，已 v1+v2 签名）。
+1. 到 [Releases](https://github.com/Damianjiang/happyagent/releases) 下载最新版 APK（`HappyAgent-vX.X-release.apk`，R8 混淆 + 资源缩包后约 8.3 MB，已 v1+v2 签名）。
 2. 传到手机安装；若提示"未知来源"，允许后再装一次。
 3. 桌面图标为黄色微笑圆点（安卓 7+ 自适应，安卓 6 回退 mipmap）。
 
@@ -58,7 +58,7 @@
 - **任务级控制**：ReAct 每步自查「取消/暂停」标志，取消即打断网络读取、暂停则阻塞等待继续——长任务可随时叫停。
 - **崩溃兜底**：全局未捕获异常 → 自动跳崩溃页，日志一键复制/分享/返回首页。
 - **聊天不卡**：消息用 RecyclerView 局部刷新（只 `notifyItemInserted`），LLM 只喂最近 12 条历史（窗口化），长对话不膨胀。
-- **工具调用稳**：模型给不全必填参数时，**不崩**——校验后把"缺哪些"作为反馈喂回模型补齐（对齐 Operit 的 ToolPackage 机制）。
+- **工具调用稳**：模型给不全必填参数时不崩——校验后把"缺哪些"作为反馈喂回模型补齐。
 - **连接自愈**：LLM 请求连接失败（断网 / 读超时 / 被限流 / 服务侧 5xx）不再让任务永久失败——自动退避重试：前 3 次各等 1s，之后每次等 2s，一直重连到成功；等待期随时可取消。确定性错误（401 Key 错 / 400 参数错 / 404）重试也不会好，直接让任务失败并给出原因，避免假死到取消。
 - **不虚设功能**：工具页的每个开关都真实门控 agent 可用工具（`ReactAgent` 按启用的工具分组喂 schema，停用的即便模型发出也不执行）；震动反馈、摇一摇导出日志都是真接线的（`Haptics` / `ShakeLog`）。凡是做不到真生效的旋钮（旧版的字号缩放、强调色、自动提交、可编辑工作区）已彻底删除，不在界面里留会说谎的开关。
 
@@ -134,6 +134,6 @@ minSdk=23（API 23），逐类核对过会撞版本的项，均已在代码/构�
 
 三家模型接口（OpenAI `/chat/completions`、Google `generateContent`、Anthropic `/v1/messages`）走 `HttpURLConnection` + `org.json`，纯 JDK/标准库，无运行时版本依赖；请求/响应格式按各家官方文档逐一核对过。
 
-## 十、关于"照搬 Operit"的边界
+## 十、当前版本范围
 
-Happy Agent 借鉴并实现了 Operit 的**agent 内核**（ReAct 循环、工具调用 + 缺参补齐、文件工具、Shell/proot、多轮聊天）。**尚未照搬**的是 Operit 里那几块重能力：GUI 自动化（无障碍操控手机 UI）、语音、插件市场、世界书/角色卡。这些属于更大的独立模块，需要 `AccessibilityService` 权限等，作为后续版本逐步补齐。当前版本是一个**真正能对话、能调工具、能诊断**的最小可用 agent 客户端。
+Happy Agent 目前实现了**最小可用的 agent 内核**：ReAct 多步循环、工具调用（缺参补齐）、文件工具、Shell/proot 探测、多轮聊天，加上 Web 服务、文件管理、崩溃兜底。**尚未实现**的重能力是 GUI 自动化（无障碍操控手机界面）、语音、插件市场、世界书/角色卡——这些属于更大的独立模块（部分需 `AccessibilityService` 权限等），留作后续版本。当前版本是一个**真正能对话、能调工具、能诊断**的客户端。

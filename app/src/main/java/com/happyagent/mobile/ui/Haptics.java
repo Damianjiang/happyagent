@@ -8,13 +8,12 @@ import android.view.View;
 import com.happyagent.mobile.HappyAgentApplication;
 import com.happyagent.mobile.data.Prefs;
 
-// 震动反馈：只在「行为>震动」开关开时才响。
-// API23：Vibrator.vibrate(long) 全支持，VibrationEffect 仅 API26+ 才用（版本分支）。
+// 震动反馈；仅开关开时响。API23 用 vibrate(long)，API26+ 才用 VibrationEffect。
 public final class Haptics {
 
     private Haptics() {}
 
-    // 点按钮等短促反馈。开关关闭则直接不响
+    // 短促点按反馈
     public static void tap(View view) {
         if (!enabled()) return;
         Context ctx = HappyAgentApplication.get();

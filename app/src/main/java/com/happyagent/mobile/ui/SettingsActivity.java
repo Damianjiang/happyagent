@@ -12,7 +12,7 @@ import com.happyagent.mobile.R;
 import com.happyagent.mobile.data.Prefs;
 import com.google.android.material.switchmaterial.SwitchMaterial;
 
-// 设置 / 个性化：主题、强调色、字号、启动页、震动、摇一摇记日志，都存着下次用
+// 设置 / 个性化：深浅色主题、震动、摇一摇记日志、起始页、Web 服务开关；都持久化下次用
 public class SettingsActivity extends AppCompatActivity {
 
     private Prefs prefs;
@@ -23,7 +23,7 @@ public class SettingsActivity extends AppCompatActivity {
         setContentView(R.layout.activity_settings);
         prefs = new Prefs(this);
 
-        // 深浅色，切了当场 recreate 套新主题
+        // 深浅色，切换当场 recreate 套新主题
         SwitchMaterial night = findViewById(R.id.set_night);
         night.setChecked(prefs.getInt(Prefs.KEY_NIGHT_MODE, Prefs.NIGHT_FOLLOW_SYSTEM) == Prefs.NIGHT_YES);
         night.setOnCheckedChangeListener((b, isOn) -> {
@@ -56,8 +56,8 @@ public class SettingsActivity extends AppCompatActivity {
         // 版本卡点开关于
         findViewById(R.id.set_about_card).setOnClickListener(v -> AboutDialog.show(this));
 
-        // Web 服务开关：开启拉前台服务并记住偏好，关掉即停并清偏好。
-        // start/stop 是异步的，这里用开关本身的状态为准去显示/隐藏 IP 信息，避免竞态
+        // Web 服务开关：开即拉前台服务并记住偏好，关即停并清偏好。
+        // start/stop 是异步的，用开关本身状态为准显示/隐藏 IP，避免竞态
         View webuiInfo = findViewById(R.id.webui_info);
         SwitchMaterial webui = findViewById(R.id.set_webui);
         webuiOn = com.happyagent.mobile.service.WebUiService.isRunning();
@@ -82,8 +82,7 @@ public class SettingsActivity extends AppCompatActivity {
     private final android.os.Handler webuiPoll = new android.os.Handler();
     private Runnable webuiPollRunnable;
 
-    // 按开关意图显示内网/外网 IP:端口；内网地址是服务起来后才有的，外网是后台 8s 取到的。
-    // 两者都拿到就停轮询，避免无谓刷
+    // 按开关意图显示内网/外网 IP:端口；内网服务起来才有，外网后台 8s 取到，两者都拿到即停轮询
     private void updateWebuiInfo(View webuiInfo) {
         if (!webuiOn) {
             webuiInfo.setVisibility(View.GONE);
@@ -116,7 +115,7 @@ public class SettingsActivity extends AppCompatActivity {
                 String pub = com.happyagent.mobile.service.WebUiService.publicIpStatic();
                 lanTv.setText((lan.isEmpty() ? "（获取中）" : lan) + ":" + port);
                 pubTv.setText(pub.isEmpty() ? "（获取中）" : pub + ":" + port);
-                // 内网拿到后就不再等外网；外网（要联网）拿不到也别无限刷，10 次后停
+                // 内网拿到后不再等外网；外网拿不到也别无限刷，10 次后停
                 if (lan.isEmpty() || (webuiPollCount < 10 && pub.isEmpty())) {
                     webuiPoll.postDelayed(this, 1500);
                 }

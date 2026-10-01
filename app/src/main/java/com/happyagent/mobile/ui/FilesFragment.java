@@ -23,8 +23,7 @@ import com.happyagent.mobile.model.Models;
 import java.util.ArrayList;
 import java.util.List;
 
-// 内置文件浏览器：SAF 授权一个文件夹后，可浏览 / 编辑 / 把文件发给智能体。
-// "选文件夹"走系统文档选择器（权限自动申请），授权只覆盖该目录，安全。
+// 内置文件浏览器：SAF 授权一个文件夹后，可浏览/编辑/发给智能体；"选文件夹"走系统选择器（权限自动申请）。
 public class FilesFragment extends Fragment {
 
     private static final int RC_PICK_FOLDER = 1;
@@ -33,9 +32,9 @@ public class FilesFragment extends Fragment {
     private TextView empty;
     private RecyclerView recycler;
     private FileAdapter adapter;
-    // 当前目录 docId 栈：栈顶 = 当前正在看的目录，空 = 授权根
+    // 当前目录 docId 栈：栈顶 = 正在看的目录，空 = 授权根
     private final List<String> path = new ArrayList<String>();
-    // 与 path 平行的目录显示名栈（面包屑可读）
+    // 与 path 平行的目录显示名栈（面包屑用）
     private final List<String> pathNames = new ArrayList<String>();
     private String currentParent;
 
@@ -74,7 +73,7 @@ public class FilesFragment extends Fragment {
         refresh();   // 从编辑器/选文件夹回来重刷
     }
 
-    // 已授权就进浏览器，没授权就显示"选文件夹"引导
+    // 已授权进浏览器，没授权显示"选文件夹"引导
     private void refresh() {
         boolean granted = StorageAccess.isGranted(requireContext());
         grantCard.setVisibility(granted ? View.GONE : View.VISIBLE);
@@ -173,7 +172,7 @@ public class FilesFragment extends Fragment {
         startActivity(i);
     }
 
-    // 文本类才进编辑器；其余（图片/压缩包等）只能发给智能体
+    // 文本类进编辑器；其余只能发给智能体
     private boolean isText(StorageAccess.Entry e) {
         String m = e.mime == null ? "" : e.mime;
         if (m.startsWith("text/")) return true;

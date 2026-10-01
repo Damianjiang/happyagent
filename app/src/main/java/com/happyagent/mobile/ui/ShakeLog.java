@@ -17,12 +17,12 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
 
-// 摇一摇记日志：加速传感器检测到一次强摇晃时，把当前系统/agent 状态导出一份日志文件。
-// 只有「行为>摇一摇记日志」开关开才注册传感器；由 MainActivity 在 onResume/onPause 挂接。
+// 摇一摇记日志：加速传感器检测强摇晃时导出当前系统/agent 状态日志。
+// 仅开关开时由 MainActivity 在 onResume/onPause 注册传感器。
 public final class ShakeLog {
 
     private static final String TAG = "ShakeLog";
-    // 触发阈值（m/s²）：低于手机正常手持抖动，明显摇动才过
+    // 触发阈值（m/s²）；仅明显摇晃才过
     private static final float THRESHOLD = 28f;
     private static final long COOLDOWN_MS = 5000;
 
@@ -42,7 +42,7 @@ public final class ShakeLog {
             public void onSensorChanged(SensorEvent e) {
                 if (e.values == null || e.values.length < 3) return;
                 float x = e.values[0], y = e.values[1], z = e.values[2];
-                // 扣掉重力后的加速度模长，比绝对模长更能反映"晃动"
+                // 扣掉重力后的加速度模长，比绝对模长更能反映晃动
                 float g = 9.81f;
                 float ax = x, ay = y - g, az = z;
                 float mag = (float) Math.sqrt(ax * ax + ay * ay + az * az);
@@ -72,7 +72,7 @@ public final class ShakeLog {
         sensorManager.registerListener(listener, accelerometer, SensorManager.SENSOR_DELAY_GAME);
     }
 
-    // 只在确实注册过才摘，避免个别无传感器/SENSOR_SERVICE 缺失的设备在 onPause NPE
+    // 只在确实注册过才摘，避免无传感器/SENSOR_SERVICE 缺失的设备 onPause NPE
     public void stop() {
         if (sensorManager == null || accelerometer == null) return;
         sensorManager.unregisterListener(listener);
@@ -81,7 +81,7 @@ public final class ShakeLog {
     private void dumpAndToast() {
         String path = writeReport();
         Log.i(TAG, "shake-log exported to " + path);
-        // Context 没有 runOnUiThread（那是 Activity 的），走主线程 Handler 弹 Toast
+        // Context 没有 runOnUiThread，走主线程 Handler 弹 Toast
         new android.os.Handler(android.os.Looper.getMainLooper()).post(new Runnable() {
             @Override
             public void run() {

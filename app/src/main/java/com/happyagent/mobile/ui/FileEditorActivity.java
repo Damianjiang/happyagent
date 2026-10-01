@@ -51,7 +51,6 @@ public class FileEditorActivity extends AppCompatActivity {
             }
         });
 
-        // 内容读进编辑器（文件可能较大，直接读整份）
         editor.setText(StorageAccess.readText(getApplicationContext(), docId));
         editor.setOnFocusChangeListener(new View.OnFocusChangeListener() {
             @Override

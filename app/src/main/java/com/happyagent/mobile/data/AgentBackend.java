@@ -27,8 +27,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
-// 单例后端：会话、工具、配置都在这管
-// 落盘读写全在单线程池里做，界面线程只拿快照，老机不卡
+// 单例后端：会话、工具、配置在此管理；落盘读写在单线程池，界面线程只拿快照。
 public final class AgentBackend {
 
     private static final String TAG = "AgentBackend";
@@ -45,7 +44,7 @@ public final class AgentBackend {
     private Config config = new Config();
     private volatile boolean loaded;
 
-    // 正在跑的任务：Future 用于取消（中断线程），TaskControl 用于暂停/继续（协作式）
+    // 正在跑的任务：Future 用于取消，TaskControl 用于暂停/继续
     private volatile Future<Session> runningFuture;
     private volatile TaskControl runningControl;
     private volatile String runningSessionId;
@@ -65,7 +64,7 @@ public final class AgentBackend {
         return instance;
     }
 
-    // 应用在启动时调一次，后台把存档读出来
+    // 启动时后台读存档
     public void preload() {
         io.execute(new Runnable() {
             @Override
@@ -91,7 +90,7 @@ public final class AgentBackend {
                     break;
                 }
             }
-            // 等太久了就当场同步读一遍，保证界面不卡死
+            // 等太久则当场同步读一遍，保证界面不卡死
             if (!loaded) {
                 loadFromDisk();
                 loaded = true;
@@ -132,7 +131,7 @@ public final class AgentBackend {
         return s.id;
     }
 
-    // 跑一次任务：ReAct 多步，带多轮上下文 + 本轮附件，持久化 user+工具步骤+assistant。模型/供应商直接读当前配置。
+    // 跑一次任务：ReAct 多步，带多轮上下文 + 附件，持久化 user+工具步骤+assistant
     public Future<Session> runTask(String sessionId, String prompt,
                                    java.util.List<com.happyagent.mobile.model.Models.Attachment> attachments) {
         ensureLoaded();
@@ -163,8 +162,7 @@ public final class AgentBackend {
                             history.add(m);
                         }
                     }
-                    // 多步 ReAct：有 Key 时 LLM 带历史驱动工具，没 Key 降级本地。
-                    // 传入当前启用的工具分组，让工具页开关真正门控 agent 可用工具
+                    // 多步 ReAct：有 Key 走 LLM 驱动工具，没 Key 降级本地
                     ReactAgent agent = new ReactAgent(getConfig(),
                             new FileTools(HappyAgentApplication.get()),
                             new ShellExecutor(HappyAgentApplication.get()),
@@ -208,8 +206,7 @@ public final class AgentBackend {
         return future;
     }
 
-    // Web 端任务入口：没有会话就建一个，同步跑完 ReAct，返回答案与状态。
-    // 独立于界面的 runningFuture/runningControl，网页请求不抢 UI 正在跑的任务。
+    // Web 端任务入口：无会话则创建，同步跑完 ReAct；独立于 UI 的 runningFuture
     public java.util.Map<String, Object> askFreeForm(String prompt, String sessionId) {
         String sid = (sessionId == null || sessionId.isEmpty())
                 ? createSession("Web 任务", null) : sessionId;
@@ -304,9 +301,9 @@ public final class AgentBackend {
 
     public void cancelTask() {
         TaskControl c = runningControl;
-        if (c != null) c.cancel();      // 置位 + 断开当前 HTTP 连接，阻塞中的 read 立刻抛异常退出
+        if (c != null) c.cancel();      // 置位 + 断开当前 HTTP 连接，阻塞 read 立刻退出
         Future<Session> f = runningFuture;
-        if (f != null) f.cancel(true);   // 再打断线程，让暂停的 wait 也返回
+        if (f != null) f.cancel(true);   // 再打断线程
     }
 
     // ---- 工具 ----
@@ -342,8 +339,7 @@ public final class AgentBackend {
         persist();
     }
 
-    // 当前启用的工具分组 key（如 tool.file/tool.search/tool.shell/tool.http）。
-    // agent 拿它做门控：只把启用的工具喂给模型，停用的即便模型发出也不执行。
+    // 当前启用的工具分组 key；agent 据此门控：只把启用工具喂给模型
     public java.util.Set<String> getEnabledToolKeys() {
         ensureLoaded();
         java.util.Set<String> s = new java.util.HashSet<String>();
@@ -424,8 +420,7 @@ public final class AgentBackend {
         config = new Config();
     }
 
-    // 默认工具集 = 引擎真实支持的 4 组（对应 ReactAgent.toolOn 的 key）。
-    // 每项的开关都会真正门控 agent 可用工具；没有对应引擎能力的假开关不放进来。
+    // 默认工具集 = 引擎真实支持的 4 组；每项开关都真正门控 agent 可用工具
     private List<Tool> defaultTools() {
         List<Tool> l = new ArrayList<Tool>();
         l.add(new Tool("tool.file", "文件", "读 / 写 / 列目录 / 文件信息（沙箱路径校验）", true, "dev"));
