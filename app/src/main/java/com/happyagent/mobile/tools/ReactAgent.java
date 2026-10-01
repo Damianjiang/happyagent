@@ -271,9 +271,9 @@ public final class ReactAgent {
         String base = cfg.openaiBaseUrl.trim();
         while (base.endsWith("/")) base = base.substring(0, base.length() - 1);
         String url = base + "/chat/completions";
-        HttpURLConnection conn = connPost(url, body.toString());
-        conn.setRequestProperty("Authorization", "Bearer " + cfg.apiKey().trim());
-        String resp = post(conn, url, body.toString());
+        String resp = postRetry(url, body.toString(), new String[][]{
+                {"Authorization", "Bearer " + cfg.apiKey().trim()}
+        });
         JSONObject jo = new JSONObject(resp);
         JSONObject message = jo.getJSONArray("choices").getJSONObject(0).getJSONObject("message");
         JSONArray calls = message.optJSONArray("tool_calls");
@@ -385,9 +385,9 @@ public final class ReactAgent {
 
         String url = "https://generativelanguage.googleapis.com/v1beta/models/"
                 + cfg.model + ":generateContent";
-        HttpURLConnection conn = connPost(url, body.toString());
-        conn.setRequestProperty("x-goog-api-key", cfg.apiKey().trim());
-        String resp = post(conn, url, body.toString());
+        String resp = postRetry(url, body.toString(), new String[][]{
+                {"x-goog-api-key", cfg.apiKey().trim()}
+        });
         JSONObject jo = new JSONObject(resp);
         JSONArray cand = jo.optJSONArray("candidates");
         JSONArray callsOut = new JSONArray();
@@ -506,10 +506,10 @@ public final class ReactAgent {
         body.put("tools", anthropicTools());
 
         String url = "https://api.anthropic.com/v1/messages";
-        HttpURLConnection conn = connPost(url, body.toString());
-        conn.setRequestProperty("x-api-key", cfg.apiKey().trim());
-        conn.setRequestProperty("anthropic-version", "2023-06-01");
-        String resp = post(conn, url, body.toString());
+        String resp = postRetry(url, body.toString(), new String[][]{
+                {"x-api-key", cfg.apiKey().trim()},
+                {"anthropic-version", "2023-06-01"}
+        });
         JSONObject jo = new JSONObject(resp);
         JSONArray blocks = jo.optJSONArray("content");
         JSONArray callsOut = new JSONArray();
@@ -563,10 +563,78 @@ public final class ReactAgent {
             is.close();
             conn.disconnect();
             String resp = new String(bo.toByteArray(), StandardCharsets.UTF_8);
-            if (code < 200 || code >= 300) throw new Exception("HTTP " + code + ": " + resp.substring(0, Math.min(400, resp.length())));
+            if (code < 200 || code >= 300) {
+                throw new HttpError(code, "HTTP " + code + ": " + resp.substring(0, Math.min(400, resp.length())));
+            }
             return resp;
         } finally {
             control.clearConn();
+        }
+    }
+
+    // 带 HTTP 状态码的异常：让 postRetry 能区分「可重试的临时错」(超时/5xx/429) 和
+    // 「确定性错」(400/401/403/404 等——重试也不会好，只会让任务假死到用户取消)
+    private static final class HttpError extends Exception {
+        final int code;
+        HttpError(int code, String msg) {
+            super(msg);
+            this.code = code;
+        }
+        // 只有服务侧错误(5xx)、限流(429)、请求超时(408)值得重试；其余 4xx 直接停
+        boolean retryable() {
+            return code == 408 || code == 429 || (code >= 500 && code < 600);
+        }
+    }
+
+    // 一次 LLM HTTP 请求，带退避重试。
+    // 连接失败（断网 / 读超时 / 被限流）不再让任务永久失败：按策略自动重连——
+    // 前 3 次失败各等 1s，之后每次等 2s，一直重试到成功；只有用户取消才停。
+    // 每次重试都新建连接（HttpURLConnection 不可复用），旧的先 disconnect。
+    private String postRetry(String url, String body, String[][] headers) throws Exception {
+        int fails = 0;
+        while (true) {
+            if (control.shouldStop()) throw new Exception("任务已停止");
+            HttpURLConnection conn = null;
+            try {
+                conn = connPost(url, body);
+                for (int i = 0; i < headers.length; i++) {
+                    conn.setRequestProperty(headers[i][0], headers[i][1]);
+                }
+                return post(conn, url, body);
+            } catch (Exception e) {
+                if (conn != null) {
+                    try {
+                        conn.disconnect();
+                    } catch (Exception ignored) {
+                    }
+                }
+                control.clearConn();
+                // 用户取消：不重试了，直接停
+                if (control.shouldStop()) throw new Exception("任务已停止", e);
+                // 确定性错误（Key 错/参数错/资源不存在等 4xx）重试也不会好，直接抛出去让任务失败
+                if (e instanceof HttpError && !((HttpError) e).retryable()) {
+                    throw e;
+                }
+                fails++;
+                long wait = (fails <= 3) ? 1000L : 2000L;
+                trace.add(new Message("system", "连接失败，" + (wait / 1000)
+                        + " 秒后自动重试（第 " + fails + " 次）", System.currentTimeMillis()));
+                sleepCancellable(wait);
+            }
+        }
+    }
+
+    // 分段休眠并随时响应取消：取消时立刻返回，不睡满整段
+    private void sleepCancellable(long ms) {
+        long end = System.currentTimeMillis() + ms;
+        while (!control.shouldStop()) {
+            long remain = end - System.currentTimeMillis();
+            if (remain <= 0) return;
+            try {
+                Thread.sleep(remain < 100 ? remain : 100);
+            } catch (InterruptedException e) {
+                return;
+            }
         }
     }
 

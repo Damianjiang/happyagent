@@ -59,7 +59,7 @@
 - **崩溃兜底**：全局未捕获异常 → 自动跳崩溃页，日志一键复制/分享/返回首页。
 - **聊天不卡**：消息用 RecyclerView 局部刷新（只 `notifyItemInserted`），LLM 只喂最近 12 条历史（窗口化），长对话不膨胀。
 - **工具调用稳**：模型给不全必填参数时，**不崩**——校验后把"缺哪些"作为反馈喂回模型补齐（对齐 Operit 的 ToolPackage 机制）。
-- **端侧 agent**：ReAct 多步循环（最多 10 步），离线也能走本地引擎。
+- **连接自愈**：LLM 请求连接失败（断网 / 读超时 / 被限流 / 服务侧 5xx）不再让任务永久失败——自动退避重试：前 3 次各等 1s，之后每次等 2s，一直重连到成功；等待期随时可取消。确定性错误（401 Key 错 / 400 参数错 / 404）重试也不会好，直接让任务失败并给出原因，避免假死到取消。
 - **不虚设功能**：工具页的每个开关都真实门控 agent 可用工具（`ReactAgent` 按启用的工具分组喂 schema，停用的即便模型发出也不执行）；震动反馈、摇一摇导出日志都是真接线的（`Haptics` / `ShakeLog`）。凡是做不到真生效的旋钮（旧版的字号缩放、强调色、自动提交、可编辑工作区）已彻底删除，不在界面里留会说谎的开关。
 
 ## 五、目录结构
@@ -130,6 +130,7 @@ minSdk=23（API 23），逐类核对过会撞版本的项，均已在代码/构�
 | `startForegroundService` / `stopForeground(int)` | 全是高版本 API，各做版本分支：`SDK_INT>=26` 才 `startForegroundService`，`SDK_INT>=33` 才用带 int 的 `stopForeground`，否则老签名 |
 | 内网/外网 IP | 内网 = `NetworkInterface` 取站点内 IPv4（API 1）；外网 = `HttpURLConnection` 请求 `api.ipify.org` 取，取不到就留空、界面如实显示「获取中」，不崩 |
 | 文件访问（SAF） | 用 `DocumentsContract` 的 API 19 方法（`buildChildDocumentsUri(authority, …)` / `buildDocumentUri(authority, …)` / `getDocumentId`），**不**用 API 26 的 `getRootDocumentId`/`buildChildDocumentsUriUsingType`/`getDisplayName`；`FLAG_DIR` 用字面量 2；`Collections.sort` 而非 `List.sort`（API 24）。授权走系统文档选择器，不碰 `READ/WRITE_EXTERNAL_STORAGE`（SAF 不依赖） |
+| 连接自愈（LLM 重试） | `ReactAgent.postRetry` 对临时错误（超时 / 429 / 5xx）自动退避重连：前 3 次各等 1s、之后每次 2s，等待用分段 `Thread.sleep`（API 1）并随时响应取消；确定性 4xx（401/400/404）不重试直接失败。无高版本 API 依赖 |
 
 三家模型接口（OpenAI `/chat/completions`、Google `generateContent`、Anthropic `/v1/messages`）走 `HttpURLConnection` + `org.json`，纯 JDK/标准库，无运行时版本依赖；请求/响应格式按各家官方文档逐一核对过。
 
