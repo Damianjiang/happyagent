@@ -25,10 +25,9 @@ import com.happyagent.mobile.model.Models.Session;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.Future;
 
 // 对话页：聊天气泡流（user/tool/assistant 三类）+ 底部输入发送，多轮上下文，
-// 列表局部刷新，工具调用可见，全程离线/在线可用
+// 列表局部刷新，工具调用可见。任务跑在单例后端，离开页面可继续，回来重挂轮询。
 public class SessionDetailActivity extends AppCompatActivity {
 
     public static final String EXTRA_SESSION_ID = "session_id";
@@ -44,9 +43,7 @@ public class SessionDetailActivity extends AppCompatActivity {
 
     private String sessionId;
     private ChatAdapter adapter;
-    private List<Message> ui = new ArrayList<Message>();
 
-    private Future<Session> running;
     private android.os.Handler mainHandler;
     private Runnable pollTask;
 
@@ -70,7 +67,7 @@ public class SessionDetailActivity extends AppCompatActivity {
         cancelBtn = findViewById(R.id.detail_cancel);
         pauseBtn.setOnClickListener(v -> AgentBackend.get().pauseTask());
         resumeBtn.setOnClickListener(v -> AgentBackend.get().resumeTask());
-        cancelBtn.setOnClickListener(v -> cancelRunning());
+        cancelBtn.setOnClickListener(v -> AgentBackend.get().cancelTask());
 
         AgentBackend backend = AgentBackend.get();
         Session s = backend.getSession(sessionId);
@@ -94,10 +91,9 @@ public class SessionDetailActivity extends AppCompatActivity {
         recycler.setAdapter(adapter);
         recycler.setNestedScrollingEnabled(false);
 
-        ui = chatOf(s.messages);
-        adapter.submit(ui);
+        adapter.submit(chatOf(s.messages));
         updateEmpty();
-        if (!ui.isEmpty()) scrollBottom();
+        if (adapter.count() > 0) scrollBottom();
 
         sendBtn.setOnClickListener(v -> send());
         promptBox.setOnEditorActionListener((tv, actionId, event) -> {
@@ -106,78 +102,74 @@ public class SessionDetailActivity extends AppCompatActivity {
         });
     }
 
+    // 回来时若后台仍有本会话任务在跑（比如页面被重建、或切回来），重新挂上轮询
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (AgentBackend.get().isSessionRunning(sessionId)) startPolling();
+    }
+
     private void send() {
         String p = promptBox.getText().toString().trim();
         if (p.isEmpty()) return;
-        if (running != null && !running.isDone()) return;   // 正在跑就不重复发
+        if (anyRunning()) return;   // 有任务在跑就不重复发
 
-        // 立刻显示用户气泡（局部 insert，不全量刷新）
-        Message bubble = new Message("user", p, System.currentTimeMillis());
-        ui.add(bubble);
-        adapter.notifyTailAdded(1);
+        // 乐观插用户气泡（局部 insert），adapter 是界面上唯一数据源
+        adapter.append(new Message("user", p, System.currentTimeMillis()));
         updateEmpty();
         scrollBottom();
 
         promptBox.setText("");
         sendBtn.setEnabled(false);
         try {
-            running = AgentBackend.get().runTask(sessionId, p, AgentBackend.get().getConfig().model);
+            AgentBackend.get().runTask(sessionId, p);
+            startPolling();
+        } catch (Exception e) {
+            CrashHandler.showFrom(e);
+        }
+    }
+
+    // 轮询由 mainHandler 驱动；send / onResume 都走这里，避免重复 post
+    private void startPolling() {
+        updateControls();
+        if (pollTask == null) {
             pollTask = new Runnable() {
                 @Override
                 public void run() {
                     checkRunning();
                 }
             };
-            updateControls();
-            mainHandler.postDelayed(pollTask, 250);
-        } catch (Exception e) {
-            CrashHandler.showFrom(e);
         }
+        mainHandler.postDelayed(pollTask, 250);
     }
 
-    private void cancelRunning() {
-        AgentBackend.get().cancelTask();
-    }
-
-    // 控制条可见性与按钮可用性，跟任务运行时/暂停状态同步
-    private void updateControls() {
-        AgentBackend backend = AgentBackend.get();
-        boolean run = backend.isTaskRunning();
-        controlsRow.setVisibility(run ? View.VISIBLE : View.GONE);
-        if (run) {
-            boolean paused = backend.isTaskPaused();
-            pauseBtn.setVisibility(paused ? View.GONE : View.VISIBLE);
-            resumeBtn.setVisibility(paused ? View.VISIBLE : View.GONE);
-        }
+    // 本会话是不是当前在跑的那个任务（App 全局单任务）
+    private boolean anyRunning() {
+        return AgentBackend.get().isSessionRunning(sessionId);
     }
 
     private void checkRunning() {
-        if (running == null) return;
-        if (!running.isDone()) {
+        if (anyRunning()) {
             updateControls();
             mainHandler.postDelayed(pollTask, 250);
             return;
         }
-        try {
-            Session s = running.get();
-            // 全量刷新为持久化后的对话；只 insert 新增段（会话是纯追加）
-            int oldCount = adapter.count();
+        // 跑完了：把本会话的权威对话补进列表（只插尾部，一次 notify）
+        Session s = AgentBackend.get().getSession(sessionId);
+        if (s != null) {
             List<Message> full = chatOf(s.messages);
-            ui = full;
-            adapter.submit(full);
-            int added = full.size() - oldCount;
-            if (added > 0) adapter.notifyTailAdded(added);
+            int prev = Math.min(adapter.count(), full.size());
+            adapter.appendRange(full.subList(prev, full.size()));
             refreshStatus(s);
             updateEmpty();
             scrollBottom();
             if (s.status == 3) {
                 Toast.makeText(this, "任务失败：" + lastSystem(s), Toast.LENGTH_LONG).show();
             }
-        } catch (Exception ignored) {
-        } finally {
-            running = null;
-            sendBtn.setEnabled(true);
         }
+        pollTask = null;
+        sendBtn.setEnabled(true);
+        updateControls();
     }
 
     private void refreshStatus(Session s) {
@@ -205,8 +197,9 @@ public class SessionDetailActivity extends AppCompatActivity {
     }
 
     private void updateEmpty() {
-        empty.setVisibility(ui.isEmpty() ? View.VISIBLE : View.GONE);
-        recycler.setVisibility(ui.isEmpty() ? View.GONE : View.VISIBLE);
+        boolean isEmpty = adapter.count() == 0;
+        empty.setVisibility(isEmpty ? View.VISIBLE : View.GONE);
+        recycler.setVisibility(isEmpty ? View.GONE : View.VISIBLE);
     }
 
     private void scrollBottom() {
@@ -215,10 +208,25 @@ public class SessionDetailActivity extends AppCompatActivity {
         });
     }
 
+    // 控制条跟任务运行/暂停状态同步；任务跑完或不是本会话就整行收起
+    private void updateControls() {
+        AgentBackend backend = AgentBackend.get();
+        boolean run = backend.isSessionRunning(sessionId);
+        controlsRow.setVisibility(run ? View.VISIBLE : View.GONE);
+        if (run) {
+            boolean paused = backend.isTaskPaused();
+            pauseBtn.setVisibility(paused ? View.GONE : View.VISIBLE);
+            resumeBtn.setVisibility(paused ? View.VISIBLE : View.GONE);
+        }
+    }
+
     @Override
     protected void onDestroy() {
-        if (pollTask != null) mainHandler.removeCallbacks(pollTask);
-        if (running != null) running.cancel(true);
+        // 任务在单例后端里跑，离开页面不打断它，只撤掉本页的轮询回调
+        if (pollTask != null) {
+            mainHandler.removeCallbacks(pollTask);
+            pollTask = null;
+        }
         super.onDestroy();
     }
 
@@ -236,11 +244,18 @@ public class SessionDetailActivity extends AppCompatActivity {
             notifyDataSetChanged();
         }
 
-        // 只标记新增的尾部条目，避免全量 rebind（聊天性能关键）
-        void notifyTailAdded(int n) {
-            int from = items.size() - n;
-            if (from < 0) from = 0;
-            notifyItemRangeInserted(from, n);
+        // 追加一条（乐观气泡），只 insert 尾部
+        void append(Message m) {
+            items.add(m);
+            notifyItemInserted(items.size() - 1);
+        }
+
+        // 追加一批尾部（任务完成时补工具/助手消息），一次 range notify，避免不一致
+        void appendRange(List<Message> newTail) {
+            if (newTail.isEmpty()) return;
+            int from = items.size();
+            items.addAll(newTail);
+            notifyItemRangeInserted(from, newTail.size());
         }
 
         @NonNull

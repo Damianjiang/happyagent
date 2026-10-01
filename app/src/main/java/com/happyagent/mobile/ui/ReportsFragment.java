@@ -5,7 +5,6 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ProgressBar;
-import android.widget.ScrollView;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
@@ -61,7 +60,7 @@ public class ReportsFragment extends Fragment {
                 final String model = backend.getConfig().model;
                 final String provider = backend.getConfig().getProvider();
                 final String keyState = backend.getConfig().hasKey() ? "已配置" : "未配置";
-                final String baseUrl = backend.getConfig().openaiBaseUrl;
+                final String endpoint = endpointOf(backend.getConfig());
                 final String lastUpdated = sessions.isEmpty() ? "无" :
                         new SimpleDateFormat("MM-dd HH:mm", Locale.getDefault())
                                 .format(new Date(sessions.get(0).updatedAt));
@@ -78,10 +77,22 @@ public class ReportsFragment extends Fragment {
                         lastUpdate.setText(lastUpdated);
                         providerLabel.setText(provider);
                         openaiLabel.setText(keyState);
-                        baseUrlLabel.setText(baseUrl);
+                        baseUrlLabel.setText(endpoint);
                     }
                 });
             }
         }).start();
+    }
+
+    // 诊断页"接口"行按供应商显示请求去向，OpenAI 才谈 Base URL
+    private String endpointOf(com.happyagent.mobile.model.Models.Config c) {
+        switch (c.getProvider()) {
+            case com.happyagent.mobile.model.Models.Config.PROVIDER_GOOGLE:
+                return "generativelanguage.googleapis.com";
+            case com.happyagent.mobile.model.Models.Config.PROVIDER_ANTHROPIC:
+                return "api.anthropic.com/v1";
+            default:
+                return c.openaiBaseUrl;
+        }
     }
 }

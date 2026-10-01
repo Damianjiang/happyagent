@@ -48,6 +48,7 @@ public final class AgentBackend {
     // 正在跑的任务：Future 用于取消（中断线程），TaskControl 用于暂停/继续（协作式）
     private volatile Future<Session> runningFuture;
     private volatile TaskControl runningControl;
+    private volatile String runningSessionId;
 
     private AgentBackend() {
         Context ctx = HappyAgentApplication.get();
@@ -133,8 +134,8 @@ public final class AgentBackend {
         return s.id;
     }
 
-    // 跑一次任务：ReAct 多步，带多轮上下文，持久化 user+工具步骤+assistant
-    public Future<Session> runTask(String sessionId, String prompt, String model) {
+    // 跑一次任务：ReAct 多步，带多轮上下文，持久化 user+工具步骤+assistant。模型/供应商直接读当前配置。
+    public Future<Session> runTask(String sessionId, String prompt) {
         ensureLoaded();
         final Session session = getSession(sessionId);
         if (session == null) throw new IllegalStateException("unknown session " + sessionId);
@@ -145,10 +146,11 @@ public final class AgentBackend {
         }
 
         final TaskControl control = new TaskControl();
+        runningControl = control;   // 在 submit 前就绑好，取消无空窗
+        runningSessionId = sessionId;
         Future<Session> future = io.submit(new Callable<Session>() {
             @Override
             public Session call() {
-                runningControl = control;
                 List<Message> trace = new ArrayList<Message>();
                 trace.add(new Message("user", prompt, System.currentTimeMillis()));
                 try {
@@ -206,12 +208,18 @@ public final class AgentBackend {
     private void clearRunning() {
         runningControl = null;
         runningFuture = null;
+        runningSessionId = null;
     }
 
     // ---- 任务控制：暂停 / 继续 / 取消 ----
 
     public boolean isTaskRunning() {
         return runningFuture != null && !runningFuture.isDone();
+    }
+
+    // 指定会话是不是当前在跑的那个任务（页面回来时只对号才重挂轮询/控制条）
+    public boolean isSessionRunning(String sessionId) {
+        return isTaskRunning() && sessionId != null && sessionId.equals(runningSessionId);
     }
 
     public boolean isTaskPaused() {
@@ -228,9 +236,10 @@ public final class AgentBackend {
     }
 
     public void cancelTask() {
-        if (runningControl != null) runningControl.cancel();
+        TaskControl c = runningControl;
+        if (c != null) c.cancel();      // 置位 + 断开当前 HTTP 连接，阻塞中的 read 立刻抛异常退出
         Future<Session> f = runningFuture;
-        if (f != null) f.cancel(true);   // 同时打断 HTTP 读取，让阻塞立刻结束
+        if (f != null) f.cancel(true);   // 再打断线程，让暂停的 wait 也返回
     }
 
     // ---- 工具 ----
@@ -341,7 +350,7 @@ public final class AgentBackend {
         long now = System.currentTimeMillis();
         List<Message> msgs = new ArrayList<Message>();
         msgs.add(new Message("assistant",
-                "你好，我是 Happy Agent。直接和我对话；配置 OpenAI Key 后我能真正理解并回答你。",
+                "你好，我是 Happy Agent。直接和我对话；在配置页填好 API Key 后我能真正理解并回答你。",
                 now - 60000));
         sessions.add(new Session("s-seed-1", "欢迎使用 Happy Agent", config.agentName, 2, now, msgs));
         persistNow();

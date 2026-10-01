@@ -13,9 +13,7 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 // 多步 ReAct agent：think → act(tool) → observe → ... → answer（对应 Operit PhoneAgent）
 // 有 OpenAI Key 时 LLM 带多轮历史驱动工具调用，没 Key 降级本地模拟。
@@ -45,7 +43,7 @@ public final class ReactAgent {
         this.control = control;
     }
 
-    public String run(String task, List<Message> history) {
+    public String run(String task, List<Message> history) throws Exception {
         String systemPrompt = buildSystemPrompt();
         trace.add(new Message("system", "PLAN: " + task, System.currentTimeMillis()));
 
@@ -99,9 +97,14 @@ public final class ReactAgent {
                     return answer;
                 }
             } catch (Exception e) {
+                // 用户取消导致的连接中断按"已停止"正常返回；真正的 LLM/网络错误往上抛，
+                // 由后端记为任务失败（status 3），而不是当成"成功完成"
+                if (control.isCancelled()) {
+                    return cancelled();
+                }
                 trace.add(new Message("system", "Step " + step + " error: " + e.getMessage(),
                         System.currentTimeMillis()));
-                return "Agent stopped at step " + step + ": " + e.getMessage();
+                throw new Exception("Step " + step + " failed: " + e.getMessage(), e);
             }
         }
         return "Reached max steps (" + MAX_STEPS + ").";
@@ -334,27 +337,32 @@ public final class ReactAgent {
         conn.setConnectTimeout(CONNECT_TIMEOUT);
         conn.setReadTimeout(READ_TIMEOUT);
         conn.setRequestProperty("Content-Type", "application/json");
+        control.setConn(conn);
         return conn;
     }
 
-    // 真正写请求体 + 读响应体
+    // 真正写请求体 + 读响应体。读是阻塞点，取消时由 TaskControl.cancel 断连接让这里抛异常
     private String post(HttpURLConnection conn, String url, String body) throws Exception {
-        OutputStream os = conn.getOutputStream();
-        os.write(body.getBytes(StandardCharsets.UTF_8));
-        os.flush();
-        os.close();
+        try {
+            OutputStream os = conn.getOutputStream();
+            os.write(body.getBytes(StandardCharsets.UTF_8));
+            os.flush();
+            os.close();
 
-        int code = conn.getResponseCode();
-        InputStream is = (code >= 200 && code < 300) ? conn.getInputStream() : conn.getErrorStream();
-        ByteArrayOutputStream bo = new ByteArrayOutputStream();
-        byte[] buf = new byte[8192];
-        int n;
-        while ((n = is.read(buf)) != -1) bo.write(buf, 0, n);
-        is.close();
-        conn.disconnect();
-        String resp = new String(bo.toByteArray(), StandardCharsets.UTF_8);
-        if (code < 200 || code >= 300) throw new Exception("HTTP " + code + ": " + resp);
-        return resp;
+            int code = conn.getResponseCode();
+            InputStream is = (code >= 200 && code < 300) ? conn.getInputStream() : conn.getErrorStream();
+            ByteArrayOutputStream bo = new ByteArrayOutputStream();
+            byte[] buf = new byte[8192];
+            int n;
+            while ((n = is.read(buf)) != -1) bo.write(buf, 0, n);
+            is.close();
+            conn.disconnect();
+            String resp = new String(bo.toByteArray(), StandardCharsets.UTF_8);
+            if (code < 200 || code >= 300) throw new Exception("HTTP " + code + ": " + resp);
+            return resp;
+        } finally {
+            control.clearConn();
+        }
     }
 
     private void addMsg(List<JSONObject> msgs, String role, String content) {
@@ -393,8 +401,17 @@ public final class ReactAgent {
         sb.append("Local engine (no API key configured)\n");
         sb.append("Rounds so far: ").append(history.size()).append("\n");
         sb.append("Reply: 收到「").append(task)
-          .append("」。离线本地模式，配置 OpenAI Key 后我会真正理解并回答你。");
+          .append("」。离线本地模式，在配置页填 ").append(providerLabel())
+          .append(" 的 API Key 后我会真正理解并回答你。");
         return sb.toString();
+    }
+
+    private String providerLabel() {
+        switch (cfg.getProvider()) {
+            case Config.PROVIDER_GOOGLE:   return "Google";
+            case Config.PROVIDER_ANTHROPIC: return "Anthropic";
+            default:                        return "OpenAI";
+        }
     }
 
     private String httpGet(String url) {
