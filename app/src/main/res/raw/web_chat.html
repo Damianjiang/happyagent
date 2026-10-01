@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Happy Agent · Web</title>
+<style>
+:root{
+  --bg:#F8FAFC; --surface:#FFFFFF; --text:#0F172A; --muted:#475569;
+  --accent:#1E40AF; --user:#1E40AF; --ai:#E2E8F0; --line:#CBD5E1;
+  --tool:#F1F5F9;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#0F172A; --surface:#1E293B; --text:#E2E8F0; --muted:#94A3B8;
+    --accent:#93C5FD; --user:#1E40AF; --ai:#334155; --line:#334155;
+    --tool:#1E293B;
+  }
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;background:var(--bg);color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif;
+  display:flex;flex-direction:column;
+}
+header{
+  display:flex;align-items:center;gap:10px;
+  padding:12px 16px;background:var(--surface);border-bottom:1px solid var(--line);
+}
+header .logo{width:30px;height:30px;border-radius:8px;background:var(--user);
+  color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;flex:0 0 auto}
+header .title{font-weight:600;font-size:15px}
+header .sub{font-size:11px;color:var(--muted);margin-top:1px}
+header .spacer{flex:1}
+#dot{width:8px;height:8px;border-radius:50%;background:#16A34A;flex:0 0 auto}
+#dot.off{background:var(--muted)}
+main{flex:1;overflow-y:auto;padding:16px 16px 8px}
+.msg{max-width:82%;margin:6px 0;padding:9px 13px;border-radius:14px;font-size:14px;
+  line-height:1.5;white-space:pre-wrap;word-break:break-word}
+.msg.user{margin-left:auto;background:var(--user);color:#fff;border-bottom-right-radius:4px}
+.msg.ai{margin-right:auto;background:var(--ai);border-bottom-left-radius:4px}
+.msg.tool{max-width:100%;margin:3px auto;width:88%;background:var(--tool);
+  color:var(--muted);font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;
+  border-radius:8px;text-align:center}
+.msg .meta{font-size:10px;opacity:.7;margin-top:4px}
+.empty{text-align:center;color:var(--muted);margin-top:22vh;font-size:14px;line-height:1.8}
+footer{
+  display:flex;align-items:flex-end;gap:8px;padding:10px 12px;
+  background:var(--surface);border-top:1px solid var(--line)
+}
+#box{flex:1;resize:none;border:1px solid var(--line);background:var(--bg);color:var(--text);
+  border-radius:16px;padding:9px 12px;font-size:14px;max-height:120px;min-height:42px;outline:none}
+#send{flex:0 0 auto;width:44px;height:44px;border:none;border-radius:50%;background:var(--accent);
+  color:#fff;font-size:18px;cursor:pointer;transition:opacity .15s}
+#send:disabled{opacity:.45;cursor:default}
+#conn{font-size:11px;color:var(--muted);padding:4px 16px 0;background:var(--surface);
+  border-bottom:1px solid var(--line);letter-spacing:.3px}
+/* 手机小屏：气泡更宽、字号略小 */
+@media (max-width:560px){
+  .msg{max-width:92%;font-size:13px}
+  header{padding:10px 12px}
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">H</div>
+  <div>
+    <div class="title">Happy Agent</div>
+    <div class="sub" id="modelsub">端侧智能体 · Web</div>
+  </div>
+  <div class="spacer"></div>
+  <span id="dot"></span>
+</header>
+<div id="conn">正在连接服务…</div>
+<main id="list">
+  <div class="empty" id="empty">在这里输入任务<br>电脑或手机浏览器打开都能用</div>
+</main>
+<footer>
+  <textarea id="box" rows="1" placeholder="给智能体描述一个任务…"></textarea>
+  <button id="send" title="发送">➤</button>
+</footer>
+<script>
+var list = document.getElementById('list');
+var box = document.getElementById('box');
+var send = document.getElementById('send');
+var empty = document.getElementById('empty');
+var conn = document.getElementById('conn');
+var dot = document.getElementById('dot');
+var sid = '';
+
+function esc(s){var d=document.createElement('div');d.textContent=s;return d.innerHTML;}
+function addMsg(role, text, extra){
+  if(empty) empty.style.display='none';
+  var d = document.createElement('div');
+  d.className = 'msg ' + role;
+  d.innerHTML = esc(text || '');
+  if(extra){ var m=document.createElement('div'); m.className='meta'; m.textContent=extra; d.appendChild(m); }
+  list.appendChild(d);
+  list.scrollTop = list.scrollHeight;
+  return d;
+}
+
+// 拉运行态：会话 id + 模型 + 是否有 key
+function refreshState(){
+  fetch('/api/state').then(function(r){return r.json();}).then(function(o){
+    sid = (o.sessions && o.sessions.length) ? o.sessions[0].id : '';
+    var key = o.keyConfigured ? '' : '（未配 Key，离线模拟）';
+    document.getElementById('modelsub').textContent =
+      o.provider + ' · ' + o.model + key;
+  }).catch(function(){});
+}
+
+function sendText(){
+  var p = box.value.trim();
+  if(!p) return;
+  addMsg('user', p);
+  box.value = '';
+  autoGrow();
+  send.disabled = true;
+  var d = addMsg('ai', '…');
+  fetch('/api/ask', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({prompt:p, sessionId:sid})
+  }).then(function(r){return r.json();}).then(function(o){
+    sid = o.sessionId || sid;
+    d.textContent = (o.answer && o.answer.length) ? o.answer : '（无内容）';
+    d.title = o.statusLabel;
+    list.scrollTop = list.scrollHeight;
+    refreshState();
+  }).catch(function(e){
+    d.textContent = '请求失败：' + e;
+  }).then(function(){ send.disabled = false; });
+}
+
+function autoGrow(){ box.style.height='auto'; box.style.height=Math.min(box.scrollHeight,120)+'px'; }
+
+// 连接探测：拿到内网/外网地址就显示，拿不到说明跨网段
+function probe(){
+  fetch('/api/ipinfo').then(function(r){return r.json();}).then(function(o){
+    var lan = o.lan ? ('内网 '+o.lan+':'+o.port) : '';
+    var pub = o.public ? (' 外网 '+o.public+':'+o.port) : '';
+    conn.textContent = '服务运行中 · ' + (lan + pub).trim() || '服务运行中';
+    dot.classList.remove('off');
+  }).catch(function(){
+    conn.textContent = '无法连接 Happy Agent Web 服务';
+    dot.classList.add('off');
+  });
+}
+
+send.onclick = sendText;
+box.addEventListener('input', autoGrow);
+box.addEventListener('keydown', function(e){
+  if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); sendText(); }
+});
+refreshState();
+probe();
+</script>
+</body>
+</html>

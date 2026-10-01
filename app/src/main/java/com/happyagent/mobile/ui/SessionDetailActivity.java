@@ -193,7 +193,7 @@ public class SessionDetailActivity extends AppCompatActivity {
             TextView label = new TextView(this);
             label.setText("📄 " + a.fileName);
             label.setTextSize(12);
-            label.setTextColor(0xFF475569);
+            label.setTextColor(getResources().getColor(R.color.on_surface_variant));
             label.setMaxWidth((int) (140 * getResources().getDisplayMetrics().density));
             chip.addView(label);
         }
@@ -201,7 +201,7 @@ public class SessionDetailActivity extends AppCompatActivity {
         TextView x = new TextView(this);
         x.setText(" ×");
         x.setTextSize(16);
-        x.setTextColor(0xFF475569);
+        x.setTextColor(getResources().getColor(R.color.on_surface_variant));
         x.setOnClickListener(v -> {
             pending.remove(idx);
             renderPending();
@@ -417,7 +417,7 @@ public class SessionDetailActivity extends AppCompatActivity {
                     TextView chip = new TextView(h.itemView.getContext());
                     chip.setText("📄 " + a.fileName);
                     chip.setTextSize(12);
-                    chip.setTextColor(0xFF475569);
+                    chip.setTextColor(h.itemView.getContext().getResources().getColor(R.color.on_surface_variant));
                     chip.setPadding(dp(h, 8), dp(h, 4), dp(h, 8), dp(h, 4));
                     chip.setBackgroundResource(R.drawable.bg_chip);
                     h.userAttach.addView(chip);

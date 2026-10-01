@@ -17,13 +17,13 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
-// 多步 ReAct agent：think → act(tool) → observe → ... → answer（对应 Operit PhoneAgent）
-// 有 OpenAI Key 时 LLM 带多轮历史驱动工具调用，没 Key 降级本地模拟。
-// 工具调用带参数校验：缺必填参数不崩，把"缺哪些"作为反馈喂回模型补齐（对齐 Operit ToolPackage）。
+// 多步 ReAct agent：think → act(tool) → observe → answer（对应 Operit PhoneAgent）。
+// 有 Key 时走各家原生 function calling 调工具，没 Key 走本地引擎。
+// 工具参数宽容：缺参/键名变体都能跑，弱模型也可驱动。
 public final class ReactAgent {
 
     private static final int MAX_STEPS = 10;
-    private static final int HISTORY_WINDOW = 12;   // 只喂最近 12 条 user/assistant，治聊天卡
+    private static final int HISTORY_WINDOW = 12;
     private static final int CONNECT_TIMEOUT = 30000;
     private static final int READ_TIMEOUT = 120000;
 
@@ -32,8 +32,8 @@ public final class ReactAgent {
     private final ShellExecutor shell;
     private final List<Message> trace;
     private final TaskControl control;
-    // 本轮任务携带的图片附件，多模态喂模型用
     private List<Attachment> currentImages;
+    private int callCounter;
 
     public ReactAgent(Config cfg, FileTools ft, ShellExecutor se, List<Message> trace) {
         this(cfg, ft, se, trace, new TaskControl());
@@ -49,57 +49,63 @@ public final class ReactAgent {
 
     public String run(String task, List<Message> history, List<Attachment> attachments) throws Exception {
         this.currentImages = attachments == null ? new ArrayList<Attachment>() : attachments;
-        String systemPrompt = buildSystemPrompt();
         trace.add(new Message("system", "PLAN: " + task, System.currentTimeMillis()));
 
         if (!cfg.hasKey()) {
             return localFallback(task, history, currentImages);
         }
 
-        // 只喂最近 HISTORY_WINDOW 条 user/assistant，控制上下文长度，避免聊多了卡
-        List<Message> window = recentWindow(history, HISTORY_WINDOW);
-        List<JSONObject> messages = new ArrayList<JSONObject>();
-        addMsg(messages, "system", systemPrompt);
-        for (Message h : window) {
-            addMsg(messages, h.role, h.text);
+        // 供应商无关的记录：每步一个 step。user/assistant 带 text，assistant 可带 calls，
+        // tool 带 results。各 provider 的 callLlm 每次从 transcript 重建请求。
+        List<JSONObject> transcript = new ArrayList<JSONObject>();
+        for (Message h : recentWindow(history, HISTORY_WINDOW)) {
+            transcript.add(new JSONObject().put("role", h.role).put("text", h.text));
         }
-        // 当前任务：文本 + 本轮图片一起送（多模态）
-        addUserTask(messages, task);
+        JSONObject userStep = new JSONObject().put("role", "user").put("text", task);
+        userStep.put("images", imagePayloads());
+        transcript.add(userStep);
 
         for (int step = 1; step <= MAX_STEPS; step++) {
-            // 每步自查控制：取消/线程被打断则停；暂停则阻塞等待继续
             if (control.shouldStop()) return cancelled();
             control.waitForResume();
             if (control.shouldStop()) return cancelled();
 
             trace.add(new Message("system", "STEP " + step + " / " + MAX_STEPS, System.currentTimeMillis()));
             try {
-                String llmResponse = callLlm(messages);
-                JSONObject parsed = parseLlmResponse(llmResponse);
-
-                // 宽容解析：tool_call / tool / tool_use / action 都能认；参数键名/工具名都不卡死
-                if (parsed.has("tool_call") || parsed.has("tool") || parsed.has("tool_use")
-                        || parsed.has("action")) {
-                    JSONObject tc = firstPresent(parsed, "tool_call", "tool", "tool_use", "action");
-                    if (tc == null) tc = parsed;
-                    String rawName = firstNonEmpty(tc, "name", "tool", "tool_name", "action", "tool_call");
-                    String toolName = normalizeToolName(rawName);
-                    JSONObject args = normalizeArgs(tc);
-
-                    // 不校验"必填"，直接宽容执行：缺的参数用默认值/别名填上，
-                    // 结果里带提示信息，弱模型看结果也能自己修正
-                    String result = dispatchTool(toolName, args);
-                    trace.add(new Message("tool", toolName + " -> " + result, System.currentTimeMillis()));
-                    addMsg(messages, "assistant", llmResponse);
-                    addMsg(messages, "user", "Tool [" + toolName + "] returned: " + result + ". Continue.");
-                } else {
-                    String answer = parsed.optString("answer", llmResponse);
-                    trace.add(new Message("assistant", answer, System.currentTimeMillis()));
-                    return answer;
+                JSONObject r = callLlm(transcript);
+                JSONArray calls = r.optJSONArray("calls");
+                if (calls != null && calls.length() > 0) {
+                    // 保证每个调用有 id（OpenAI tool 消息必须按 id 对应）
+                    for (int i = 0; i < calls.length(); i++) {
+                        JSONObject c = calls.getJSONObject(i);
+                        if (c.optString("id", "").length() == 0) {
+                            calls.put(i, new JSONObject(c.toString()).put("id", "call_" + step + "_" + i));
+                        }
+                    }
+                    JSONArray results = new JSONArray();
+                    JSONObject asst = new JSONObject().put("role", "assistant").put("calls", calls);
+                    transcript.add(asst);
+                    for (int i = 0; i < calls.length(); i++) {
+                        JSONObject c = calls.getJSONObject(i);
+                        String toolName = normalizeToolName(c.optString("name", ""));
+                        JSONObject args = c.optJSONObject("args");
+                        if (args == null) args = new JSONObject();
+                        String result = dispatchTool(toolName, args);
+                        results.put(new JSONObject()
+                                .put("id", c.optString("id", ""))
+                                .put("name", toolName)
+                                .put("result", result));
+                        trace.add(new Message("tool", toolName + " -> " + result, System.currentTimeMillis()));
+                    }
+                    transcript.add(new JSONObject().put("role", "tool").put("results", results));
+                    continue;
                 }
+                String answer = r.optString("answer", "");
+                if (answer.isEmpty()) answer = "（模型本轮未返回内容，任务结束）";
+                transcript.add(new JSONObject().put("role", "assistant").put("text", answer));
+                trace.add(new Message("assistant", answer, System.currentTimeMillis()));
+                return answer;
             } catch (Exception e) {
-                // 用户取消导致的连接中断按"已停止"正常返回；真正的 LLM/网络错误往上抛，
-                // 由后端记为任务失败（status 3），而不是当成"成功完成"
                 if (control.isCancelled()) {
                     return cancelled();
                 }
@@ -111,288 +117,239 @@ public final class ReactAgent {
         return "Reached max steps (" + MAX_STEPS + ").";
     }
 
-    // 取消/被打断的统一收尾：记录一条停止原因，返回占位文案
     private String cancelled() {
         trace.add(new Message("system", "Agent stopped by user", System.currentTimeMillis()));
         return "任务已停止";
     }
 
-    // 模型输出五花八门：从候选键名里找第一个存在的（宽松匹配不同模型的字段命名）
-    private JSONObject firstPresent(JSONObject o, String... keys) {
-        for (String k : keys) {
-            JSONObject v = o.optJSONObject(k);
-            if (v != null) return v;
+    private JSONArray imagePayloads() throws Exception {
+        JSONArray imgs = new JSONArray();
+        for (Attachment a : currentImages) {
+            if (!a.isImage()) continue;
+            String b64 = readImageBase64(a.path);
+            if (b64 == null) continue;
+            imgs.put(new JSONObject().put("mime", a.mime).put("data", b64).put("name", a.fileName));
         }
-        return null;
+        return imgs;
     }
 
-    private String firstNonEmpty(JSONObject o, String... keys) {
-        for (String k : keys) {
-            String v = o.optString(k, "").trim();
-            if (v.length() > 0) return v;
-        }
-        return "";
-    }
-
-    // 工具名宽容匹配：别名/大小写/下划线都能归一到标准工具名
-    private String normalizeToolName(String raw) {
-        if (raw == null) return "";
-        String t = raw.trim().toLowerCase().replace(' ', '_').replace('-', '_');
-        // 精确别名表（英文标准 + 常见同义词）
-        String[][] aliasMap = {
-                {"file_read", "read", "read_file", "cat", "open", "view", "show_file", "读取文件"},
-                {"file_write", "write", "write_file", "save", "create_file", "写入", "创建文件"},
-                {"file_list", "list", "ls", "list_dir", "list_files", "dir", "列目录", "看目录"},
-                {"file_find", "find", "find_file", "查找", "搜文件"},
-                {"file_grep", "grep", "search", "search_file", "search_files", "搜索", "搜代码"},
-                {"file_info", "info", "stat", "文件信息"},
-                {"shell_exec", "shell", "exec", "execute", "run", "run_shell", "执行命令", "跑命令", "执行"},
-                {"shell_detect", "detect", "detect_proot", "探测"},
-                {"http_get", "http", "fetch", "download", "get_url", "web", "抓网页", "下载"},
-                {"memory_recall", "memory", "recall", "记忆"},
-        };
-        for (String[] group : aliasMap) {
-            for (String alias : group) {
-                if (t.equals(alias.toLowerCase()) || t.equals(alias)) return group[0];
-            }
-            // 包含匹配：弱模型可能写 "read the file x.txt" / "读取文件"，任一别名命中就归一
-            for (String alias : group) {
-                if (alias.length() >= 4 && (t.contains(alias.toLowerCase()) || t.contains(alias))) {
-                    return group[0];
-                }
-            }
-        }
-        return raw;   // 认不出来原样传，dispatchTool 返回可行动的提示
-    }
-
-    // 参数键名宽容：arguments/args/params 都认（对象或 JSON 字符串）；path/file/dir/url 归一
-    private JSONObject normalizeArgs(JSONObject tc) {
-        JSONObject args = null;
-        String[] argKeys = {"arguments", "args", "parameters", "params", "input"};
-        for (int i = 0; i < argKeys.length && args == null; i++) {
-            JSONObject jo = tc.optJSONObject(argKeys[i]);
-            if (jo != null) {
-                args = jo;
-            } else {
-                String s = tc.optString(argKeys[i], "").trim();
-                if (s.length() > 0) {
-                    try { args = new JSONObject(s); }
-                    catch (Exception ignored) { args = new JSONObject(); }
-                }
-            }
-        }
-        if (args == null) {
-            // 模型把参数直接摊在顶层（name 和 path 平级），收进 args
-            args = new JSONObject();
-            try {
-                JSONArray keys = tc.names();
-                for (int i = 0; i < keys.length(); i++) {
-                    String k = keys.getString(i);
-                    if (!k.equals("name") && !k.equals("tool") && !k.equals("action")
-                            && !k.equals("tool_call") && !k.equals("id") && !k.equals("thought")
-                            && !k.equals("reasoning")) {
-                        args.put(k, tc.opt(k));
-                    }
-                }
-            } catch (Exception ignored) {}
-        }
-        try {
-            // path 类键名归一：弱模型写 file/dir/url 都能落到 path
-            String path = firstNonEmpty(args, "path", "file", "dir", "directory",
-                    "file_path", "filename", "url");
-            if (path.length() > 0) args.put("path", path);
-        } catch (Exception ignored) {}
-        return args;
-    }
-
-    private List<Message> recentWindow(List<Message> all, int n) {
-        if (all.size() <= n) return all;
-        return all.subList(all.size() - n, all.size());
-    }
-
-    // 工具分发。参数宽容：缺 path 用工作区默认，缺参数时返回"可行动的提示"而不是干失败，
-    // 弱模型看到提示下一步能自己补齐（比直接踢回缺参重试更省步数）
-    private String dispatchTool(String name, JSONObject args) {
-        try {
-            switch (name) {
-                case "file_read": {
-                    String p = str(args, "path", "");
-                    if (p.isEmpty()) {
-                        return "Missing 'path'. Files I can read right now:\n" + fileTools.list(fileTools.getWorkspace());
-                    }
-                    return fileTools.read(p);
-                }
-                case "file_write": {
-                    String p = str(args, "path", "");
-                    if (p.isEmpty()) {
-                        return "Missing 'path'. Pick a target under: " + fileTools.getWorkspace()
-                                + " (e.g. \"notes.txt\"), then retry with {\"path\":...,\"content\":...}.";
-                    }
-                    return fileTools.write(p, str(args, "content", str(args, "text", "")));
-                }
-                case "file_list":
-                    return fileTools.list(str(args, "path", fileTools.getWorkspace()));
-                case "file_find": {
-                    String p = str(args, "path", fileTools.getWorkspace());
-                    String n = str(args, "name", str(args, "query", str(args, "keyword", "")));
-                    if (n.isEmpty()) {
-                        return "Missing 'name'. Files available:\n" + fileTools.list(p);
-                    }
-                    return fileTools.find(p, n);
-                }
-                case "file_grep": {
-                    String p = str(args, "path", "");
-                    String k = str(args, "keyword", str(args, "query", ""));
-                    if (p.isEmpty() || k.isEmpty()) {
-                        return "Need 'path' and 'keyword'. Files available:\n" + fileTools.list(fileTools.getWorkspace());
-                    }
-                    return fileTools.grep(p, k);
-                }
-                case "file_info":
-                    return fileTools.info(str(args, "path", fileTools.getWorkspace()));
-                case "shell_exec": {
-                    String c = str(args, "command", str(args, "cmd", ""));
-                    if (c.isEmpty()) {
-                        return "Missing 'command'. Allowed commands: "
-                                + "ls cat echo date uname whoami pwd id grep head tail wc stat find which";
-                    }
-                    int timeout = args.has("timeout_ms") ? args.optInt("timeout_ms", 15000) : 15000;
-                    return shell.exec(c, timeout);
-                }
-                case "shell_detect":
-                    return shell.detectProot();
-                case "http_get": {
-                    String u = str(args, "url", str(args, "path", ""));
-                    if (u.isEmpty()) {
-                        return "Missing 'url'. Fetch a page like {\"url\":\"https://example.com\"}.";
-                    }
-                    return httpGet(u);
-                }
-                case "memory_recall":
-                    return "workspace: " + fileTools.getWorkspace();
-                default:
-                    return "Unknown tool '" + name + "'. Available tools: "
-                            + "file_read, file_write, file_list, file_find, file_grep, file_info, "
-                            + "shell_exec, shell_detect, http_get, memory_recall. Pick one and retry.";
-            }
-        } catch (Exception e) {
-            return "tool error: " + e.getMessage();
-        }
-    }
-
-    private String str(JSONObject o, String key, String def) {
-        String v = o.optString(key, "");
-        return v.isEmpty() ? def : v;
-    }
-
-    private String buildSystemPrompt() {
-        return "You are an AI agent on an Android device. Use tools to complete the task. "
-                + "To call a tool reply JSON: {\"tool_call\":{\"name\":\"<tool>\",\"arguments\":{...}}} "
-                + "or finish with {\"answer\":\"<final>\"}.\n"
-                + "You may omit optional arguments. If you miss a required one, the tool result will "
-                + "tell you exactly what to provide — read it and retry; do not repeat the same empty call.\n"
-                + "Example: read a file -> {\"tool_call\":{\"name\":\"file_read\",\"arguments\":{\"path\":\"notes.txt\"}}}\n"
-                + "Tools:\n"
-                + "- file_read {path} — read a text file\n"
-                + "- file_write {path, content} — create/overwrite a file\n"
-                + "- file_list {path} — list directory (default: workspace)\n"
-                + "- file_find {path, name} — find files by name\n"
-                + "- file_grep {path, keyword} — search text in a file\n"
-                + "- file_info {path} — file size/type\n"
-                + "- shell_exec {command} — run one of: ls cat echo date uname whoami pwd grep find\n"
-                + "- http_get {url} — fetch a web page\n"
-                + "- memory_recall {} — show workspace info\n"
-                + "Workspace: " + fileTools.getWorkspace() + "\n"
-                + "Up to " + MAX_STEPS + " steps. Keep answers concise.";
-    }
-
-    // 按供应商适配请求/响应格式
-    private String callLlm(List<JSONObject> messages) throws Exception {
+    // 供应商分发：三家都走原生 function calling，统一返回 {calls:[{id,name,args}], answer}
+    private JSONObject callLlm(List<JSONObject> transcript) throws Exception {
         String provider = cfg.getProvider();
-        if (Config.PROVIDER_GOOGLE.equals(provider)) return callGoogle(messages);
-        if (Config.PROVIDER_ANTHROPIC.equals(provider)) return callAnthropic(messages);
-        return callOpenAI(messages);
+        if (Config.PROVIDER_GOOGLE.equals(provider)) return callGoogle(transcript);
+        if (Config.PROVIDER_ANTHROPIC.equals(provider)) return callAnthropic(transcript);
+        return callOpenAI(transcript);
     }
 
-    private String callOpenAI(List<JSONObject> messages) throws Exception {
+    // 工具 schema（三家各自的格式）
+    private JSONArray openAITools() throws Exception {
+        JSONArray arr = new JSONArray();
+        arr.put(fn("file_read", "读取文本文件", schema("path", true)));
+        arr.put(fn("file_write", "创建或覆盖文件", schema2("path", true, "content", true)));
+        arr.put(fn("file_list", "列目录", schema("path", false)));
+        arr.put(fn("file_find", "按名查找文件", schema2("path", false, "name", true)));
+        arr.put(fn("file_grep", "在文件里搜关键词", schema2("path", true, "keyword", true)));
+        arr.put(fn("file_info", "文件信息", schema("path", false)));
+        arr.put(fn("shell_exec", "执行白名单命令", schema("command", true)));
+        arr.put(fn("http_get", "抓取网页", schema("url", true)));
+        return arr;
+    }
+
+    private JSONObject fn(String name, String desc, JSONObject params) throws Exception {
+        JSONObject f = new JSONObject().put("name", name).put("description", desc);
+        try { f.put("parameters", params); } catch (Exception ignored) {}
+        return new JSONObject().put("type", "function").put("function", f);
+    }
+
+    private JSONObject schema(String p, boolean req) throws Exception {
+        JSONObject props = new JSONObject().put(p, new JSONObject().put("type", "string").put("description", p));
+        JSONObject o = new JSONObject().put("type", "object").put("properties", props);
+        if (req) o.put("required", new JSONArray().put(p));
+        return o;
+    }
+
+    private JSONObject schema2(String p1, boolean r1, String p2, boolean r2) throws Exception {
+        JSONObject props = new JSONObject();
+        props.put(p1, new JSONObject().put("type", "string").put("description", p1));
+        props.put(p2, new JSONObject().put("type", "string").put("description", p2));
+        JSONArray req = new JSONArray();
+        if (r1) req.put(p1);
+        if (r2) req.put(p2);
+        JSONObject o = new JSONObject().put("type", "object").put("properties", props);
+        if (req.length() > 0) o.put("required", req);
+        return o;
+    }
+
+    private JSONObject callOpenAI(List<JSONObject> transcript) throws Exception {
+        JSONArray msgs = new JSONArray();
+        msgs.put(new JSONObject().put("role", "system").put("content", systemPrompt()));
+        for (JSONObject step : transcript) {
+            String role = step.optString("role");
+            if ("user".equals(role)) {
+                JSONArray imgs = step.optJSONArray("images");
+                String text = step.optString("text", "");
+                if (imgs != null && imgs.length() > 0) {
+                    JSONArray content = new JSONArray();
+                    if (text.length() > 0) content.put(new JSONObject().put("type", "text").put("text", text));
+                    for (int i = 0; i < imgs.length(); i++) {
+                        JSONObject im = imgs.getJSONObject(i);
+                        content.put(new JSONObject().put("type", "image_url").put("image_url",
+                                new JSONObject().put("url", "data:" + im.optString("mime", "image/png")
+                                        + ";base64," + im.optString("data", ""))));
+                    }
+                    msgs.put(new JSONObject().put("role", "user").put("content", content));
+                } else {
+                    msgs.put(new JSONObject().put("role", "user").put("content", text));
+                }
+            } else if ("assistant".equals(role)) {
+                JSONArray calls = step.optJSONArray("calls");
+                if (calls != null && calls.length() > 0) {
+                    JSONArray toolCalls = new JSONArray();
+                    for (int i = 0; i < calls.length(); i++) {
+                        JSONObject c = calls.getJSONObject(i);
+                        JSONObject args = c.optJSONObject("args");
+                        toolCalls.put(new JSONObject()
+                                .put("id", c.optString("id", "c" + callCounter++))
+                                .put("type", "function")
+                                .put("function", new JSONObject()
+                                        .put("name", c.optString("name", ""))
+                                        .put("arguments", (args == null ? new JSONObject() : args).toString())));
+                    }
+                    JSONObject m = new JSONObject().put("role", "assistant");
+                    m.put("content", null);
+                    m.put("tool_calls", toolCalls);
+                    msgs.put(m);
+                } else {
+                    msgs.put(new JSONObject().put("role", "assistant")
+                            .put("content", step.optString("text", "")));
+                }
+            } else if ("tool".equals(role)) {
+                JSONArray results = step.optJSONArray("results");
+                if (results != null) {
+                    for (int i = 0; i < results.length(); i++) {
+                        JSONObject res = results.getJSONObject(i);
+                        msgs.put(new JSONObject().put("role", "tool")
+                                .put("tool_call_id", res.optString("id", "c" + callCounter++))
+                                .put("content", res.optString("result", "")));
+                    }
+                }
+            }
+        }
+
         JSONObject body = new JSONObject();
         body.put("model", cfg.model);
         body.put("temperature", cfg.temperature / 100.0);
         body.put("max_tokens", cfg.maxTokens);
-        JSONArray arr = new JSONArray();
-        for (JSONObject m : messages) {
-            JSONObject copy = new JSONObject(m.toString());
-            JSONArray imgs = imagesOf(copy);
-            copy.remove("__images__");
-            if (imgs != null && imgs.length() > 0) {
-                JSONArray content = new JSONArray();
-                content.put(new JSONObject().put("type", "text").put("text", copy.optString("content", "")));
-                for (int i = 0; i < imgs.length(); i++) {
-                    JSONObject im = imgs.getJSONObject(i);
-                    String dataUri = "data:" + im.optString("mime", "image/png")
-                            + ";base64," + im.optString("data", "");
-                    JSONObject part = new JSONObject();
-                    part.put("type", "image_url");
-                    part.put("image_url", new JSONObject().put("url", dataUri));
-                    content.put(part);
-                }
-                copy.put("content", content);
-            }
-            arr.put(copy);
-        }
-        body.put("messages", arr);
+        body.put("messages", msgs);
+        body.put("tools", openAITools());
+        body.put("tool_choice", "auto");
 
         String base = cfg.openaiBaseUrl.trim();
         while (base.endsWith("/")) base = base.substring(0, base.length() - 1);
         String url = base + "/chat/completions";
-
         HttpURLConnection conn = connPost(url, body.toString());
         conn.setRequestProperty("Authorization", "Bearer " + cfg.apiKey().trim());
         String resp = post(conn, url, body.toString());
         JSONObject jo = new JSONObject(resp);
-        JSONArray choices = jo.getJSONArray("choices");
-        return choices.getJSONObject(0).getJSONObject("message").getString("content");
+        JSONObject message = jo.getJSONArray("choices").getJSONObject(0).getJSONObject("message");
+        JSONArray calls = message.optJSONArray("tool_calls");
+        if (calls != null && calls.length() > 0) {
+            JSONArray out = new JSONArray();
+            for (int i = 0; i < calls.length(); i++) {
+                JSONObject c = calls.getJSONObject(i);
+                JSONObject fnObj = c.optJSONObject("function");
+                String name = fnObj == null ? "" : fnObj.optString("name", "");
+                String argStr = fnObj == null ? "" : fnObj.optString("arguments", "{}");
+                JSONObject args;
+                try { args = new JSONObject(argStr); } catch (Exception e) { args = new JSONObject(); }
+                out.put(new JSONObject().put("id", c.optString("id", ""))
+                        .put("name", name).put("args", args));
+            }
+            return new JSONObject().put("calls", out);
+        }
+        return new JSONObject().put("answer", message.optString("content", ""));
     }
 
-    private String callGoogle(List<JSONObject> messages) throws Exception {
-        // 把对话压成 contents，system 归到 systemInstruction
-        StringBuilder sys = new StringBuilder();
+    private JSONArray googleTools() throws Exception {
+        JSONArray decls = new JSONArray();
+        decls.put(decl("file_read", "读取文本文件", "path", new String[]{"path"}));
+        decls.put(decl2("file_write", "创建或覆盖文件", "path", "content"));
+        decls.put(decl("file_list", "列目录", "path", null));
+        decls.put(decl2("file_find", "按名查找文件", "name", "path"));
+        decls.put(decl2("file_grep", "在文件里搜关键词", "path", "keyword"));
+        decls.put(decl("file_info", "文件信息", "path", null));
+        decls.put(decl("shell_exec", "执行白名单命令", "command", new String[]{"command"}));
+        decls.put(decl("http_get", "抓取网页", "url", new String[]{"url"}));
+        return new JSONArray().put(new JSONObject().put("function_declarations", decls));
+    }
+
+    private JSONObject decl(String name, String desc, String p, String[] req) throws Exception {
+        return new JSONObject().put("name", name).put("description", desc)
+                .put("parameters", schema(p, req != null && req.length > 0));
+    }
+
+    private JSONObject decl2(String name, String desc, String p1, String p2) throws Exception {
+        return new JSONObject().put("name", name).put("description", desc)
+                .put("parameters", schema2(p1, true, p2, true));
+    }
+
+    private JSONObject callGoogle(List<JSONObject> transcript) throws Exception {
+        StringBuilder sys = new StringBuilder(systemPrompt());
         JSONArray contents = new JSONArray();
-        for (JSONObject m : messages) {
-            String role = m.optString("role");
-            String text = m.optString("content");
-            JSONArray imgs = imagesOf(m);
-            if ("system".equals(role)) {
-                if (sys.length() > 0) sys.append("\n");
-                sys.append(text);
-            } else {
+        for (JSONObject step : transcript) {
+            String role = step.optString("role");
+            if ("user".equals(role)) {
                 JSONArray parts = new JSONArray();
-                if (text != null && text.length() > 0) {
-                    parts.put(new JSONObject().put("text", text));
-                }
+                if (step.optString("text", "").length() > 0) parts.put(new JSONObject().put("text", step.optString("text")));
+                JSONArray imgs = step.optJSONArray("images");
                 if (imgs != null) {
                     for (int i = 0; i < imgs.length(); i++) {
                         JSONObject im = imgs.getJSONObject(i);
-                        JSONObject inline = new JSONObject();
-                        inline.put("mime_type", im.optString("mime", "image/png"));
-                        inline.put("data", im.optString("data", ""));
-                        parts.put(new JSONObject().put("inline_data", inline));
+                        parts.put(new JSONObject().put("inline_data",
+                                new JSONObject().put("mime_type", im.optString("mime", "image/png"))
+                                        .put("data", im.optString("data", ""))));
                     }
                 }
-                JSONObject c = new JSONObject();
-                c.put("role", "user".equals(role) ? "user" : "model");
-                c.put("parts", parts);
-                contents.put(c);
+                contents.put(new JSONObject().put("role", "user").put("parts", parts));
+            } else if ("assistant".equals(role)) {
+                JSONArray calls = step.optJSONArray("calls");
+                JSONArray parts = new JSONArray();
+                if (calls != null) {
+                    for (int i = 0; i < calls.length(); i++) {
+                        JSONObject c = calls.getJSONObject(i);
+                        JSONObject args = c.optJSONObject("args");
+                        parts.put(new JSONObject().put("function_call",
+                                new JSONObject().put("name", c.optString("name", ""))
+                                        .put("args", args == null ? new JSONObject() : args)));
+                    }
+                }
+                contents.put(new JSONObject().put("role", "model").put("parts", parts));
+            } else if ("tool".equals(role)) {
+                JSONArray results = step.optJSONArray("results");
+                JSONArray parts = new JSONArray();
+                if (results != null) {
+                    for (int i = 0; i < results.length(); i++) {
+                        JSONObject res = results.getJSONObject(i);
+                        parts.put(new JSONObject().put("function_response",
+                                new JSONObject().put("name", res.optString("name", ""))
+                                        .put("response", new JSONObject().put("result", res.optString("result", "")))));
+                    }
+                }
+                // Gemini REST 里函数结果的角色是 "function"，不是 "tool"
+                contents.put(new JSONObject().put("role", "function").put("parts", parts));
             }
         }
+
         JSONObject body = new JSONObject();
         body.put("contents", contents);
-        body.put("temperature", cfg.temperature / 100.0);
-        body.put("maxOutputTokens", cfg.maxTokens);
-        if (sys.length() > 0) {
-            body.put("systemInstruction", new JSONObject()
-                    .put("parts", new JSONArray().put(new JSONObject().put("text", sys.toString()))));
-        }
+        // 采样参数在 REST 里必须放 generationConfig，顶层放了不生效
+        JSONObject gen = new JSONObject()
+                .put("temperature", cfg.temperature / 100.0)
+                .put("maxOutputTokens", cfg.maxTokens);
+        body.put("generationConfig", gen);
+        body.put("tools", googleTools());
+        body.put("systemInstruction", new JSONObject().put("parts",
+                new JSONArray().put(new JSONObject().put("text", sys.toString()))));
 
         String url = "https://generativelanguage.googleapis.com/v1beta/models/"
                 + cfg.model + ":generateContent";
@@ -400,62 +357,113 @@ public final class ReactAgent {
         conn.setRequestProperty("x-goog-api-key", cfg.apiKey().trim());
         String resp = post(conn, url, body.toString());
         JSONObject jo = new JSONObject(resp);
-        JSONArray cand = jo.getJSONArray("candidates");
-        StringBuilder out = new StringBuilder();
-        for (int i = 0; i < cand.length(); i++) {
-            JSONArray parts = cand.getJSONObject(i).getJSONObject("content").getJSONArray("parts");
-            for (int j = 0; j < parts.length(); j++) {
-                out.append(parts.getJSONObject(j).optString("text", ""));
+        JSONArray cand = jo.optJSONArray("candidates");
+        JSONArray callsOut = new JSONArray();
+        StringBuilder ans = new StringBuilder();
+        if (cand != null && cand.length() > 0) {
+            JSONArray parts = cand.getJSONObject(0).getJSONObject("content").getJSONArray("parts");
+            for (int i = 0; i < parts.length(); i++) {
+                JSONObject p = parts.getJSONObject(i);
+                JSONObject fc = p.optJSONObject("functionCall");
+                if (fc != null) {
+                    callsOut.put(new JSONObject().put("id", "c" + callCounter++)
+                            .put("name", fc.optString("name", ""))
+                            .put("args", fc.optJSONObject("args") == null ? new JSONObject() : fc.optJSONObject("args")));
+                } else {
+                    ans.append(p.optString("text", ""));
+                }
             }
         }
-        return out.length() > 0 ? out.toString() : "";
+        JSONObject r = new JSONObject();
+        if (callsOut.length() > 0) r.put("calls", callsOut);
+        r.put("answer", ans.toString());
+        return r;
     }
 
-    private String callAnthropic(List<JSONObject> messages) throws Exception {
-        StringBuilder sys = new StringBuilder();
+    private JSONArray anthropicTools() throws Exception {
         JSONArray arr = new JSONArray();
-        for (JSONObject m : messages) {
-            String role = m.optString("role");
-            String text = m.optString("content");
-            JSONArray imgs = imagesOf(m);
-            if ("system".equals(role)) {
-                if (sys.length() > 0) sys.append("\n");
-                sys.append(text);
-            } else if ("tool".equals(role)) {
-                JSONObject o = new JSONObject();
-                o.put("role", "user");
-                o.put("content", "[tool result] " + text);
-                arr.put(o);
-            } else {
-                JSONObject o = new JSONObject();
-                o.put("role", "user".equals(role) ? "user" : "assistant");
-                if (imgs != null && imgs.length() > 0) {
-                    JSONArray content = new JSONArray();
-                    if (text != null && text.length() > 0) {
-                        content.put(new JSONObject().put("type", "text").put("text", text));
-                    }
+        arr.put(declA("file_read", "读取文本文件", "path", true));
+        arr.put(declA2("file_write", "创建或覆盖文件", "path", "content"));
+        arr.put(declA("file_list", "列目录", "path", false));
+        arr.put(declA2("file_find", "按名查找文件", "name", "path"));
+        arr.put(declA2("file_grep", "在文件里搜关键词", "path", "keyword"));
+        arr.put(declA("file_info", "文件信息", "path", false));
+        arr.put(declA("shell_exec", "执行白名单命令", "command", true));
+        arr.put(declA("http_get", "抓取网页", "url", true));
+        return arr;
+    }
+
+    private JSONObject declA(String name, String desc, String p, boolean req) throws Exception {
+        JSONObject p1 = new JSONObject().put("type", "string").put("description", p);
+        JSONObject o = new JSONObject().put("type", "object").put("properties", new JSONObject().put(p, p1));
+        if (req) o.put("required", new JSONArray().put(p));
+        return new JSONObject().put("name", name).put("description", desc)
+                .put("input_schema", o);
+    }
+
+    private JSONObject declA2(String name, String desc, String p1, String p2) throws Exception {
+        JSONObject props = new JSONObject()
+                .put(p1, new JSONObject().put("type", "string").put("description", p1))
+                .put(p2, new JSONObject().put("type", "string").put("description", p2));
+        JSONObject o = new JSONObject().put("type", "object").put("properties", props)
+                .put("required", new JSONArray().put(p1).put(p2));
+        return new JSONObject().put("name", name).put("description", desc).put("input_schema", o);
+    }
+
+    private JSONObject callAnthropic(List<JSONObject> transcript) throws Exception {
+        JSONArray arr = new JSONArray();
+        for (JSONObject step : transcript) {
+            String role = step.optString("role");
+            if ("user".equals(role)) {
+                JSONArray content = new JSONArray();
+                if (step.optString("text", "").length() > 0) content.put(new JSONObject().put("type", "text").put("text", step.optString("text")));
+                JSONArray imgs = step.optJSONArray("images");
+                if (imgs != null) {
                     for (int i = 0; i < imgs.length(); i++) {
                         JSONObject im = imgs.getJSONObject(i);
-                        JSONObject src = new JSONObject();
-                        src.put("type", "base64");
-                        src.put("media_type", im.optString("mime", "image/png"));
-                        src.put("data", im.optString("data", ""));
-                        content.put(new JSONObject().put("type", "image")
-                                .put("source", src));
+                        content.put(new JSONObject().put("type", "image").put("source",
+                                new JSONObject().put("type", "base64")
+                                        .put("media_type", im.optString("mime", "image/png"))
+                                        .put("data", im.optString("data", ""))));
                     }
-                    o.put("content", content);
-                } else {
-                    o.put("content", text);
                 }
-                arr.put(o);
+                arr.put(new JSONObject().put("role", "user").put("content", content));
+            } else if ("assistant".equals(role)) {
+                JSONArray calls = step.optJSONArray("calls");
+                JSONArray content = new JSONArray();
+                if (calls != null) {
+                    for (int i = 0; i < calls.length(); i++) {
+                        JSONObject c = calls.getJSONObject(i);
+                        JSONObject input = c.optJSONObject("args");
+                        content.put(new JSONObject().put("type", "tool_use")
+                                .put("id", c.optString("id", "c" + callCounter++))
+                                .put("name", c.optString("name", ""))
+                                .put("input", input == null ? new JSONObject() : input));
+                    }
+                }
+                arr.put(new JSONObject().put("role", "assistant").put("content", content));
+            } else if ("tool".equals(role)) {
+                JSONArray results = step.optJSONArray("results");
+                JSONArray content = new JSONArray();
+                if (results != null) {
+                    for (int i = 0; i < results.length(); i++) {
+                        JSONObject res = results.getJSONObject(i);
+                        content.put(new JSONObject().put("type", "tool_result")
+                                .put("tool_use_id", res.optString("id", ""))
+                                .put("content", res.optString("result", "")));
+                    }
+                }
+                arr.put(new JSONObject().put("role", "user").put("content", content));
             }
         }
+
         JSONObject body = new JSONObject();
         body.put("model", cfg.model);
         body.put("max_tokens", cfg.maxTokens);
         body.put("temperature", Math.min(1.0, cfg.temperature / 100.0));
+        body.put("system", systemPrompt());
         body.put("messages", arr);
-        if (sys.length() > 0) body.put("system", sys.toString());
+        body.put("tools", anthropicTools());
 
         String url = "https://api.anthropic.com/v1/messages";
         HttpURLConnection conn = connPost(url, body.toString());
@@ -463,12 +471,30 @@ public final class ReactAgent {
         conn.setRequestProperty("anthropic-version", "2023-06-01");
         String resp = post(conn, url, body.toString());
         JSONObject jo = new JSONObject(resp);
-        JSONArray blocks = jo.getJSONArray("content");
-        StringBuilder out = new StringBuilder();
-        for (int i = 0; i < blocks.length(); i++) {
-            out.append(blocks.getJSONObject(i).optString("text", ""));
+        JSONArray blocks = jo.optJSONArray("content");
+        JSONArray callsOut = new JSONArray();
+        StringBuilder ans = new StringBuilder();
+        if (blocks != null) {
+            for (int i = 0; i < blocks.length(); i++) {
+                JSONObject b = blocks.getJSONObject(i);
+                if ("tool_use".equals(b.optString("type"))) {
+                    callsOut.put(new JSONObject().put("id", b.optString("id", "c" + callCounter++))
+                            .put("name", b.optString("name", ""))
+                            .put("args", b.optJSONObject("input") == null ? new JSONObject() : b.optJSONObject("input")));
+                } else if ("text".equals(b.optString("type"))) {
+                    ans.append(b.optString("text", ""));
+                }
+            }
         }
-        return out.length() > 0 ? out.toString() : "";
+        JSONObject r = new JSONObject();
+        if (callsOut.length() > 0) r.put("calls", callsOut);
+        r.put("answer", ans.toString());
+        return r;
+    }
+
+    private String systemPrompt() {
+        return "你是一名 Android 上的 AI 助手，可调用文件/Shell/网页工具完成用户任务。"
+                + "需要时用工具，取到结果后继续；可以全部完成后，用与用户相同的语言简洁回答。";
     }
 
     private HttpURLConnection connPost(String url, String body) throws Exception {
@@ -482,14 +508,12 @@ public final class ReactAgent {
         return conn;
     }
 
-    // 真正写请求体 + 读响应体。读是阻塞点，取消时由 TaskControl.cancel 断连接让这里抛异常
     private String post(HttpURLConnection conn, String url, String body) throws Exception {
         try {
             OutputStream os = conn.getOutputStream();
             os.write(body.getBytes(StandardCharsets.UTF_8));
             os.flush();
             os.close();
-
             int code = conn.getResponseCode();
             InputStream is = (code >= 200 && code < 300) ? conn.getInputStream() : conn.getErrorStream();
             ByteArrayOutputStream bo = new ByteArrayOutputStream();
@@ -499,42 +523,11 @@ public final class ReactAgent {
             is.close();
             conn.disconnect();
             String resp = new String(bo.toByteArray(), StandardCharsets.UTF_8);
-            if (code < 200 || code >= 300) throw new Exception("HTTP " + code + ": " + resp);
+            if (code < 200 || code >= 300) throw new Exception("HTTP " + code + ": " + resp.substring(0, Math.min(400, resp.length())));
             return resp;
         } finally {
             control.clearConn();
         }
-    }
-
-    private void addMsg(List<JSONObject> msgs, String role, String content) {
-        try {
-            JSONObject m = new JSONObject();
-            m.put("role", role);
-            m.put("content", content);
-            msgs.add(m);
-        } catch (Exception ignored) {}
-    }
-
-    // 当前任务的用户消息：文本 + 图片（图片存成 data URI 标记，各家展开时读）
-    private void addUserTask(List<JSONObject> msgs, String task) {
-        try {
-            JSONObject m = new JSONObject();
-            m.put("role", "user");
-            m.put("content", task);
-            JSONArray imgs = new JSONArray();
-            for (Attachment a : currentImages) {
-                if (!a.isImage()) continue;
-                String b64 = readImageBase64(a.path);
-                if (b64 == null) continue;
-                JSONObject im = new JSONObject();
-                im.put("mime", a.mime);
-                im.put("data", b64);
-                im.put("name", a.fileName);
-                imgs.put(im);
-            }
-            m.put("__images__", imgs);
-            msgs.add(m);
-        } catch (Exception ignored) {}
     }
 
     private String readImageBase64(String path) {
@@ -546,61 +539,94 @@ public final class ReactAgent {
             ByteArrayOutputStream bo = new ByteArrayOutputStream();
             int n;
             while ((n = fis.read(buf)) != -1) bo.write(buf, 0, n);
-            byte[] bytes = bo.toByteArray();
             fis.close();
-            return android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP);
+            return android.util.Base64.encodeToString(bo.toByteArray(), android.util.Base64.NO_WRAP);
         } catch (Exception e) {
             return null;
         }
     }
 
-    private JSONArray imagesOf(JSONObject m) {
-        return m.optJSONArray("__images__");
-    }
-
-    private JSONObject parseLlmResponse(String raw) {
-        try {
-            return new JSONObject(raw);
-        } catch (Exception e) {
-            int start = raw.indexOf('{');
-            int end = raw.lastIndexOf('}');
-            if (start >= 0 && end > start) {
-                try {
-                    return new JSONObject(raw.substring(start, end + 1));
-                } catch (Exception e2) {
-                    JSONObject o = new JSONObject();
-                    try { o.put("answer", raw.trim()); } catch (Exception ignored) {}
-                    return o;
-                }
+    // 工具名宽容归一
+    private String normalizeToolName(String raw) {
+        if (raw == null) return "";
+        String t = raw.trim().toLowerCase().replace(' ', '_').replace('-', '_');
+        String[][] aliasMap = {
+                {"file_read", "read", "read_file", "cat", "open", "view"},
+                {"file_write", "write", "write_file", "save", "create_file"},
+                {"file_list", "list", "ls", "list_dir", "list_files", "dir"},
+                {"file_find", "find", "find_file"},
+                {"file_grep", "grep", "search", "search_file", "search_files"},
+                {"file_info", "info", "stat"},
+                {"shell_exec", "shell", "exec", "execute", "run", "run_shell"},
+                {"http_get", "http", "fetch", "download", "get_url", "web"},
+        };
+        for (String[] group : aliasMap) {
+            for (String alias : group) {
+                if (t.equals(alias)) return group[0];
+                if (alias.length() >= 4 && t.contains(alias)) return group[0];
             }
-            JSONObject o = new JSONObject();
-            try { o.put("answer", raw.trim()); } catch (Exception ignored) {}
-            return o;
+        }
+        return raw;
+    }
+
+    // 工具分发。参数宽容：缺参数给可行动提示而不是干失败
+    private String dispatchTool(String name, JSONObject args) {
+        try {
+            switch (name) {
+                case "file_read": {
+                    String p = str(args, "path", "file", "file_path");
+                    if (p.isEmpty()) return "缺 'path'。当前可读文件：\n" + fileTools.list(fileTools.getWorkspace());
+                    return fileTools.read(p);
+                }
+                case "file_write": {
+                    String p = str(args, "path", "file", "file_path");
+                    if (p.isEmpty()) return "缺 'path'。请在 " + fileTools.getWorkspace() + " 下指定文件（如 notes.txt），再重试 {path, content}。";
+                    return fileTools.write(p, str(args, "content", "text"));
+                }
+                case "file_list":
+                    return fileTools.list(str(args, "path", "dir", "directory"));
+                case "file_find": {
+                    String n = str(args, "name", "query", "keyword");
+                    if (n.isEmpty()) return "缺 'name'。可用文件：\n" + fileTools.list(fileTools.getWorkspace());
+                    return fileTools.find(str(args, "path", "dir", "directory"), n);
+                }
+                case "file_grep": {
+                    String k = str(args, "keyword", "query");
+                    String p = str(args, "path", "file", "file_path");
+                    if (p.isEmpty() || k.isEmpty())
+                        return "需要 'path' 和 'keyword'。可用文件：\n" + fileTools.list(fileTools.getWorkspace());
+                    return fileTools.grep(p, k);
+                }
+                case "file_info":
+                    return fileTools.info(str(args, "path", "file", "file_path"));
+                case "shell_exec": {
+                    String c = str(args, "command", "cmd");
+                    if (c.isEmpty()) return "缺 'command'。允许的命令：ls cat echo date uname whoami pwd grep find";
+                    int timeout = args.has("timeout_ms") ? args.optInt("timeout_ms", 15000) : 15000;
+                    return shell.exec(c, timeout);
+                }
+                case "http_get": {
+                    String u = str(args, "url", "path");
+                    if (u.isEmpty()) return "缺 'url'。示例 {\"url\":\"https://example.com\"}。";
+                    return httpGet(u);
+                }
+                default:
+                    return "未知工具 '" + name + "'。可用：file_read, file_write, file_list, file_find, file_grep, file_info, shell_exec, http_get。";
+            }
+        } catch (Exception e) {
+            return "工具出错: " + e.getMessage();
         }
     }
 
-    private String localFallback(String task, List<Message> history, List<Attachment> images) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("Task: ").append(task).append("\n");
-        sb.append("Local engine (no API key configured)\n");
-        sb.append("Rounds so far: ").append(history.size()).append("\n");
-        if (images != null && !images.isEmpty()) {
-            sb.append("Attachments: ").append(images.size())
-              .append(" file(s) received: ");
-            for (Attachment a : images) sb.append(a.fileName).append(' ');
+    // 参数键名宽容：主键缺失时按同义键顺序取值
+    private String str(JSONObject o, String key, String... alts) {
+        String v = o.optString(key, "").trim();
+        if (v.length() > 0) return v;
+        for (String a : alts) {
+            v = o.optString(a, "").trim();
+            if (v.length() > 0) return v;
         }
-        sb.append("\nReply: 收到「").append(task)
-          .append("」。离线本地模式，已收到附件存到工作区；在配置页填 ")
-          .append(providerLabel()).append(" 的 API Key 后我会真正理解并回答你。");
-        return sb.toString();
-    }
-
-    private String providerLabel() {
-        switch (cfg.getProvider()) {
-            case Config.PROVIDER_GOOGLE:   return "Google";
-            case Config.PROVIDER_ANTHROPIC: return "Anthropic";
-            default:                        return "OpenAI";
-        }
+        return "";
     }
 
     private String httpGet(String url) {
@@ -619,7 +645,33 @@ public final class ReactAgent {
             String body = new String(bo.toByteArray(), StandardCharsets.UTF_8);
             return "HTTP " + code + ": " + body.substring(0, Math.min(4096, body.length()));
         } catch (Exception e) {
-            return "http error: " + e.getMessage();
+            return "http 出错: " + e.getMessage();
+        }
+    }
+
+    private List<Message> recentWindow(List<Message> all, int n) {
+        if (all.size() <= n) return all;
+        return all.subList(all.size() - n, all.size());
+    }
+
+    private String localFallback(String task, List<Message> history, List<Attachment> images) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("收到「").append(task).append("」。\n");
+        if (images != null && !images.isEmpty()) {
+            sb.append("已收到 ").append(images.size()).append(" 个附件：");
+            for (Attachment a : images) sb.append(a.fileName).append(' ');
+            sb.append("（已存入工作区 ").append(fileTools.getWorkspace()).append("）\n");
+        }
+        sb.append("当前是离线本地模式（未配置 API Key），未能真正理解任务。");
+        sb.append("在配置页填 ").append(providerLabel()).append(" 的 API Key 后我可真正理解并调用工具完成它。");
+        return sb.toString();
+    }
+
+    private String providerLabel() {
+        switch (cfg.getProvider()) {
+            case Config.PROVIDER_GOOGLE:   return "Google";
+            case Config.PROVIDER_ANTHROPIC: return "Anthropic";
+            default:                        return "OpenAI";
         }
     }
 }

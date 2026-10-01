@@ -207,6 +207,70 @@ public final class AgentBackend {
         return future;
     }
 
+    // Web 端任务入口：没有会话就建一个，同步跑完 ReAct，返回答案与状态。
+    // 独立于界面的 runningFuture/runningControl，网页请求不抢 UI 正在跑的任务。
+    public java.util.Map<String, Object> askFreeForm(String prompt, String sessionId) {
+        String sid = (sessionId == null || sessionId.isEmpty())
+                ? createSession("Web 任务", null) : sessionId;
+        Session session = getSession(sid);
+        if (session == null) {
+            session = new Session(sid, "Web 任务", config.agentName, 0,
+                    System.currentTimeMillis(), new ArrayList<Message>());
+            synchronized (lock) {
+                sessions.add(0, session);
+            }
+        }
+
+        java.util.Map<String, Object> out = new java.util.HashMap<String, Object>();
+        out.put("sessionId", sid);
+
+        List<Message> history = new ArrayList<Message>();
+        for (Message m : session.messages) {
+            if (m.role.equals("user") || m.role.equals("assistant")) history.add(m);
+        }
+
+        List<Message> trace = new ArrayList<Message>();
+        trace.add(new Message("user", prompt, System.currentTimeMillis()));
+        TaskControl control = new TaskControl();
+        try {
+            ReactAgent agent = new ReactAgent(getConfig(),
+                    new FileTools(HappyAgentApplication.get()),
+                    new ShellExecutor(HappyAgentApplication.get()),
+                    trace, control);
+            String summary = agent.run(prompt, history,
+                    new ArrayList<com.happyagent.mobile.model.Models.Attachment>());
+            List<Message> toolSteps = new ArrayList<Message>();
+            for (Message m : trace) {
+                if (m.role.equals("tool")) toolSteps.add(m);
+            }
+            synchronized (lock) {
+                session.messages.add(new Message("user", prompt, System.currentTimeMillis()));
+                for (Message t : toolSteps) session.messages.add(t);
+                session.messages.add(new Message("assistant", summary, System.currentTimeMillis()));
+                session.status = 2;
+                session.updatedAt = System.currentTimeMillis();
+            }
+            persistNow();
+            out.put("answer", summary);
+            out.put("status", session.status);
+            out.put("statusLabel", session.statusLabel());
+        } catch (Exception e) {
+            Log.e(TAG, "askFreeForm failed", e);
+            synchronized (lock) {
+                session.status = 3;
+                session.messages.add(new Message("system", "任务失败：" + e.getMessage(),
+                        System.currentTimeMillis()));
+                session.updatedAt = System.currentTimeMillis();
+            }
+            persistNow();
+            out.put("answer", "");
+            out.put("status", 3);
+            out.put("statusLabel", "失败");
+        }
+        out.put("running", isTaskRunning());
+        return out;
+    }
+
     private void clearRunning() {
         runningControl = null;
         runningFuture = null;

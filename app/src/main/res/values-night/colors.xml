@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 暗色下把"基础"语义色重映射成深色值：所有引用这些名字的 drawable/布局自动跟随夜间，
+     不用逐个再写 drawable-night 覆盖。品牌色 seed_blue 与语义状态色 status_* 保持不变。 -->
+<resources>
+    <color name="background">#0F172A</color>
+    <color name="surface">#1E293B</color>
+    <color name="surface_variant">#334155</color>
+    <color name="on_surface">#E2E8F0</color>
+    <color name="on_surface_variant">#94A3B8</color>
+    <color name="outline">#334155</color>
+    <color name="primary_light">#1E293B</color>
+</resources>

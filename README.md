@@ -27,6 +27,7 @@
 | 运行配置 | 供应商 / 模型 / 温度 / max token / 自动提交 / 工作区 / 各家 Key / Base URL | 否 |
 | 系统诊断 | 会话数、工具启用/停用数、模型、当前供应商与 Key 状态 | 否 |
 | 崩溃兜底 | 任意线程崩溃自动进崩溃页，一键复制日志 | 否 |
+| Web 服务 | 在手机上起一个本地 HTTP 服务，电脑/手机浏览器打开即可跟智能体对话；可开关，开启时通知栏常驻并显示内网/外网地址与端口 | 否（服务端自身）；真回答需对应 Key |
 
 > 说明：聊天、工具、配置、诊断、崩溃兜底这些**不填 Key 也能用**；"AI 真正聪明地回答 / 驱动多步工具"这一项需要你在配置页选供应商并填对应 Key（OpenAI 或任意兼容接口 / Google / Anthropic）。
 
@@ -72,10 +73,22 @@ app/src/main/java/com/happyagent/mobile/
 │  ├─ TaskControl.java          任务级 暂停/继续/取消 标志
 │  ├─ FileTools.java            真实文件工具（沙箱路径校验）
 │  └─ ShellExecutor.java        Shell 沙箱 + proot 探测（API23 安全）
+├─ service/WebUiService.java    本地 HTTP Web 服务（ServerSocket，API23）+ 前台通知 + 内网/外网 IP 端口
 └─ ui/                          各页面（聊天、列表、配置、诊断、设置、崩溃）
+app/src/main/res/raw/web_chat.html  Web 端聊天页（单文件，深浅色 + 手机/电脑自适应）
 ```
 
-## 六、构建
+## 六、Web 服务（手机当服务器，浏览器跟智能体对话）
+
+「设置」页里有个 **Web 服务** 开关。打开后手机就变成一台本地 Web 服务器（默认端口 `8177`），同一局域网里的**电脑或手机浏览器**访问 `http://手机内网IP:8177` 就能跟智能体对话；页面自动按设备宽高适配，且跟随系统深浅色。
+
+- **开关**：设置页「Web 服务」一开一关，关掉服务即停。
+- **通知栏**：服务运行时挂一条常驻通知（不可滑掉），点开直接进浏览器。
+- **地址显示**：设置页显示**内网地址**（局域网其它设备连手机用的 `192.168.x.x:8177`）和**外网地址**（`公网IP:8177`，需手机联网取，取不到时如实显示「获取中」）。
+- **实现**：`service/WebUiService.java` 用 `java.net.ServerSocket`（API 23 安全）起服务，页面是 `res/raw/web_chat.html`（单文件 HTML，无外部依赖）；对外接口 `/api/ipinfo`、`/api/state`、`/api/ask`。
+- **注意**：服务监听 `0.0.0.0`，请只在**可信的局域网**里开；外网地址要真正可达还需手机有公网出口/端口映射，App 只负责把查到的地址显示出来。
+
+## 七、构建
 
 需要 **JDK 17 + Android SDK（platform-34 / build-tools 34）**，仓库源走国内镜像。
 
@@ -85,7 +98,7 @@ gradle :app:assembleRelease
 
 产物在 `app/build/outputs/apk/`。签名库在 `gradle/`，正式上架前换成你自己的并改密码。
 
-## 七、安卓 6 兼容审计记录
+## 八、安卓 6 兼容审计记录
 
 minSdk=23（API 23），逐类核对过会撞版本的项，均已在代码/构建里处理：
 
@@ -98,9 +111,11 @@ minSdk=23（API 23），逐类核对过会撞版本的项，均已在代码/构�
 | 自适应图标 | 放 `mipmap-anydpi-v26`，API 23~25 自动回退普通 mipmap 位图，不崩 |
 | Lambda / 方法引用 | D8 脱糖自动转旧字节码（AGP 8 默认行为），API 23 可跑 |
 | 落盘反序列化跨版本 | R8 keep 住 `model.*` 与 `AgentBackend$State`，类名/字段名跨版本稳定，老 `state.ser` 仍可读 |
+| Web 服务（本地 HTTP） | 用 `java.net.ServerSocket` / `Socket` / `NetworkInterface`（全 API 1~23），前台通知走 `NotificationChannel`（API 26+ 才建通道，低于 26 走旧构造）；无 `Executors`/`CompletableFuture` 之外的新 API |
+| 内网/外网 IP | 内网 = `NetworkInterface` 取站点内 IPv4（API 1）；外网 = `HttpURLConnection` 请求 `api.ipify.org` 取，取不到就留空、界面如实显示「获取中」，不崩 |
 
 三家模型接口（OpenAI `/chat/completions`、Google `generateContent`、Anthropic `/v1/messages`）走 `HttpURLConnection` + `org.json`，纯 JDK/标准库，无运行时版本依赖；请求/响应格式按各家官方文档逐一核对过。
 
-## 八、关于"照搬 Operit"的边界
+## 九、关于"照搬 Operit"的边界
 
 Happy Agent 借鉴并实现了 Operit 的**agent 内核**（ReAct 循环、工具调用 + 缺参补齐、文件工具、Shell/proot、多轮聊天）。**尚未照搬**的是 Operit 里那几块重能力：GUI 自动化（无障碍操控手机 UI）、语音、插件市场、世界书/角色卡。这些属于更大的独立模块，需要 `AccessibilityService` 权限等，作为后续版本逐步补齐。当前版本是一个**真正能对话、能调工具、能诊断**的最小可用 agent 客户端。

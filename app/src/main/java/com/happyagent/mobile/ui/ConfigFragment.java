@@ -130,7 +130,7 @@ public class ConfigFragment extends Fragment {
             int gap = (int) (6 * root.getContext().getResources().getDisplayMetrics().density);
             chip.setPadding(pad, gap, pad, gap);
             chip.setBackgroundResource(R.drawable.bg_chip);
-            chip.setTextColor(0xFF475569);
+            chip.setTextColor(root.getContext().getResources().getColor(R.color.on_surface_variant));
             chip.setOnClickListener(vv -> modelBox.setText(m));
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);

@@ -25,6 +25,11 @@ public class HappyAgentApplication extends Application {
 
         // 后台读存档，界面启动不被 IO 拖住
         AgentBackend.get().preload();
+
+        // 上次开着的 Web 服务随启动恢复（默认关）
+        if (prefs.getBoolean(com.happyagent.mobile.data.Prefs.KEY_WEBUI_ON, false)) {
+            com.happyagent.mobile.service.WebUiService.start(this);
+        }
     }
 
     public static HappyAgentApplication get() {

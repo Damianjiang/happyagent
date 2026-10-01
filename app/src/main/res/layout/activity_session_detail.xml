@@ -6,15 +6,15 @@
     android:orientation="vertical"
     android:background="?android:colorBackground">
 
-    <!-- 顶栏：品牌实色，白字；副标题显示当前模型 -->
+    <!-- 顶栏：主题表面色 + 主题文字，副标题显示当前模型；深浅两套都跟主题走 -->
     <com.google.android.material.appbar.MaterialToolbar
         android:id="@+id/detail_toolbar"
         android:layout_width="match_parent"
         android:layout_height="?attr/actionBarSize"
-        android:background="@drawable/bg_toolbar_gradient"
+        android:background="?attr/colorSurface"
         app:navigationIcon="@drawable/ic_close"
-        app:titleTextColor="@android:color/white"
-        app:subtitleTextColor="#C7D2FE"
+        app:titleTextColor="?attr/colorOnSurface"
+        app:subtitleTextColor="?attr/colorOnSurfaceVariant"
         app:title="对话" />
 
     <!-- 消息流 -->
