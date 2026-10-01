@@ -74,52 +74,58 @@ public class ConfigFragment extends Fragment {
             @Override public void onStopTrackingTouch(SeekBar seekBar) {}
         });
 
-        // 供应商单选 + 对应凭据分组显隐
-        final View.OnClickListener pickProvider = new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                applyProviderPick();
-            }
-        };
-        providerOpenai.setOnClickListener(pickProvider);
-        providerGoogle.setOnClickListener(pickProvider);
-        providerAnthropic.setOnClickListener(pickProvider);
+        // 三家 Radio 单选，点了就显对应凭据分组、同步模型默认值
+        providerOpenai.setOnClickListener(vv -> onProviderPicked());
+        providerGoogle.setOnClickListener(vv -> onProviderPicked());
+        providerAnthropic.setOnClickListener(vv -> onProviderPicked());
         checkProviderRadio(c.getProvider());
 
-        saveBtn.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                Config nc = new Config(
-                        agentBox.getText().toString().trim(),
-                        modelBox.getText().toString().trim(),
-                        tempBar.getProgress(),
-                        parseIntSafe(maxTokensBox.getText().toString(), 4096),
-                        autoCommit.isChecked(),
-                        workspaceBox.getText().toString().trim(),
-                        currentProvider(),
-                        openaiKeyBox.getText().toString().trim(),
-                        openaiUrlBox.getText().toString().trim(),
-                        googleKeyBox.getText().toString().trim(),
-                        anthropicKeyBox.getText().toString().trim());
-                AgentBackend.get().updateConfig(nc);
-                Toast.makeText(getContext(), "配置已保存", Toast.LENGTH_SHORT).show();
-            }
+        saveBtn.setOnClickListener(vv -> {
+            Config nc = new Config(
+                    agentBox.getText().toString().trim(),
+                    modelBox.getText().toString().trim(),
+                    tempBar.getProgress(),
+                    parseIntSafe(maxTokensBox.getText().toString(), 4096),
+                    autoCommit.isChecked(),
+                    workspaceBox.getText().toString().trim(),
+                    currentProvider(),
+                    openaiKeyBox.getText().toString().trim(),
+                    openaiUrlBox.getText().toString().trim(),
+                    googleKeyBox.getText().toString().trim(),
+                    anthropicKeyBox.getText().toString().trim());
+            AgentBackend.get().updateConfig(nc);
+            Toast.makeText(getContext(), "配置已保存", Toast.LENGTH_SHORT).show();
         });
         return v;
+    }
+
+    private void onProviderPicked() {
+        String p = currentProvider();
+        openaiGroup.setVisibility(Config.PROVIDER_OPENAI.equals(p) ? View.VISIBLE : View.GONE);
+        googleGroup.setVisibility(Config.PROVIDER_GOOGLE.equals(p) ? View.VISIBLE : View.GONE);
+        anthropicGroup.setVisibility(Config.PROVIDER_ANTHROPIC.equals(p) ? View.VISIBLE : View.GONE);
+        // 模型框还停在上家默认值时，换成本家默认，避免拿别家的模型 id 调接口
+        String cur = modelBox.getText().toString().trim();
+        String[] providers = {Config.PROVIDER_OPENAI, Config.PROVIDER_GOOGLE, Config.PROVIDER_ANTHROPIC};
+        for (String q : providers) {
+            if (!q.equals(p) && defaultModelFor(q).equals(cur)) {
+                modelBox.setText(defaultModelFor(p));
+                break;
+            }
+        }
+    }
+
+    private String defaultModelFor(String provider) {
+        if (Config.PROVIDER_GOOGLE.equals(provider)) return "gemini-2.5-flash";
+        if (Config.PROVIDER_ANTHROPIC.equals(provider)) return "claude-haiku-4-5";
+        return "gpt-4o-mini";
     }
 
     private void checkProviderRadio(String provider) {
         providerOpenai.setChecked(Config.PROVIDER_OPENAI.equals(provider));
         providerGoogle.setChecked(Config.PROVIDER_GOOGLE.equals(provider));
         providerAnthropic.setChecked(Config.PROVIDER_ANTHROPIC.equals(provider));
-        applyProviderPick();
-    }
-
-    private void applyProviderPick() {
-        String p = currentProvider();
-        openaiGroup.setVisibility(Config.PROVIDER_OPENAI.equals(p) ? View.VISIBLE : View.GONE);
-        googleGroup.setVisibility(Config.PROVIDER_GOOGLE.equals(p) ? View.VISIBLE : View.GONE);
-        anthropicGroup.setVisibility(Config.PROVIDER_ANTHROPIC.equals(p) ? View.VISIBLE : View.GONE);
+        onProviderPicked();
     }
 
     private String currentProvider() {

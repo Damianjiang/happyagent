@@ -32,8 +32,11 @@ android {
 
     buildTypes {
         release {
-            minifyEnabled false
-            shrinkResources false
+            // R8 树摇 + 资源缩包，砍掉 Material/AndroidX 没用到的部分
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'),
+                    'proguard-rules.pro'
             if (releaseKeystore.exists()) {
                 signingConfig signingConfigs.release
             }

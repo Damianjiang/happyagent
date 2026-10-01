@@ -358,7 +358,7 @@ public final class AgentBackend {
         return l;
     }
 
-    // 存档用的纯数据壳
+    // 存档用的纯数据壳（类名/字段名被 R8 keep 住，计算出的 serialVersionUID 因此跨版本稳定，老存档可继续读）
     public static class State implements Serializable {
         public List<Session> sessions;
         public List<Tool> tools;

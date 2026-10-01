@@ -257,9 +257,9 @@ public class SessionDetailActivity extends AppCompatActivity {
             boolean isUser = m.role.equals("user");
             boolean isTool = m.role.equals("tool");
             boolean isAi = m.role.equals("assistant");
-            h.userBubble.setVisibility(isUser ? View.VISIBLE : View.GONE);
-            h.aiWrap.setVisibility(isAi ? View.VISIBLE : View.GONE);
-            h.toolLine.setVisibility(isTool ? View.VISIBLE : View.GONE);
+            h.userRow.setVisibility(isUser ? View.VISIBLE : View.GONE);
+            h.aiRow.setVisibility(isAi ? View.VISIBLE : View.GONE);
+            h.toolRow.setVisibility(isTool ? View.VISIBLE : View.GONE);
             if (isUser) {
                 h.userBubble.setText(m.text);
             } else if (isAi) {
@@ -276,14 +276,16 @@ public class SessionDetailActivity extends AppCompatActivity {
 
         static class VH extends RecyclerView.ViewHolder {
             final TextView userBubble, aiBubble, toolLine;
-            final View aiWrap;
+            final View userRow, aiRow, toolRow;
 
             VH(View v) {
                 super(v);
                 userBubble = v.findViewById(R.id.bubble_user);
                 aiBubble = v.findViewById(R.id.bubble_ai);
-                aiWrap = v.findViewById(R.id.bubble_ai_wrap);
                 toolLine = v.findViewById(R.id.bubble_tool);
+                userRow = v.findViewById(R.id.row_user);
+                aiRow = v.findViewById(R.id.row_ai);
+                toolRow = v.findViewById(R.id.row_tool);
             }
         }
     }

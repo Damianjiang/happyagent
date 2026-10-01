@@ -31,11 +31,11 @@
 
 ## 二、安装
 
-1. 到 [Releases](https://github.com/Damianjiang/happyagent/releases) 下载 `HappyAgent-v1.0-release.apk`（已 v1+v2 签名，约 10.6 MB）。
+1. 到 [Releases](https://github.com/Damianjiang/happyagent/releases) 下载 `HappyAgent-v1.0-release.apk`（R8 混淆 + 资源缩包后约 8.2 MB，已 v1+v2 签名）。
 2. 传到手机安装；若提示"未知来源"，允许后再装一次。
 3. 桌面图标为黄色微笑圆点（安卓 7+ 自适应，安卓 6 回退 mipmap）。
 
-> **老机安装说明**：本包 minSdk=23（安卓 6）。10.6 MB 的体积对安卓 6 无压力（真正卡老机的是 minSdk，已满足）。
+> **老机安装说明**：本包 minSdk=23（安卓 6）。已开启 R8（D8 脱糖 + 树摇混淆）和 `shrinkResources`，砍掉 AndroidX/Material 没用到的部分后包体从 11 MB 降到约 8.2 MB。对安卓 6 无压力。
 
 ## 三、5 分钟上手
 
@@ -84,6 +84,22 @@ gradle :app:assembleRelease
 
 产物在 `app/build/outputs/apk/`。签名库在 `gradle/`，正式上架前换成你自己的并改密码。
 
-## 七、关于"照搬 Operit"的边界
+## 七、安卓 6 兼容审计记录
+
+minSdk=23（API 23），逐类核对过会撞版本的项，均已在代码/构建里处理：
+
+| 风险项 | 结论 |
+| --- | --- |
+| `String.join` / `List.of` / `Optional` / Stream / `CompletableFuture` | 全库 0 处（文件拼接用 `StringBuilder` 手写 join） |
+| `Process.waitFor(超时)` / `destroyForcibly`（API 26） | 0 处；Shell 超时 = 无参 `waitFor` + `Future.get(timeout)` + `destroy`，全 API 23 可用 |
+| `java.nio.file`（API 26 才有） | 全部走 `java.io.File` |
+| `windowLightNavigationBar`（API 27） | 0 处；主题只用 `windowLightStatusBar`（已核对：该属性正是 API 23 引入，6.0 原生支持） |
+| 自适应图标 | 放 `mipmap-anydpi-v26`，API 23~25 自动回退普通 mipmap 位图，不崩 |
+| Lambda / 方法引用 | D8 脱糖自动转旧字节码（AGP 8 默认行为），API 23 可跑 |
+| 落盘反序列化跨版本 | R8 keep 住 `model.*` 与 `AgentBackend$State`，类名/字段名跨版本稳定，老 `state.ser` 仍可读 |
+
+三家模型接口（OpenAI `/chat/completions`、Google `generateContent`、Anthropic `/v1/messages`）走 `HttpURLConnection` + `org.json`，纯 JDK/标准库，无运行时版本依赖；请求/响应格式按各家官方文档逐一核对过。
+
+## 八、关于"照搬 Operit"的边界
 
 Happy Agent 借鉴并实现了 Operit 的**agent 内核**（ReAct 循环、工具调用 + 缺参补齐、文件工具、Shell/proot、多轮聊天）。**尚未照搬**的是 Operit 里那几块重能力：GUI 自动化（无障碍操控手机 UI）、语音、插件市场、世界书/角色卡。这些属于更大的独立模块，需要 `AccessibilityService` 权限等，作为后续版本逐步补齐。当前版本是一个**真正能对话、能调工具、能诊断**的最小可用 agent 客户端。

@@ -2,75 +2,147 @@
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:paddingLeft="14dp"
-    android:paddingRight="14dp"
-    android:paddingTop="5dp"
-    android:paddingBottom="5dp">
+    android:paddingLeft="12dp"
+    android:paddingRight="12dp"
+    android:paddingTop="4dp"
+    android:paddingBottom="4dp">
 
-    <!-- 用户消息：靠右，品牌色气泡 -->
-    <TextView
-        android:id="@+id/bubble_user"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="end"
-        android:background="@drawable/bg_bubble_user"
-        android:maxWidth="300dp"
-        android:paddingLeft="14dp"
-        android:paddingRight="14dp"
-        android:paddingTop="10dp"
-        android:paddingBottom="10dp"
-        android:textSize="14sp"
-        android:lineSpacingExtra="3dp"
-        android:textColor="@android:color/white"
-        android:visibility="gone" />
-
-    <!-- AI 消息：靠左，表面色气泡 -->
+    <!-- 用户消息：头像 + 靠右品牌色气泡 -->
     <LinearLayout
-        android:id="@+id/bubble_ai_wrap"
-        android:layout_width="wrap_content"
+        android:id="@+id/row_user"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_gravity="start"
+        android:orientation="horizontal"
+        android:gravity="center_vertical|end"
+        android:visibility="gone">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1" />
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:gravity="end">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="你"
+                android:textSize="11sp"
+                android:paddingTop="3dp"
+                android:paddingLeft="6dp"
+                android:textColor="?attr/colorOnSurfaceVariant" />
+
+            <TextView
+                android:id="@+id/bubble_user"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:background="@drawable/bg_bubble_user"
+                android:maxWidth="300dp"
+                android:paddingLeft="14dp"
+                android:paddingRight="14dp"
+                android:paddingTop="10dp"
+                android:paddingBottom="10dp"
+                android:textSize="14sp"
+                android:lineSpacingExtra="3dp"
+                android:textColor="@android:color/white" />
+        </LinearLayout>
+
+        <ImageView
+            android:layout_width="34dp"
+            android:layout_height="34dp"
+            android:layout_marginStart="8dp"
+            android:layout_marginLeft="8dp"
+            android:background="@drawable/bg_avatar_user"
+            android:contentDescription="用户"
+            android:scaleType="center" />
+    </LinearLayout>
+
+    <!-- AI 消息：头像 + 靠左表面色气泡 -->
+    <LinearLayout
+        android:id="@+id/row_ai"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:visibility="gone">
+
+        <ImageView
+            android:layout_width="34dp"
+            android:layout_height="34dp"
+            android:background="@drawable/bg_avatar_ai"
+            android:contentDescription="Happy Agent"
+            android:scaleType="center" />
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:layout_marginStart="8dp"
+            android:layout_marginLeft="8dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Happy Agent"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                android:textColor="?attr/colorOnSurfaceVariant"
+                android:paddingBottom="3dp" />
+
+            <TextView
+                android:id="@+id/bubble_ai"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:background="@drawable/bg_bubble_ai"
+                android:maxWidth="300dp"
+                android:paddingLeft="14dp"
+                android:paddingRight="14dp"
+                android:paddingTop="10dp"
+                android:paddingBottom="10dp"
+                android:textSize="14sp"
+                android:lineSpacingExtra="3dp"
+                android:textColor="?attr/colorOnSurface" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- 工具调用：居中小灰等宽字（对齐 Operit 工具可见体验） -->
+    <LinearLayout
+        android:id="@+id/row_tool"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
         android:orientation="vertical"
+        android:gravity="center"
+        android:paddingLeft="24dp"
+        android:paddingRight="24dp"
         android:visibility="gone">
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Happy Agent"
-            android:textSize="11sp"
-            android:textStyle="bold"
-            android:textColor="?attr/colorOnSurfaceVariant"
-            android:paddingLeft="4dp"
-            android:paddingBottom="3dp" />
+            android:text="工具调用"
+            android:textSize="10sp"
+            android:textColor="?attr/colorOnSurfaceVariant" />
 
         <TextView
-            android:id="@+id/bubble_ai"
+            android:id="@+id/bubble_tool"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:background="@drawable/bg_bubble_ai"
-            android:maxWidth="300dp"
-            android:paddingLeft="14dp"
-            android:paddingRight="14dp"
-            android:paddingTop="10dp"
-            android:paddingBottom="10dp"
-            android:textSize="14sp"
-            android:lineSpacingExtra="3dp"
-            android:textColor="?attr/colorOnSurface" />
+            android:layout_marginTop="2dp"
+            android:background="@drawable/bg_bubble_tool"
+            android:fontFamily="monospace"
+            android:paddingLeft="10dp"
+            android:paddingRight="10dp"
+            android:paddingTop="8dp"
+            android:paddingBottom="8dp"
+            android:textSize="11sp"
+            android:textColor="?attr/colorOnSurfaceVariant" />
     </LinearLayout>
-
-    <!-- 工具调用：中间小灰字（Operit 的工具可见体验） -->
-    <TextView
-        android:id="@+id/bubble_tool"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:background="@drawable/bg_bubble_tool"
-        android:fontFamily="monospace"
-        android:paddingLeft="10dp"
-        android:paddingRight="10dp"
-        android:paddingTop="8dp"
-        android:paddingBottom="8dp"
-        android:textSize="11sp"
-        android:textColor="?attr/colorOnSurfaceVariant"
-        android:visibility="gone" />
 
 </FrameLayout>
