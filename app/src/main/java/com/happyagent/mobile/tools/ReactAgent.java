@@ -16,6 +16,7 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 // 多步 ReAct agent：think → act(tool) → observe → answer（对应 Operit PhoneAgent）。
 // 有 Key 时走各家原生 function calling 调工具，没 Key 走本地引擎。
@@ -32,19 +33,33 @@ public final class ReactAgent {
     private final ShellExecutor shell;
     private final List<Message> trace;
     private final TaskControl control;
+    // 启用的工具分组 key（来自工具页开关，如 tool.file/tool.search/tool.shell/tool.http）。
+    // null 表示全部启用（离线/未接工具页的场景）。
+    private final Set<String> enabledTools;
     private List<Attachment> currentImages;
     private int callCounter;
 
     public ReactAgent(Config cfg, FileTools ft, ShellExecutor se, List<Message> trace) {
-        this(cfg, ft, se, trace, new TaskControl());
+        this(cfg, ft, se, trace, new TaskControl(), null);
     }
 
     public ReactAgent(Config cfg, FileTools ft, ShellExecutor se, List<Message> trace, TaskControl control) {
+        this(cfg, ft, se, trace, control, null);
+    }
+
+    public ReactAgent(Config cfg, FileTools ft, ShellExecutor se, List<Message> trace,
+                      TaskControl control, Set<String> enabledTools) {
         this.cfg = cfg;
         this.fileTools = ft;
         this.shell = se;
         this.trace = trace;
         this.control = control;
+        this.enabledTools = enabledTools;
+    }
+
+    // 某工具分组是否启用。enabledTools==null 视为全开（离线默认）。
+    private boolean toolOn(String groupKey) {
+        return enabledTools == null || enabledTools.contains(groupKey);
     }
 
     public String run(String task, List<Message> history, List<Attachment> attachments) throws Exception {
@@ -141,17 +156,26 @@ public final class ReactAgent {
         return callOpenAI(transcript);
     }
 
-    // 工具 schema（三家各自的格式）
+    // 工具 schema（三家各自的格式）。只放出「工具页开关打开」的那几类，
+    // 让工具页的开关真正决定 agent 能用哪些工具。
     private JSONArray openAITools() throws Exception {
         JSONArray arr = new JSONArray();
-        arr.put(fn("file_read", "读取文本文件", schema("path", true)));
-        arr.put(fn("file_write", "创建或覆盖文件", schema2("path", true, "content", true)));
-        arr.put(fn("file_list", "列目录", schema("path", false)));
-        arr.put(fn("file_find", "按名查找文件", schema2("path", false, "name", true)));
-        arr.put(fn("file_grep", "在文件里搜关键词", schema2("path", true, "keyword", true)));
-        arr.put(fn("file_info", "文件信息", schema("path", false)));
-        arr.put(fn("shell_exec", "执行白名单命令", schema("command", true)));
-        arr.put(fn("http_get", "抓取网页", schema("url", true)));
+        if (toolOn("tool.file")) {
+            arr.put(fn("file_read", "读取文本文件", schema("path", true)));
+            arr.put(fn("file_write", "创建或覆盖文件", schema2("path", true, "content", true)));
+            arr.put(fn("file_list", "列目录", schema("path", false)));
+            arr.put(fn("file_info", "文件信息", schema("path", false)));
+            if (toolOn("tool.search")) {
+                arr.put(fn("file_find", "按名查找文件", schema2("path", false, "name", true)));
+                arr.put(fn("file_grep", "在文件里搜关键词", schema2("path", true, "keyword", true)));
+            }
+        }
+        if (toolOn("tool.shell")) {
+            arr.put(fn("shell_exec", "执行白名单命令", schema("command", true)));
+        }
+        if (toolOn("tool.http")) {
+            arr.put(fn("http_get", "抓取网页", schema("url", true)));
+        }
         return arr;
     }
 
@@ -272,14 +296,22 @@ public final class ReactAgent {
 
     private JSONArray googleTools() throws Exception {
         JSONArray decls = new JSONArray();
-        decls.put(decl("file_read", "读取文本文件", "path", new String[]{"path"}));
-        decls.put(decl2("file_write", "创建或覆盖文件", "path", "content"));
-        decls.put(decl("file_list", "列目录", "path", null));
-        decls.put(decl2("file_find", "按名查找文件", "name", "path"));
-        decls.put(decl2("file_grep", "在文件里搜关键词", "path", "keyword"));
-        decls.put(decl("file_info", "文件信息", "path", null));
-        decls.put(decl("shell_exec", "执行白名单命令", "command", new String[]{"command"}));
-        decls.put(decl("http_get", "抓取网页", "url", new String[]{"url"}));
+        if (toolOn("tool.file")) {
+            decls.put(decl("file_read", "读取文本文件", "path", new String[]{"path"}));
+            decls.put(decl2("file_write", "创建或覆盖文件", "path", "content"));
+            decls.put(decl("file_list", "列目录", "path", null));
+            decls.put(decl("file_info", "文件信息", "path", null));
+            if (toolOn("tool.search")) {
+                decls.put(decl2("file_find", "按名查找文件", "name", "path"));
+                decls.put(decl2("file_grep", "在文件里搜关键词", "path", "keyword"));
+            }
+        }
+        if (toolOn("tool.shell")) {
+            decls.put(decl("shell_exec", "执行白名单命令", "command", new String[]{"command"}));
+        }
+        if (toolOn("tool.http")) {
+            decls.put(decl("http_get", "抓取网页", "url", new String[]{"url"}));
+        }
         return new JSONArray().put(new JSONObject().put("function_declarations", decls));
     }
 
@@ -382,14 +414,22 @@ public final class ReactAgent {
 
     private JSONArray anthropicTools() throws Exception {
         JSONArray arr = new JSONArray();
-        arr.put(declA("file_read", "读取文本文件", "path", true));
-        arr.put(declA2("file_write", "创建或覆盖文件", "path", "content"));
-        arr.put(declA("file_list", "列目录", "path", false));
-        arr.put(declA2("file_find", "按名查找文件", "name", "path"));
-        arr.put(declA2("file_grep", "在文件里搜关键词", "path", "keyword"));
-        arr.put(declA("file_info", "文件信息", "path", false));
-        arr.put(declA("shell_exec", "执行白名单命令", "command", true));
-        arr.put(declA("http_get", "抓取网页", "url", true));
+        if (toolOn("tool.file")) {
+            arr.put(declA("file_read", "读取文本文件", "path", true));
+            arr.put(declA2("file_write", "创建或覆盖文件", "path", "content"));
+            arr.put(declA("file_list", "列目录", "path", false));
+            arr.put(declA("file_info", "文件信息", "path", false));
+            if (toolOn("tool.search")) {
+                arr.put(declA2("file_find", "按名查找文件", "name", "path"));
+                arr.put(declA2("file_grep", "在文件里搜关键词", "path", "keyword"));
+            }
+        }
+        if (toolOn("tool.shell")) {
+            arr.put(declA("shell_exec", "执行白名单命令", "command", true));
+        }
+        if (toolOn("tool.http")) {
+            arr.put(declA("http_get", "抓取网页", "url", true));
+        }
         return arr;
     }
 
@@ -569,9 +609,33 @@ public final class ReactAgent {
         return raw;
     }
 
-    // 工具分发。参数宽容：缺参数给可行动提示而不是干失败
+    // 工具名 → 它所属的「工具页开关」分组
+    private String toolGroup(String name) {
+        switch (name) {
+            case "file_read":
+            case "file_write":
+            case "file_list":
+            case "file_info":
+                return "tool.file";
+            case "file_find":
+            case "file_grep":
+                return "tool.search";
+            case "shell_exec":
+                return "tool.shell";
+            case "http_get":
+                return "tool.http";
+            default:
+                return "";
+        }
+    }
+
+    // 工具分发。参数宽容：缺参数给可行动提示而不是干失败。
+    // 被工具页停用的分组即便模型仍发出调用，也只返回可行动提示、不执行。
     private String dispatchTool(String name, JSONObject args) {
         try {
+            if (!toolOn(toolGroup(name))) {
+                return "工具分组「" + toolGroup(name) + "」当前已停用（见「工具」页开关），本条未执行。请改用其它可用工具或在工具页重新启用。";
+            }
             switch (name) {
                 case "file_read": {
                     String p = str(args, "path", "file", "file_path");

@@ -9,8 +9,6 @@ import androidx.appcompat.app.AppCompatDelegate;
 public final class Prefs {
 
     public static final String KEY_NIGHT_MODE = "night_mode";
-    public static final String KEY_ACCENT_COLOR = "accent_color";
-    public static final String KEY_FONT_SCALE = "font_scale";
     public static final String KEY_START_PAGE = "start_page";
     public static final String KEY_ENABLE_SHAKE_TO_LOG = "enable_shake_to_log";
     public static final String KEY_ENABLE_HAPTICS = "enable_haptics";
@@ -42,21 +40,5 @@ public final class Prefs {
 
     public void putBoolean(String key, boolean value) {
         sp.edit().putBoolean(key, value).apply();
-    }
-
-    public String getString(String key, String def) {
-        return sp.getString(key, def);
-    }
-
-    public void putString(String key, String value) {
-        sp.edit().putString(key, value).apply();
-    }
-
-    public float getFloat(String key, float def) {
-        return sp.getFloat(key, def);
-    }
-
-    public void putFloat(String key, float value) {
-        sp.edit().putFloat(key, value).apply();
     }
 }

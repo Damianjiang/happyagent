@@ -19,23 +19,21 @@ import com.happyagent.mobile.R;
 import com.happyagent.mobile.data.AgentBackend;
 import com.happyagent.mobile.model.Models.Config;
 
-// 运行配置页：供应商、模型、温度、token、工作区 + 各家 API Key / Base URL
+// 运行配置页：供应商、模型、温度、token + 各家 API Key / Base URL
 public class ConfigFragment extends Fragment {
 
-    private EditText modelBox, agentBox, workspaceBox, maxTokensBox;
+    private EditText modelBox, agentBox, maxTokensBox;
     private EditText openaiKeyBox, openaiUrlBox, googleKeyBox, anthropicKeyBox;
     private RadioButton providerOpenai, providerGoogle, providerAnthropic;
     private View openaiGroup, googleGroup, anthropicGroup;
     private SeekBar tempBar;
     private TextView tempLabel;
-    private com.google.android.material.switchmaterial.SwitchMaterial autoCommit;
 
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle s) {
         View v = inflater.inflate(R.layout.fragment_config, container, false);
         modelBox = v.findViewById(R.id.config_model);
         agentBox = v.findViewById(R.id.config_agent);
-        workspaceBox = v.findViewById(R.id.config_workspace);
         maxTokensBox = v.findViewById(R.id.config_max_tokens);
         openaiKeyBox = v.findViewById(R.id.config_openai_key);
         openaiUrlBox = v.findViewById(R.id.config_openai_url);
@@ -49,19 +47,16 @@ public class ConfigFragment extends Fragment {
         anthropicGroup = v.findViewById(R.id.config_provider_anthropic_group);
         tempBar = v.findViewById(R.id.config_temp);
         tempLabel = v.findViewById(R.id.config_temp_label);
-        autoCommit = v.findViewById(R.id.config_autocommit);
         Button saveBtn = v.findViewById(R.id.config_save);
 
         final Config c = AgentBackend.get().getConfig();
         modelBox.setText(c.model);
         agentBox.setText(c.agentName);
-        workspaceBox.setText(c.workspace);
         maxTokensBox.setText(String.valueOf(c.maxTokens));
         openaiKeyBox.setText(c.openaiKey);
         openaiUrlBox.setText(c.openaiBaseUrl);
         googleKeyBox.setText(c.googleKey);
         anthropicKeyBox.setText(c.anthropicKey);
-        autoCommit.setChecked(c.autoCommit);
 
         tempBar.setMax(2000);
         tempBar.setProgress(c.temperature);
@@ -82,13 +77,15 @@ public class ConfigFragment extends Fragment {
         checkProviderRadio(c.getProvider(), v);
 
         saveBtn.setOnClickListener(vv -> {
+            // workspace/autoCommit 没有可编辑 UI（引擎用固定沙箱根、App 无 git），
+            // 保存时沿用已加载配置的原值，不做会误导人的假编辑器，也不丢老数据
             Config nc = new Config(
                     agentBox.getText().toString().trim(),
                     modelBox.getText().toString().trim(),
                     tempBar.getProgress(),
                     parseIntSafe(maxTokensBox.getText().toString(), 4096),
-                    autoCommit.isChecked(),
-                    workspaceBox.getText().toString().trim(),
+                    c.autoCommit,
+                    c.workspace,
                     currentProvider(),
                     openaiKeyBox.getText().toString().trim(),
                     openaiUrlBox.getText().toString().trim(),

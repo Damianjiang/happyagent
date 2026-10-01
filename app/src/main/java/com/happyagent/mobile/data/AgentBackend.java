@@ -163,11 +163,12 @@ public final class AgentBackend {
                             history.add(m);
                         }
                     }
-                    // 多步 ReAct：有 Key 时 LLM 带历史驱动工具，没 Key 降级本地
+                    // 多步 ReAct：有 Key 时 LLM 带历史驱动工具，没 Key 降级本地。
+                    // 传入当前启用的工具分组，让工具页开关真正门控 agent 可用工具
                     ReactAgent agent = new ReactAgent(getConfig(),
                             new FileTools(HappyAgentApplication.get()),
                             new ShellExecutor(HappyAgentApplication.get()),
-                            trace, control);
+                            trace, control, getEnabledToolKeys());
                     final String summary = agent.run(prompt, history, atts);
                     // 被取消/停止时，只记用户输入 + 已发生的工具步骤 + 停止说明，不标完成
                     List<Message> toolSteps = new ArrayList<Message>();
@@ -236,7 +237,7 @@ public final class AgentBackend {
             ReactAgent agent = new ReactAgent(getConfig(),
                     new FileTools(HappyAgentApplication.get()),
                     new ShellExecutor(HappyAgentApplication.get()),
-                    trace, control);
+                    trace, control, getEnabledToolKeys());
             String summary = agent.run(prompt, history,
                     new ArrayList<com.happyagent.mobile.model.Models.Attachment>());
             List<Message> toolSteps = new ArrayList<Message>();
@@ -341,6 +342,19 @@ public final class AgentBackend {
         persist();
     }
 
+    // 当前启用的工具分组 key（如 tool.file/tool.search/tool.shell/tool.http）。
+    // agent 拿它做门控：只把启用的工具喂给模型，停用的即便模型发出也不执行。
+    public java.util.Set<String> getEnabledToolKeys() {
+        ensureLoaded();
+        java.util.Set<String> s = new java.util.HashSet<String>();
+        synchronized (lock) {
+            for (Tool t : tools) {
+                if (t.enabled && t.id != null) s.add(t.id);
+            }
+        }
+        return s;
+    }
+
     // ---- 配置 ----
 
     public Config getConfig() {
@@ -410,14 +424,14 @@ public final class AgentBackend {
         config = new Config();
     }
 
+    // 默认工具集 = 引擎真实支持的 4 组（对应 ReactAgent.toolOn 的 key）。
+    // 每项的开关都会真正门控 agent 可用工具；没有对应引擎能力的假开关不放进来。
     private List<Tool> defaultTools() {
         List<Tool> l = new ArrayList<Tool>();
-        l.add(new Tool("tool.context", "Context loader", "Load agent + workspace context", true, "core"));
-        l.add(new Tool("tool.search", "Code search", "Search symbols and references", true, "dev"));
-        l.add(new Tool("tool.file", "File ops", "Read / write / patch project files", true, "dev"));
-        l.add(new Tool("tool.shell", "Shell", "Run commands in sandbox", false, "dev"));
-        l.add(new Tool("tool.http", "HTTP", "Fetch web resources", false, "net"));
-        l.add(new Tool("tool.memory", "Memory", "Inspect session history", true, "core"));
+        l.add(new Tool("tool.file", "文件", "读 / 写 / 列目录 / 文件信息（沙箱路径校验）", true, "dev"));
+        l.add(new Tool("tool.search", "查找 / 搜索", "按名找文件、在文件里搜关键词", true, "dev"));
+        l.add(new Tool("tool.shell", "Shell 沙箱", "/system/bin/sh 白名单命令 + 超时", false, "dev"));
+        l.add(new Tool("tool.http", "HTTP 抓取", "抓取网页正文（限大小）", false, "net"));
         return l;
     }
 

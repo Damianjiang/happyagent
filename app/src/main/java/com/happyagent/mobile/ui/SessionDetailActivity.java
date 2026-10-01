@@ -84,9 +84,9 @@ public class SessionDetailActivity extends AppCompatActivity {
         resumeBtn = findViewById(R.id.detail_resume);
         cancelBtn = findViewById(R.id.detail_cancel);
 
-        pauseBtn.setOnClickListener(v -> AgentBackend.get().pauseTask());
-        resumeBtn.setOnClickListener(v -> AgentBackend.get().resumeTask());
-        cancelBtn.setOnClickListener(v -> AgentBackend.get().cancelTask());
+        pauseBtn.setOnClickListener(v -> { Haptics.tap(v); AgentBackend.get().pauseTask(); });
+        resumeBtn.setOnClickListener(v -> { Haptics.tap(v); AgentBackend.get().resumeTask(); });
+        cancelBtn.setOnClickListener(v -> { Haptics.tap(v); AgentBackend.get().cancelTask(); });
         pickImage.setOnClickListener(v -> pick(PICK_IMAGE));
         pickFile.setOnClickListener(v -> pick(PICK_FILE));
 
@@ -250,6 +250,7 @@ public class SessionDetailActivity extends AppCompatActivity {
         try {
             AgentBackend.get().runTask(sessionId, text, atts);
             startPolling();
+            Haptics.action();   // 发送并启动任务时一次稍强反馈（开关开才响）
         } catch (Exception e) {
             CrashHandler.showFrom(e);
         }

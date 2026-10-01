@@ -19,9 +19,7 @@
     <string name="agent_config">智能体配置</string>
     <string name="model">模型</string>
     <string name="agent_name">智能体名称</string>
-    <string name="workspace">工作目录</string>
     <string name="max_tokens">最大 token 数</string>
-    <string name="auto_commit">自动提交</string>
     <string name="temperature">温度</string>
     <string name="tool_category">分类</string>
     <string name="reports_sessions">会话数</string>
@@ -29,8 +27,6 @@
     <string name="reports_tools_disabled">停用工具</string>
     <string name="reports_last_update">最近更新</string>
     <string name="personalization">个性化</string>
-    <string name="accent_color">强调色</string>
-    <string name="font_scale">字号缩放</string>
     <string name="night_mode">深色模式</string>
     <string name="haptics">震动反馈</string>
     <string name="shake_to_log">摇一摇抓取日志</string>

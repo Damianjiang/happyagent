@@ -15,12 +15,12 @@ import com.happyagent.mobile.R;
 import com.happyagent.mobile.data.AgentBackend;
 import com.happyagent.mobile.data.Prefs;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
-import com.google.android.material.snackbar.Snackbar;
 
 // 主界面：顶部应用栏 + 底部四个功能页，Fragment 首次点开才建，之后切来切去很轻
 public class MainActivity extends AppCompatActivity {
 
     private BottomNavigationView nav;
+    private ShakeLog shakeLog;
     private SessionsFragment sessionsFragment;
     private ToolsFragment toolsFragment;
     private ConfigFragment configFragment;
@@ -52,6 +52,21 @@ public class MainActivity extends AppCompatActivity {
         if (firstLaunch) {
             startActivity(new Intent(this, WelcomeActivity.class));
         }
+
+        // 摇一摇记日志：开关开着才挂传感器；离开界面即摘掉，省电也避免后台误触发
+        shakeLog = new ShakeLog(this);
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (shakeLog != null) shakeLog.start();
+    }
+
+    @Override
+    protected void onPause() {
+        if (shakeLog != null) shakeLog.stop();
+        super.onPause();
     }
 
     private void openTab(int id) {
