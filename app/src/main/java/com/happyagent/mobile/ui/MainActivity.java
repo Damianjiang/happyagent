@@ -37,13 +37,20 @@ public class MainActivity extends AppCompatActivity {
             return true;
         });
 
-        if (savedInstanceState == null) {
+        // 首次打开：把主界面先铺好（欢迎页盖在上面，结束后露出），再亮出欢迎页做开源免费警示
+        Prefs prefs = new Prefs(this);
+        boolean firstLaunch = !prefs.getBoolean(Prefs.KEY_FIRST_LAUNCH, false);
+
+        if (savedInstanceState == null || firstLaunch) {
             // 按设置里的"起始页"决定先显示哪块
-            Prefs prefs = new Prefs(this);
             int start = prefs.getInt(Prefs.KEY_START_PAGE, 0);
             int startId = (start == 1) ? R.id.nav_tools : R.id.nav_sessions;
             nav.setSelectedItemId(startId);
             openTab(startId);
+        }
+
+        if (firstLaunch) {
+            startActivity(new Intent(this, WelcomeActivity.class));
         }
     }
 

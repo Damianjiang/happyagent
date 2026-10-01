@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 首次打开的欢迎页：全屏居中，logo + 名称版本 + 要点 + 开源免费警示。全走主题色，深浅两套都跟。 -->
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="?android:colorBackground"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:padding="24dp">
+
+        <ImageView
+            android:layout_width="128dp"
+            android:layout_height="128dp"
+            android:src="@mipmap/ic_launcher"
+            android:contentDescription="Happy Agent"
+            android:scaleType="fitCenter" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:text="@string/app_name"
+            android:textSize="26sp"
+            android:textStyle="bold"
+            android:textColor="?attr/colorOnSurface" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="v1.0 · 端侧智能体"
+            android:textSize="13sp"
+            android:textColor="?attr/colorOnSurfaceVariant" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:text="· 多模型供应商（OpenAI / Google / Anthropic）\n· 多步 ReAct 工具调用，任务可暂停 / 继续 / 取消\n· 本地 Web 服务，电脑手机浏览器也能用\n· 纯 Java，兼容安卓 6 及以上老机"
+            android:textSize="14sp"
+            android:lineSpacingExtra="6dp"
+            android:gravity="center"
+            android:textColor="?attr/colorOnSurface" />
+
+        <!-- 开源免费警示：醒目独立卡，避免误解为收费应用 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:padding="16dp"
+            android:background="@drawable/bg_welcome_notice">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="开源项目 · 完全免费"
+                android:textSize="15sp"
+                android:textStyle="bold"
+                android:textColor="@color/status_done" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="本应用基于开源协议发布，可自由使用、修改和分发，不会向用户收取任何费用。任何向你收费、索要付费链接或声称「内部版/破解版」的渠道，都属于诈骗，请勿相信。"
+                android:textSize="13sp"
+                android:lineSpacingExtra="3dp"
+                android:textColor="?attr/colorOnSurfaceVariant" />
+        </LinearLayout>
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/welcome_start"
+            android:layout_width="220dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="30dp"
+            android:text="开始使用"
+            style="@style/Widget.Material3.Button" />
+
+    </LinearLayout>
+
+</ScrollView>

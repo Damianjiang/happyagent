@@ -34,6 +34,11 @@
         </activity>
 
         <activity
+            android:name=".ui.WelcomeActivity"
+            android:exported="false"
+            android:parentActivityName=".ui.MainActivity" />
+
+        <activity
             android:name=".ui.CrashActivity"
             android:exported="false"
             android:theme="@style/AppTheme"

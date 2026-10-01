@@ -15,6 +15,7 @@ public final class Prefs {
     public static final String KEY_ENABLE_SHAKE_TO_LOG = "enable_shake_to_log";
     public static final String KEY_ENABLE_HAPTICS = "enable_haptics";
     public static final String KEY_WEBUI_ON = "webui_on";
+    public static final String KEY_FIRST_LAUNCH = "first_launch";
 
     // 直接对齐 AppCompat 的常量，别自己造数值
     public static final int NIGHT_FOLLOW_SYSTEM = AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM;

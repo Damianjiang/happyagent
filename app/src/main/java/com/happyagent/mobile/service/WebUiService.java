@@ -341,7 +341,12 @@ public class WebUiService extends Service {
     private PendingIntent openUrl(String url) {
         Intent i = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
         i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-        int flags = PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE;
+        // FLAG_IMMUTABLE 是 API 31 才有的常量，直接硬编码在安卓 6 上不安全；
+        // 高版本加它收紧安全性，低版本只保留 UPDATE_CURRENT（老系统默认可变，不影响打开 URL）
+        int flags = PendingIntent.FLAG_UPDATE_CURRENT;
+        if (Build.VERSION.SDK_INT >= 29) {
+            flags |= PendingIntent.FLAG_IMMUTABLE;
+        }
         return PendingIntent.getActivity(this, 0, i, flags);
     }
 

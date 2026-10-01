@@ -28,6 +28,7 @@
 | 系统诊断 | 会话数、工具启用/停用数、模型、当前供应商与 Key 状态 | 否 |
 | 崩溃兜底 | 任意线程崩溃自动进崩溃页，一键复制日志 | 否 |
 | Web 服务 | 在手机上起一个本地 HTTP 服务，电脑/手机浏览器打开即可跟智能体对话；可开关，开启时通知栏常驻并显示内网/外网地址与端口 | 否（服务端自身）；真回答需对应 Key |
+| 首次欢迎页 | 首次打开进入全屏欢迎页：logo + 要点 + 醒目的「开源项目 · 完全免费，向用户收费即属诈骗」警示；点「开始使用」进主界面，只显示一次 | 否 |
 
 > 说明：聊天、工具、配置、诊断、崩溃兜底这些**不填 Key 也能用**；"AI 真正聪明地回答 / 驱动多步工具"这一项需要你在配置页选供应商并填对应 Key（OpenAI 或任意兼容接口 / Google / Anthropic）。
 
@@ -41,12 +42,13 @@
 
 ## 三、5 分钟上手
 
-1. 打开 App → 会话页，点右下角 **+** 新建对话。
-2. 底部输入框写一句话，点发送 → 看到用户气泡 + AI 回复气泡（没 Key 时是离线回执）。
-3. 想让它真聪明：到「配置」页先选**供应商**（OpenAI / Google / Anthropic），再填对应 **API Key**（OpenAI 还能填 Base URL 指向兼容接口，如 Ollama/中转），保存。
-4. 再发一句话，AI 会用模型真正理解并回答；需要时会自动调工具（文件/Shell），工具调用过程在聊天里可见。
-5. 任务跑着嫌慢或方向不对：聊天页顶部控制条可**暂停 / 继续 / 取消**（取消会立刻打断当前步骤）。
-6. 到「工具」页开/关你希望它使用的工具；到「诊断」页看当前会话数、工具启用数、供应商与 Key 状态。
+1. 首次打开会看到**欢迎页**：logo + 要点 +「开源项目 · 完全免费，向用户收费即属诈骗」的警示，点「开始使用」进主界面（只显示一次）。
+2. 会话页，点右下角 **+** 新建对话。
+3. 底部输入框写一句话，点发送 → 看到用户气泡 + AI 回复气泡（没 Key 时是离线回执）。
+4. 想让它真聪明：到「配置」页先选**供应商**（OpenAI / Google / Anthropic），再填对应 **API Key**（OpenAI 还能填 Base URL 指向兼容接口，如 Ollama/中转），保存。
+5. 再发一句话，AI 会用模型真正理解并回答；需要时会自动调工具（文件/Shell），工具调用过程在聊天里可见。
+6. 任务跑着嫌慢或方向不对：聊天页顶部控制条可**暂停 / 继续 / 取消**（取消会立刻打断当前步骤）。
+7. 到「工具」页开/关你希望它使用的工具；到「诊断」页看当前会话数、工具启用数、供应商与 Key 状态。
 
 ## 四、特色设计（对应企业级）
 
@@ -111,7 +113,8 @@ minSdk=23（API 23），逐类核对过会撞版本的项，均已在代码/构�
 | 自适应图标 | 放 `mipmap-anydpi-v26`，API 23~25 自动回退普通 mipmap 位图，不崩 |
 | Lambda / 方法引用 | D8 脱糖自动转旧字节码（AGP 8 默认行为），API 23 可跑 |
 | 落盘反序列化跨版本 | R8 keep 住 `model.*` 与 `AgentBackend$State`，类名/字段名跨版本稳定，老 `state.ser` 仍可读 |
-| Web 服务（本地 HTTP） | 用 `java.net.ServerSocket` / `Socket` / `NetworkInterface`（全 API 1~23），前台通知走 `NotificationChannel`（API 26+ 才建通道，低于 26 走旧构造）；无 `Executors`/`CompletableFuture` 之外的新 API |
+| Web 服务（本地 HTTP） | 用 `java.net.ServerSocket` / `Socket` / `NetworkInterface`（全 API 1~23），前台通知走 `NotificationChannel`（API 26+ 才建通道，低于 26 走旧构造）；`PendingIntent.FLAG_IMMUTABLE` 是 API 31 常量，已做版本分支（`SDK_INT>=29` 才加），安卓 6 上只保留 `FLAG_UPDATE_CURRENT` |
+| `startForegroundService` / `stopForeground(int)` | 全是高版本 API，各做版本分支：`SDK_INT>=26` 才 `startForegroundService`，`SDK_INT>=33` 才用带 int 的 `stopForeground`，否则老签名 |
 | 内网/外网 IP | 内网 = `NetworkInterface` 取站点内 IPv4（API 1）；外网 = `HttpURLConnection` 请求 `api.ipify.org` 取，取不到就留空、界面如实显示「获取中」，不崩 |
 
 三家模型接口（OpenAI `/chat/completions`、Google `generateContent`、Anthropic `/v1/messages`）走 `HttpURLConnection` + `org.json`，纯 JDK/标准库，无运行时版本依赖；请求/响应格式按各家官方文档逐一核对过。
