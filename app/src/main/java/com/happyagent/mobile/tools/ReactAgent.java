@@ -77,22 +77,17 @@ public final class ReactAgent {
                 String llmResponse = callLlm(messages);
                 JSONObject parsed = parseLlmResponse(llmResponse);
 
-                if (parsed.has("tool_call")) {
-                    JSONObject tc = parsed.getJSONObject("tool_call");
-                    String toolName = tc.optString("name", "");
-                    JSONObject args = tc.has("arguments") ? tc.getJSONObject("arguments") : new JSONObject();
+                // 宽容解析：tool_call / tool / tool_use / action 都能认；参数键名/工具名都不卡死
+                if (parsed.has("tool_call") || parsed.has("tool") || parsed.has("tool_use")
+                        || parsed.has("action")) {
+                    JSONObject tc = firstPresent(parsed, "tool_call", "tool", "tool_use", "action");
+                    if (tc == null) tc = parsed;
+                    String rawName = firstNonEmpty(tc, "name", "tool", "tool_name", "action", "tool_call");
+                    String toolName = normalizeToolName(rawName);
+                    JSONObject args = normalizeArgs(tc);
 
-                    // 参数校验：缺必填且无默认 → 不崩，把缺的喂回模型补齐（Operit 的做法）
-                    String missing = missingRequired(toolName, args);
-                    if (missing != null) {
-                        addMsg(messages, "assistant", llmResponse);
-                        addMsg(messages, "user",
-                                "Tool [" + toolName + "] is missing required parameter(s): "
-                                        + missing + ". Please provide all required parameters and call again.");
-                        trace.add(new Message("tool", "missing params: " + missing, System.currentTimeMillis()));
-                        continue;   // 下一步让模型补参数
-                    }
-
+                    // 不校验"必填"，直接宽容执行：缺的参数用默认值/别名填上，
+                    // 结果里带提示信息，弱模型看结果也能自己修正
                     String result = dispatchTool(toolName, args);
                     trace.add(new Message("tool", toolName + " -> " + result, System.currentTimeMillis()));
                     addMsg(messages, "assistant", llmResponse);
@@ -122,40 +117,92 @@ public final class ReactAgent {
         return "任务已停止";
     }
 
-    // 每个工具的必填参数 + 默认值。缺必填且无默认 → 返回缺失名单；否则 null（可执行）
-    private String missingRequired(String tool, JSONObject args) {
-        switch (tool) {
-            case "file_read":
-            case "file_info":
-            case "file_grep":
-                return need(args, "path", null);
-            case "file_write":
-                if (need(args, "path", null) != null) return "path";
-                return need(args, "content", "");
-            case "file_list":
-                return need(args, "path", fileTools.getWorkspace());
-            case "file_find":
-                if (need(args, "path", fileTools.getWorkspace()) != null) return "path";
-                return need(args, "name", null);
-            case "shell_exec":
-                return need(args, "command", null);
-            case "http_get":
-                return need(args, "url", null);
-            case "shell_detect":
-            case "memory_recall":
-                return null;
-            default:
-                return "unknown tool " + tool;
+    // 模型输出五花八门：从候选键名里找第一个存在的（宽松匹配不同模型的字段命名）
+    private JSONObject firstPresent(JSONObject o, String... keys) {
+        for (String k : keys) {
+            JSONObject v = o.optJSONObject(k);
+            if (v != null) return v;
         }
+        return null;
     }
 
-    private String need(JSONObject args, String key, String def) {
-        if (args.has(key)) {
-            String v = args.optString(key, "").trim();
-            if (v.length() > 0) return null;
+    private String firstNonEmpty(JSONObject o, String... keys) {
+        for (String k : keys) {
+            String v = o.optString(k, "").trim();
+            if (v.length() > 0) return v;
         }
-        if (def != null) return null;   // 有默认值，不记缺失
-        return key;
+        return "";
+    }
+
+    // 工具名宽容匹配：别名/大小写/下划线都能归一到标准工具名
+    private String normalizeToolName(String raw) {
+        if (raw == null) return "";
+        String t = raw.trim().toLowerCase().replace(' ', '_').replace('-', '_');
+        // 精确别名表（英文标准 + 常见同义词）
+        String[][] aliasMap = {
+                {"file_read", "read", "read_file", "cat", "open", "view", "show_file", "读取文件"},
+                {"file_write", "write", "write_file", "save", "create_file", "写入", "创建文件"},
+                {"file_list", "list", "ls", "list_dir", "list_files", "dir", "列目录", "看目录"},
+                {"file_find", "find", "find_file", "查找", "搜文件"},
+                {"file_grep", "grep", "search", "search_file", "search_files", "搜索", "搜代码"},
+                {"file_info", "info", "stat", "文件信息"},
+                {"shell_exec", "shell", "exec", "execute", "run", "run_shell", "执行命令", "跑命令", "执行"},
+                {"shell_detect", "detect", "detect_proot", "探测"},
+                {"http_get", "http", "fetch", "download", "get_url", "web", "抓网页", "下载"},
+                {"memory_recall", "memory", "recall", "记忆"},
+        };
+        for (String[] group : aliasMap) {
+            for (String alias : group) {
+                if (t.equals(alias.toLowerCase()) || t.equals(alias)) return group[0];
+            }
+            // 包含匹配：弱模型可能写 "read the file x.txt" / "读取文件"，任一别名命中就归一
+            for (String alias : group) {
+                if (alias.length() >= 4 && (t.contains(alias.toLowerCase()) || t.contains(alias))) {
+                    return group[0];
+                }
+            }
+        }
+        return raw;   // 认不出来原样传，dispatchTool 返回可行动的提示
+    }
+
+    // 参数键名宽容：arguments/args/params 都认（对象或 JSON 字符串）；path/file/dir/url 归一
+    private JSONObject normalizeArgs(JSONObject tc) {
+        JSONObject args = null;
+        String[] argKeys = {"arguments", "args", "parameters", "params", "input"};
+        for (int i = 0; i < argKeys.length && args == null; i++) {
+            JSONObject jo = tc.optJSONObject(argKeys[i]);
+            if (jo != null) {
+                args = jo;
+            } else {
+                String s = tc.optString(argKeys[i], "").trim();
+                if (s.length() > 0) {
+                    try { args = new JSONObject(s); }
+                    catch (Exception ignored) { args = new JSONObject(); }
+                }
+            }
+        }
+        if (args == null) {
+            // 模型把参数直接摊在顶层（name 和 path 平级），收进 args
+            args = new JSONObject();
+            try {
+                JSONArray keys = tc.names();
+                for (int i = 0; i < keys.length(); i++) {
+                    String k = keys.getString(i);
+                    if (!k.equals("name") && !k.equals("tool") && !k.equals("action")
+                            && !k.equals("tool_call") && !k.equals("id") && !k.equals("thought")
+                            && !k.equals("reasoning")) {
+                        args.put(k, tc.opt(k));
+                    }
+                }
+            } catch (Exception ignored) {}
+        }
+        try {
+            // path 类键名归一：弱模型写 file/dir/url 都能落到 path
+            String path = firstNonEmpty(args, "path", "file", "dir", "directory",
+                    "file_path", "filename", "url");
+            if (path.length() > 0) args.put("path", path);
+        } catch (Exception ignored) {}
+        return args;
     }
 
     private List<Message> recentWindow(List<Message> all, int n) {
@@ -163,33 +210,70 @@ public final class ReactAgent {
         return all.subList(all.size() - n, all.size());
     }
 
-    // 工具分发。args 已校验，缺值用默认
+    // 工具分发。参数宽容：缺 path 用工作区默认，缺参数时返回"可行动的提示"而不是干失败，
+    // 弱模型看到提示下一步能自己补齐（比直接踢回缺参重试更省步数）
     private String dispatchTool(String name, JSONObject args) {
         try {
             switch (name) {
-                case "file_read":
-                    return fileTools.read(str(args, "path", ""));
-                case "file_write":
-                    return fileTools.write(str(args, "path", ""), str(args, "content", ""));
+                case "file_read": {
+                    String p = str(args, "path", "");
+                    if (p.isEmpty()) {
+                        return "Missing 'path'. Files I can read right now:\n" + fileTools.list(fileTools.getWorkspace());
+                    }
+                    return fileTools.read(p);
+                }
+                case "file_write": {
+                    String p = str(args, "path", "");
+                    if (p.isEmpty()) {
+                        return "Missing 'path'. Pick a target under: " + fileTools.getWorkspace()
+                                + " (e.g. \"notes.txt\"), then retry with {\"path\":...,\"content\":...}.";
+                    }
+                    return fileTools.write(p, str(args, "content", str(args, "text", "")));
+                }
                 case "file_list":
                     return fileTools.list(str(args, "path", fileTools.getWorkspace()));
-                case "file_find":
-                    return fileTools.find(str(args, "path", fileTools.getWorkspace()), str(args, "name", ""));
-                case "file_grep":
-                    return fileTools.grep(str(args, "path", ""), str(args, "keyword", ""));
+                case "file_find": {
+                    String p = str(args, "path", fileTools.getWorkspace());
+                    String n = str(args, "name", str(args, "query", str(args, "keyword", "")));
+                    if (n.isEmpty()) {
+                        return "Missing 'name'. Files available:\n" + fileTools.list(p);
+                    }
+                    return fileTools.find(p, n);
+                }
+                case "file_grep": {
+                    String p = str(args, "path", "");
+                    String k = str(args, "keyword", str(args, "query", ""));
+                    if (p.isEmpty() || k.isEmpty()) {
+                        return "Need 'path' and 'keyword'. Files available:\n" + fileTools.list(fileTools.getWorkspace());
+                    }
+                    return fileTools.grep(p, k);
+                }
                 case "file_info":
                     return fileTools.info(str(args, "path", fileTools.getWorkspace()));
-                case "shell_exec":
+                case "shell_exec": {
+                    String c = str(args, "command", str(args, "cmd", ""));
+                    if (c.isEmpty()) {
+                        return "Missing 'command'. Allowed commands: "
+                                + "ls cat echo date uname whoami pwd id grep head tail wc stat find which";
+                    }
                     int timeout = args.has("timeout_ms") ? args.optInt("timeout_ms", 15000) : 15000;
-                    return shell.exec(str(args, "command", ""), timeout);
+                    return shell.exec(c, timeout);
+                }
                 case "shell_detect":
                     return shell.detectProot();
-                case "http_get":
-                    return httpGet(str(args, "url", ""));
+                case "http_get": {
+                    String u = str(args, "url", str(args, "path", ""));
+                    if (u.isEmpty()) {
+                        return "Missing 'url'. Fetch a page like {\"url\":\"https://example.com\"}.";
+                    }
+                    return httpGet(u);
+                }
                 case "memory_recall":
                     return "workspace: " + fileTools.getWorkspace();
                 default:
-                    return "unknown tool: " + name;
+                    return "Unknown tool '" + name + "'. Available tools: "
+                            + "file_read, file_write, file_list, file_find, file_grep, file_info, "
+                            + "shell_exec, shell_detect, http_get, memory_recall. Pick one and retry.";
             }
         } catch (Exception e) {
             return "tool error: " + e.getMessage();
@@ -202,22 +286,24 @@ public final class ReactAgent {
     }
 
     private String buildSystemPrompt() {
-        return "You are an AI agent on an Android device. Complete tasks using tools. "
-                + "Respond as JSON: {\"tool_call\":{\"name\":\"<tool>\",\"arguments\":{...}}} to call a tool, "
-                + "or {\"answer\":\"<final>\"} to finish. Always provide ALL required arguments.\n"
+        return "You are an AI agent on an Android device. Use tools to complete the task. "
+                + "To call a tool reply JSON: {\"tool_call\":{\"name\":\"<tool>\",\"arguments\":{...}}} "
+                + "or finish with {\"answer\":\"<final>\"}.\n"
+                + "You may omit optional arguments. If you miss a required one, the tool result will "
+                + "tell you exactly what to provide — read it and retry; do not repeat the same empty call.\n"
+                + "Example: read a file -> {\"tool_call\":{\"name\":\"file_read\",\"arguments\":{\"path\":\"notes.txt\"}}}\n"
                 + "Tools:\n"
-                + "- file_read {path}\n"
-                + "- file_write {path, content}\n"
-                + "- file_list {path}\n"
-                + "- file_find {path, name}\n"
-                + "- file_grep {path, keyword}\n"
-                + "- file_info {path}\n"
-                + "- shell_exec {command, timeout_ms}\n"
-                + "- shell_detect {}\n"
-                + "- http_get {url}\n"
-                + "- memory_recall {}\n"
+                + "- file_read {path} — read a text file\n"
+                + "- file_write {path, content} — create/overwrite a file\n"
+                + "- file_list {path} — list directory (default: workspace)\n"
+                + "- file_find {path, name} — find files by name\n"
+                + "- file_grep {path, keyword} — search text in a file\n"
+                + "- file_info {path} — file size/type\n"
+                + "- shell_exec {command} — run one of: ls cat echo date uname whoami pwd grep find\n"
+                + "- http_get {url} — fetch a web page\n"
+                + "- memory_recall {} — show workspace info\n"
                 + "Workspace: " + fileTools.getWorkspace() + "\n"
-                + "Up to " + MAX_STEPS + " steps. Think step by step.";
+                + "Up to " + MAX_STEPS + " steps. Keep answers concise.";
     }
 
     // 按供应商适配请求/响应格式
