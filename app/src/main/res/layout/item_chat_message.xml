@@ -4,53 +4,38 @@
     android:layout_height="wrap_content"
     android:paddingLeft="12dp"
     android:paddingRight="12dp"
-    android:paddingTop="4dp"
-    android:paddingBottom="4dp">
+    android:paddingTop="3dp"
+    android:paddingBottom="3dp">
 
-    <!-- 用户消息：头像 + 靠右品牌色气泡 -->
+    <!-- 用户消息：靠右品牌色气泡 -->
     <LinearLayout
         android:id="@+id/row_user"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:gravity="center_vertical|end"
+        android:gravity="end"
         android:visibility="gone">
-
-        <TextView
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1" />
 
         <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:gravity="end">
+            android:gravity="end"
+            android:layout_marginEnd="24dp">
 
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="你"
-                android:textSize="11sp"
-                android:paddingTop="3dp"
-                android:paddingLeft="6dp"
-                android:textColor="?attr/colorOnSurfaceVariant" />
-
-            <!-- 用户附件：图片缩略图 + 文件 chip，靠气泡上方排 -->
+            <!-- 用户附件：图片缩略图 + 文件 chip -->
             <LinearLayout
                 android:id="@+id/user_attachments"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
                 android:gravity="end"
-                android:layout_marginTop="4dp"
                 android:visibility="gone" />
 
             <TextView
                 android:id="@+id/bubble_user"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
                 android:background="@drawable/bg_bubble_user"
                 android:maxWidth="300dp"
                 android:paddingLeft="14dp"
@@ -61,96 +46,59 @@
                 android:lineSpacingExtra="3dp"
                 android:textColor="@android:color/white" />
         </LinearLayout>
-
-        <ImageView
-            android:layout_width="34dp"
-            android:layout_height="34dp"
-            android:layout_marginStart="8dp"
-            android:layout_marginLeft="8dp"
-            android:background="@drawable/bg_avatar_user"
-            android:contentDescription="用户"
-            android:scaleType="center" />
     </LinearLayout>
 
-    <!-- AI 消息：头像 + 靠左表面色气泡 -->
+    <!-- AI 消息：靠左，小头像 + 纯文本 -->
     <LinearLayout
         android:id="@+id/row_ai"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:gravity="center_vertical"
+        android:gravity="top"
         android:visibility="gone">
 
         <ImageView
-            android:layout_width="34dp"
-            android:layout_height="34dp"
+            android:layout_width="28dp"
+            android:layout_height="28dp"
             android:background="@drawable/bg_avatar_ai"
             android:contentDescription="Happy Agent"
             android:scaleType="center" />
 
-        <LinearLayout
+        <TextView
+            android:id="@+id/bubble_ai"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:orientation="vertical"
-            android:layout_marginStart="8dp"
-            android:layout_marginLeft="8dp">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Happy Agent"
-                android:textSize="11sp"
-                android:textStyle="bold"
-                android:textColor="?attr/colorOnSurfaceVariant"
-                android:paddingBottom="3dp" />
-
-            <TextView
-                android:id="@+id/bubble_ai"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
-                android:background="@drawable/bg_bubble_ai"
-                android:maxWidth="300dp"
-                android:paddingLeft="14dp"
-                android:paddingRight="14dp"
-                android:paddingTop="10dp"
-                android:paddingBottom="10dp"
-                android:textSize="14sp"
-                android:lineSpacingExtra="3dp"
-                android:textColor="?attr/colorOnSurface" />
-        </LinearLayout>
+            android:layout_marginStart="10dp"
+            android:layout_marginLeft="10dp"
+            android:maxWidth="300dp"
+            android:paddingTop="2dp"
+            android:textSize="14sp"
+            android:lineSpacingExtra="3dp"
+            android:textColor="?attr/colorOnSurface" />
     </LinearLayout>
 
-    <!-- 工具调用：居中小灰等宽字（对齐 Operit 工具可见体验） -->
+    <!-- 工具调用：居中小灰等宽字 -->
     <LinearLayout
         android:id="@+id/row_tool"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
         android:gravity="center"
-        android:paddingLeft="24dp"
-        android:paddingRight="24dp"
+        android:paddingLeft="32dp"
+        android:paddingRight="32dp"
         android:visibility="gone">
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="工具调用"
-            android:textSize="10sp"
-            android:textColor="?attr/colorOnSurfaceVariant" />
 
         <TextView
             android:id="@+id/bubble_tool"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="2dp"
             android:background="@drawable/bg_bubble_tool"
             android:fontFamily="monospace"
             android:paddingLeft="10dp"
             android:paddingRight="10dp"
-            android:paddingTop="8dp"
-            android:paddingBottom="8dp"
+            android:paddingTop="6dp"
+            android:paddingBottom="6dp"
             android:textSize="11sp"
             android:textColor="?attr/colorOnSurfaceVariant" />
     </LinearLayout>

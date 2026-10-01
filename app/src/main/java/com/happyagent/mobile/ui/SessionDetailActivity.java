@@ -8,7 +8,6 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.EditText;
-import android.widget.HorizontalScrollView;
 import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -42,16 +41,17 @@ public class SessionDetailActivity extends AppCompatActivity {
     private static final int PICK_IMAGE = 101;
     private static final int PICK_FILE = 102;
 
-    private TextView modelLabel, status, empty;
+    private TextView empty;
     private EditText promptBox;
     private ImageButton sendBtn, pickImage, pickFile;
     private RecyclerView recycler;
     private LinearLayoutManager layoutMgr;
+    private MaterialToolbar toolbar;
 
-    private View controlsRow;
+    private View controlsRow, attachStrip;
     private MaterialButton pauseBtn, resumeBtn, cancelBtn;
-    private LinearLayout attachStrip;
     private LinearLayout attachItems;
+    private String model;
 
     private String sessionId;
     private ChatAdapter adapter;
@@ -70,8 +70,7 @@ public class SessionDetailActivity extends AppCompatActivity {
         mainHandler = new android.os.Handler(getMainLooper());
         fileTools = new FileTools(getApplication());
 
-        modelLabel = findViewById(R.id.detail_model);
-        status = findViewById(R.id.detail_status);
+        toolbar = findViewById(R.id.detail_toolbar);
         promptBox = findViewById(R.id.detail_prompt);
         sendBtn = findViewById(R.id.detail_send);
         pickImage = findViewById(R.id.detail_pick_image);
@@ -79,11 +78,11 @@ public class SessionDetailActivity extends AppCompatActivity {
         recycler = findViewById(R.id.chat_recycler);
         empty = findViewById(R.id.chat_empty);
         controlsRow = findViewById(R.id.detail_controls);
+        attachStrip = findViewById(R.id.detail_attach_strip);
+        attachItems = findViewById(R.id.attach_strip_items);
         pauseBtn = findViewById(R.id.detail_pause);
         resumeBtn = findViewById(R.id.detail_resume);
         cancelBtn = findViewById(R.id.detail_cancel);
-        attachStrip = findViewById(R.id.detail_attach_strip);
-        attachItems = findViewById(R.id.attach_strip_items);
 
         pauseBtn.setOnClickListener(v -> AgentBackend.get().pauseTask());
         resumeBtn.setOnClickListener(v -> AgentBackend.get().resumeTask());
@@ -92,6 +91,7 @@ public class SessionDetailActivity extends AppCompatActivity {
         pickFile.setOnClickListener(v -> pick(PICK_FILE));
 
         AgentBackend backend = AgentBackend.get();
+        model = backend.getConfig().model;
         Session s = backend.getSession(sessionId);
         if (s == null) {
             Toast.makeText(this, "会话不存在", Toast.LENGTH_SHORT).show();
@@ -99,12 +99,10 @@ public class SessionDetailActivity extends AppCompatActivity {
             return;
         }
 
-        MaterialToolbar toolbar = findViewById(R.id.detail_toolbar);
+        // 模型名放到顶栏副标题，卡片区保持干净
         toolbar.setTitle(s.title);
+        toolbar.setSubtitle("模型: " + model);
         toolbar.setNavigationOnClickListener(v -> finish());
-
-        modelLabel.setText("模型: " + backend.getConfig().model);
-        refreshStatus(s);
 
         adapter = new ChatAdapter();
         layoutMgr = new LinearLayoutManager(this);
@@ -285,7 +283,6 @@ public class SessionDetailActivity extends AppCompatActivity {
             List<Message> full = chatOf(s.messages);
             int prev = Math.min(adapter.count(), full.size());
             adapter.appendRange(full.subList(prev, full.size()));
-            refreshStatus(s);
             updateEmpty();
             scrollBottom();
             if (s.status == 3) {
@@ -295,13 +292,6 @@ public class SessionDetailActivity extends AppCompatActivity {
         pollTask = null;
         sendBtn.setEnabled(true);
         updateControls();
-    }
-
-    private void refreshStatus(Session s) {
-        status.setText(s.statusLabel());
-        int bg = s.status == 0 ? R.drawable.bg_status_running
-                : (s.status == 3 ? R.drawable.bg_status_failed : R.drawable.bg_status_done);
-        status.setBackgroundResource(bg);
     }
 
     private List<Message> chatOf(List<Message> all) {

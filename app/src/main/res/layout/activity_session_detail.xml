@@ -6,7 +6,7 @@
     android:orientation="vertical"
     android:background="?android:colorBackground">
 
-    <!-- 顶栏：品牌渐变，白字 -->
+    <!-- 顶栏：品牌实色，白字；副标题显示当前模型 -->
     <com.google.android.material.appbar.MaterialToolbar
         android:id="@+id/detail_toolbar"
         android:layout_width="match_parent"
@@ -14,35 +14,32 @@
         android:background="@drawable/bg_toolbar_gradient"
         app:navigationIcon="@drawable/ic_close"
         app:titleTextColor="@android:color/white"
+        app:subtitleTextColor="#C7D2FE"
         app:title="对话" />
 
-    <!-- 状态条：模型 + 状态徽章 -->
-    <LinearLayout
+    <!-- 消息流 -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/chat_recycler"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:paddingLeft="16dp"
-        android:paddingRight="16dp"
-        android:paddingTop="6dp"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:clipToPadding="false"
+        android:paddingTop="10dp"
         android:paddingBottom="6dp"
-        android:background="?attr/colorSurface">
+        android:background="?android:colorBackground" />
 
-        <TextView
-            android:id="@+id/detail_model"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:textSize="12sp"
-            android:textColor="?attr/colorOnSurfaceVariant"
-            android:text="模型: -" />
-
-        <TextView
-            android:id="@+id/detail_status"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            style="@style/StatusBadge" />
-    </LinearLayout>
+    <!-- 空对话提示 -->
+    <TextView
+        android:id="@+id/chat_empty"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:gravity="center"
+        android:padding="32dp"
+        android:textSize="14sp"
+        android:lineSpacingExtra="4dp"
+        android:textColor="?attr/colorOnSurfaceVariant"
+        android:text="开始和我对话吧\n选张图片或文件，写点内容，点发送。" />
 
     <!-- 任务控制条：暂停 / 继续 / 取消，任务运行时才出现 -->
     <LinearLayout
@@ -51,10 +48,10 @@
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:visibility="gone"
-        android:paddingLeft="12dp"
-        android:paddingRight="12dp"
-        android:paddingTop="4dp"
-        android:paddingBottom="4dp"
+        android:paddingLeft="16dp"
+        android:paddingRight="16dp"
+        android:paddingTop="6dp"
+        android:paddingBottom="6dp"
         android:background="?attr/colorSurface">
 
         <com.google.android.material.button.MaterialButton
@@ -62,8 +59,8 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:layout_marginEnd="4dp"
-            android:layout_marginRight="4dp"
+            android:layout_marginEnd="6dp"
+            android:layout_marginRight="6dp"
             android:text="暂停"
             style="@style/Widget.Material3.Button.TonalButton" />
 
@@ -72,10 +69,10 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:layout_marginLeft="4dp"
-            android:layout_marginStart="4dp"
-            android:layout_marginEnd="4dp"
-            android:layout_marginRight="4dp"
+            android:layout_marginLeft="6dp"
+            android:layout_marginStart="6dp"
+            android:layout_marginEnd="6dp"
+            android:layout_marginRight="6dp"
             android:text="继续"
             android:visibility="gone"
             style="@style/Widget.Material3.Button.TonalButton" />
@@ -85,99 +82,72 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:layout_marginLeft="4dp"
-            android:layout_marginStart="4dp"
+            android:layout_marginLeft="6dp"
+            android:layout_marginStart="6dp"
             android:text="取消"
             style="@style/Widget.Material3.Button.OutlinedButton" />
     </LinearLayout>
 
-    <!-- 消息流 -->
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/chat_recycler"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
-        android:clipToPadding="false"
-        android:paddingTop="8dp"
-        android:paddingBottom="8dp" />
-
-    <!-- 空对话提示 -->
-    <TextView
-        android:id="@+id/chat_empty"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
-        android:gravity="center"
-        android:padding="24dp"
-        android:textSize="14sp"
-        android:textColor="?attr/colorOnSurfaceVariant"
-        android:text="开始和我对话吧。右下角输入消息，点发送。" />
-
     <!-- 待发送附件预览行：选了图片/文件后显示，点 × 移除 -->
-    <LinearLayout
+    <HorizontalScrollView
         android:id="@+id/detail_attach_strip"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
         android:visibility="gone"
-        android:paddingLeft="10dp"
-        android:paddingRight="10dp"
-        android:paddingTop="6dp"
+        android:paddingLeft="16dp"
+        android:paddingRight="16dp"
+        android:paddingTop="8dp"
+        android:scrollbars="none"
         android:background="?attr/colorSurface">
 
-        <HorizontalScrollView
-            android:layout_width="0dp"
+        <LinearLayout
+            android:id="@+id/attach_strip_items"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:scrollbars="none">
+            android:orientation="horizontal" />
+    </HorizontalScrollView>
 
-            <LinearLayout
-                android:id="@+id/attach_strip_items"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal" />
-        </HorizontalScrollView>
-    </LinearLayout>
-
-    <!-- 底部输入条：图片 / 文件 / 输入 / 发送 -->
+    <!-- 底部输入：一个圆角容器 = [图片][文件] [输入框...] [发送] -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:padding="10dp"
-        android:background="?attr/colorSurface">
-
-        <ImageButton
-            android:id="@+id/detail_pick_image"
-            android:layout_width="44dp"
-            android:layout_height="44dp"
-            android:background="@drawable/bg_input_bar"
-            android:src="@android:drawable/ic_menu_gallery"
-            android:contentDescription="选择图片"
-            android:scaleType="center"
-            app:tint="?attr/colorOnSurfaceVariant" />
-
-        <ImageButton
-            android:id="@+id/detail_pick_file"
-            android:layout_width="44dp"
-            android:layout_height="44dp"
-            android:layout_marginLeft="4dp"
-            android:layout_marginStart="4dp"
-            android:background="@drawable/bg_input_bar"
-            android:src="@android:drawable/ic_menu_save"
-            android:contentDescription="选择文件"
-            android:scaleType="center"
-            app:tint="?attr/colorOnSurfaceVariant" />
+        android:orientation="vertical"
+        android:background="?attr/colorSurface"
+        android:paddingLeft="12dp"
+        android:paddingRight="12dp"
+        android:paddingTop="8dp"
+        android:paddingBottom="8dp">
 
         <LinearLayout
-            android:layout_width="0dp"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:layout_marginLeft="6dp"
-            android:layout_marginStart="6dp"
             android:orientation="horizontal"
-            android:background="@drawable/bg_input_bar">
+            android:gravity="center_vertical"
+            android:background="@drawable/bg_input_bar"
+            android:paddingLeft="6dp"
+            android:paddingRight="4dp">
+
+            <ImageButton
+                android:id="@+id/detail_pick_image"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:background="@android:color/transparent"
+                android:src="@android:drawable/ic_menu_gallery"
+                android:contentDescription="选择图片"
+                android:scaleType="center"
+                app:tint="?attr/colorOnSurfaceVariant" />
+
+            <ImageButton
+                android:id="@+id/detail_pick_file"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:layout_marginLeft="2dp"
+                android:layout_marginStart="2dp"
+                android:background="@android:color/transparent"
+                android:src="@android:drawable/ic_menu_save"
+                android:contentDescription="选择文件"
+                android:scaleType="center"
+                app:tint="?attr/colorOnSurfaceVariant" />
 
             <EditText
                 android:id="@+id/detail_prompt"
@@ -189,23 +159,25 @@
                 android:inputType="textMultiLine"
                 android:maxLines="4"
                 android:minLines="1"
-                android:paddingLeft="14dp"
-                android:paddingRight="6dp"
+                android:paddingLeft="8dp"
+                android:paddingRight="4dp"
                 android:paddingTop="10dp"
                 android:paddingBottom="10dp"
+                android:gravity="top"
                 android:textSize="14sp"
-                android:textColor="?attr/colorOnSurface" />
-        </LinearLayout>
+                android:textColor="?attr/colorOnSurface"
+                android:textColorHint="?attr/colorOnSurfaceVariant" />
 
-        <ImageButton
-            android:id="@+id/detail_send"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:layout_marginStart="8dp"
-            android:background="@drawable/bg_send_btn"
-            android:src="@drawable/ic_send"
-            android:contentDescription="发送"
-            android:scaleType="center" />
+            <ImageButton
+                android:id="@+id/detail_send"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:background="@drawable/bg_send_btn"
+                android:src="@drawable/ic_send"
+                android:contentDescription="发送"
+                android:scaleType="center"
+                app:tint="@android:color/white" />
+        </LinearLayout>
     </LinearLayout>
 
 </LinearLayout>

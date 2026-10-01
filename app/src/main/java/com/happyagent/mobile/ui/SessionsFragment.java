@@ -103,12 +103,14 @@ public class SessionsFragment extends Fragment {
         public void onBindViewHolder(@NonNull VH h, int pos) {
             Session s = items.get(pos);
             h.title.setText(s.title);
-            h.agent.setText(s.agent);
-            h.status.setText(s.statusLabel());
             h.date.setText(fmt.format(new Date(s.updatedAt)));
-            int bg = s.status == 0 ? R.drawable.bg_status_running
-                    : (s.status == 3 ? R.drawable.bg_status_failed : R.drawable.bg_status_done);
-            h.status.setBackgroundResource(bg);
+            h.status.setText(s.statusLabel());
+            // 状态用小圆点作左侧 drawable，颜色跟状态走，卡片保持干净
+            int dot = s.status == 0 ? R.drawable.dot_running
+                    : (s.status == 3 ? R.drawable.dot_failed : R.drawable.dot_done);
+            int pad = (int) (h.itemView.getContext().getResources().getDisplayMetrics().density * 4);
+            h.status.setCompoundDrawablesWithIntrinsicBounds(dot, 0, 0, 0);
+            h.status.setCompoundDrawablePadding(pad / 2);
             h.itemView.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View view) {
@@ -125,12 +127,11 @@ public class SessionsFragment extends Fragment {
         }
 
         static class VH extends RecyclerView.ViewHolder {
-            final TextView title, agent, status, date;
+            final TextView title, status, date;
 
             VH(View v) {
                 super(v);
                 title = v.findViewById(R.id.session_title);
-                agent = v.findViewById(R.id.session_agent);
                 status = v.findViewById(R.id.session_status);
                 date = v.findViewById(R.id.session_date);
             }
