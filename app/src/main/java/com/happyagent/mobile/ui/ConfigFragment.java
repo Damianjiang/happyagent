@@ -6,6 +6,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.LinearLayout;
 import android.widget.RadioButton;
 import android.widget.SeekBar;
 import android.widget.TextView;
@@ -74,11 +75,11 @@ public class ConfigFragment extends Fragment {
             @Override public void onStopTrackingTouch(SeekBar seekBar) {}
         });
 
-        // 三家 Radio 单选，点了就显对应凭据分组、同步模型默认值
-        providerOpenai.setOnClickListener(vv -> onProviderPicked());
-        providerGoogle.setOnClickListener(vv -> onProviderPicked());
-        providerAnthropic.setOnClickListener(vv -> onProviderPicked());
-        checkProviderRadio(c.getProvider());
+        // 三家 Radio 单选，点了就显对应凭据分组、同步模型默认值 + 刷新模型快捷列表
+        providerOpenai.setOnClickListener(vv -> onProviderPicked(v));
+        providerGoogle.setOnClickListener(vv -> onProviderPicked(v));
+        providerAnthropic.setOnClickListener(vv -> onProviderPicked(v));
+        checkProviderRadio(c.getProvider(), v);
 
         saveBtn.setOnClickListener(vv -> {
             Config nc = new Config(
@@ -99,7 +100,7 @@ public class ConfigFragment extends Fragment {
         return v;
     }
 
-    private void onProviderPicked() {
+    private void onProviderPicked(View v) {
         String p = currentProvider();
         openaiGroup.setVisibility(Config.PROVIDER_OPENAI.equals(p) ? View.VISIBLE : View.GONE);
         googleGroup.setVisibility(Config.PROVIDER_GOOGLE.equals(p) ? View.VISIBLE : View.GONE);
@@ -113,6 +114,40 @@ public class ConfigFragment extends Fragment {
                 break;
             }
         }
+        fillModelChips(v, p);
+    }
+
+    // 按供应商铺一排常用模型 chip，点一下填入模型框；模型框仍支持手输自定义
+    private void fillModelChips(View root, String provider) {
+        LinearLayout chips = root.findViewById(R.id.config_model_chips);
+        chips.removeAllViews();
+        String[] models = modelsFor(provider);
+        for (String m : models) {
+            TextView chip = new TextView(root.getContext());
+            chip.setText(m);
+            chip.setTextSize(13);
+            int pad = (int) (14 * root.getContext().getResources().getDisplayMetrics().density);
+            int gap = (int) (6 * root.getContext().getResources().getDisplayMetrics().density);
+            chip.setPadding(pad, gap, pad, gap);
+            chip.setBackgroundResource(R.drawable.bg_chip);
+            chip.setTextColor(0xFF475569);
+            chip.setOnClickListener(vv -> modelBox.setText(m));
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+            lp.rightMargin = gap;
+            chip.setLayoutParams(lp);
+            chips.addView(chip);
+        }
+    }
+
+    private String[] modelsFor(String provider) {
+        if (Config.PROVIDER_GOOGLE.equals(provider)) {
+            return new String[]{"gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-pro"};
+        }
+        if (Config.PROVIDER_ANTHROPIC.equals(provider)) {
+            return new String[]{"claude-haiku-4-5", "claude-sonnet-4-6", "claude-opus-4-1"};
+        }
+        return new String[]{"gpt-4o-mini", "gpt-4o", "gpt-4.1-mini", "o4-mini"};
     }
 
     private String defaultModelFor(String provider) {
@@ -121,11 +156,11 @@ public class ConfigFragment extends Fragment {
         return "gpt-4o-mini";
     }
 
-    private void checkProviderRadio(String provider) {
+    private void checkProviderRadio(String provider, View v) {
         providerOpenai.setChecked(Config.PROVIDER_OPENAI.equals(provider));
         providerGoogle.setChecked(Config.PROVIDER_GOOGLE.equals(provider));
         providerAnthropic.setChecked(Config.PROVIDER_ANTHROPIC.equals(provider));
-        onProviderPicked();
+        onProviderPicked(v);
     }
 
     private String currentProvider() {

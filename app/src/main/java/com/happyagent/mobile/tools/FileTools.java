@@ -3,6 +3,8 @@ package com.happyagent.mobile.tools;
 import android.content.Context;
 import android.util.Log;
 
+import com.happyagent.mobile.model.Models;
+
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
@@ -28,15 +30,52 @@ public final class FileTools {
     private final Context ctx;
     // 沙箱根：只能在 app 私有文件目录里操作，防越权
     private final File sandboxRoot;
+    // 附件目录：落在 workspace 内，agent 的 file_read 能直接读到用户发的文件
+    private final File attachRoot;
 
     public FileTools(Context context) {
         this.ctx = context.getApplicationContext();
         this.sandboxRoot = new File(ctx.getFilesDir(), "workspace");
         if (!sandboxRoot.exists()) sandboxRoot.mkdirs();
+        this.attachRoot = new File(sandboxRoot, "attachments");
+        if (!attachRoot.exists()) attachRoot.mkdirs();
     }
 
     public String getWorkspace() {
         return sandboxRoot.getAbsolutePath();
+    }
+
+    // 把外部 content URI（相册/文件）拷贝进沙箱附件目录，返回 Attachment。
+    // 用 android.util.Base64/流拷贝，纯 API 1~23，图片不直接解码避免 OOM。
+    public Models.Attachment saveAttachment(android.content.ContentResolver resolver,
+                                             android.net.Uri uri, String displayName) {
+        String safeName = displayName == null || displayName.trim().isEmpty()
+                ? String.valueOf(System.currentTimeMillis())
+                : displayName.trim();
+        safeName = safeName.replaceAll("[^A-Za-z0-9._\\-]", "_");
+        File dest = new File(attachRoot, System.currentTimeMillis() + "_" + safeName);
+        java.io.InputStream in;
+        try {
+            in = resolver.openInputStream(uri);
+        } catch (Exception e) {
+            return null;
+        }
+        if (in == null) return null;
+        try {
+            java.io.OutputStream out = new FileOutputStream(dest);
+            byte[] buf = new byte[8192];
+            int n;
+            while ((n = in.read(buf)) != -1) out.write(buf, 0, n);
+            out.close();
+            in.close();
+            String mime = resolver.getType(uri);
+            return new Models.Attachment(safeName,
+                    mime == null ? "application/octet-stream" : mime,
+                    dest.getAbsolutePath(), dest.length());
+        } catch (Exception e) {
+            Log.e(TAG, "saveAttachment", e);
+            return null;
+        }
     }
 
     // 路径校验：把传入路径解析后确认它落在沙箱内，否则拒绝

@@ -10,6 +10,7 @@ public final class Models {
     private Models() {}
 
     public static class Session implements Serializable {
+        private static final long serialVersionUID = 1L;
         public final String id;
         public final String title;
         public final String agent;
@@ -37,15 +38,45 @@ public final class Models {
         }
     }
 
+    public static class Attachment implements Serializable {
+        private static final long serialVersionUID = 1L;
+        public final String fileName;
+        public final String mime;
+        public final String path;
+        public final long size;
+
+        public Attachment(String fileName, String mime, String path, long size) {
+            this.fileName = fileName;
+            this.mime = mime;
+            this.path = path;
+            this.size = size;
+        }
+
+        public boolean isImage() {
+            return mime != null && mime.startsWith("image/");
+        }
+    }
+
     public static class Message implements Serializable {
+        private static final long serialVersionUID = 1L;
         public final String role;   // user / assistant / system / tool
         public final String text;
         public final long ts;
+        public final List<Attachment> attachments;   // 老存档无该字段 → null
 
         public Message(String role, String text, long ts) {
+            this(role, text, ts, null);
+        }
+
+        public Message(String role, String text, long ts, List<Attachment> attachments) {
             this.role = role;
             this.text = text;
             this.ts = ts;
+            this.attachments = attachments;
+        }
+
+        public List<Attachment> safeAttachments() {
+            return attachments == null ? new ArrayList<Attachment>() : attachments;
         }
     }
 

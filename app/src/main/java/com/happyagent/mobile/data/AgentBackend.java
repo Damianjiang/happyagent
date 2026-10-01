@@ -72,7 +72,6 @@ public final class AgentBackend {
             public void run() {
                 synchronized (lock) {
                     loadFromDisk();
-                    seedIfEmpty();
                     loaded = true;
                     lock.notifyAll();
                 }
@@ -95,7 +94,6 @@ public final class AgentBackend {
             // 等太久了就当场同步读一遍，保证界面不卡死
             if (!loaded) {
                 loadFromDisk();
-                seedIfEmpty();
                 loaded = true;
             }
         }
@@ -134,11 +132,15 @@ public final class AgentBackend {
         return s.id;
     }
 
-    // 跑一次任务：ReAct 多步，带多轮上下文，持久化 user+工具步骤+assistant。模型/供应商直接读当前配置。
-    public Future<Session> runTask(String sessionId, String prompt) {
+    // 跑一次任务：ReAct 多步，带多轮上下文 + 本轮附件，持久化 user+工具步骤+assistant。模型/供应商直接读当前配置。
+    public Future<Session> runTask(String sessionId, String prompt,
+                                   java.util.List<com.happyagent.mobile.model.Models.Attachment> attachments) {
         ensureLoaded();
         final Session session = getSession(sessionId);
         if (session == null) throw new IllegalStateException("unknown session " + sessionId);
+
+        final java.util.List<com.happyagent.mobile.model.Models.Attachment> atts =
+                attachments == null ? new java.util.ArrayList<com.happyagent.mobile.model.Models.Attachment>() : attachments;
 
         synchronized (lock) {
             session.status = 0;
@@ -152,7 +154,7 @@ public final class AgentBackend {
             @Override
             public Session call() {
                 List<Message> trace = new ArrayList<Message>();
-                trace.add(new Message("user", prompt, System.currentTimeMillis()));
+                trace.add(new Message("user", prompt, System.currentTimeMillis(), atts));
                 try {
                     // 取本会话已有 user/assistant 对话作为多轮上下文
                     List<Message> history = new ArrayList<Message>();
@@ -166,7 +168,7 @@ public final class AgentBackend {
                             new FileTools(HappyAgentApplication.get()),
                             new ShellExecutor(HappyAgentApplication.get()),
                             trace, control);
-                    final String summary = agent.run(prompt, history);
+                    final String summary = agent.run(prompt, history, atts);
                     // 被取消/停止时，只记用户输入 + 已发生的工具步骤 + 停止说明，不标完成
                     List<Message> toolSteps = new ArrayList<Message>();
                     for (Message m : trace) {
@@ -174,7 +176,7 @@ public final class AgentBackend {
                     }
                     boolean stopped = control.isCancelled();
                     synchronized (lock) {
-                        session.messages.add(new Message("user", prompt, System.currentTimeMillis()));
+                        session.messages.add(new Message("user", prompt, System.currentTimeMillis(), atts));
                         for (Message t : toolSteps) session.messages.add(t);
                         session.messages.add(new Message("assistant", summary, System.currentTimeMillis()));
                         session.status = stopped ? 3 : 2;
@@ -342,18 +344,6 @@ public final class AgentBackend {
         sessions = new ArrayList<Session>();
         tools = defaultTools();
         config = new Config();
-    }
-
-    // 第一次装完没有数据，放一条欢迎会话
-    private void seedIfEmpty() {
-        if (!sessions.isEmpty()) return;
-        long now = System.currentTimeMillis();
-        List<Message> msgs = new ArrayList<Message>();
-        msgs.add(new Message("assistant",
-                "你好，我是 Happy Agent。直接和我对话；在配置页填好 API Key 后我能真正理解并回答你。",
-                now - 60000));
-        sessions.add(new Session("s-seed-1", "欢迎使用 Happy Agent", config.agentName, 2, now, msgs));
-        persistNow();
     }
 
     private List<Tool> defaultTools() {

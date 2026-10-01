@@ -29,6 +29,7 @@ public class SessionsFragment extends Fragment {
     private RecyclerView recycler;
     private ProgressBar progress;
     private TextView empty;
+    private com.google.android.material.button.MaterialButton createBtn;
     private SessionAdapter adapter;
 
     @Override
@@ -37,11 +38,21 @@ public class SessionsFragment extends Fragment {
         recycler = v.findViewById(R.id.sessions_recycler);
         progress = v.findViewById(R.id.sessions_progress);
         empty = v.findViewById(R.id.sessions_empty);
+        createBtn = v.findViewById(R.id.sessions_create);
+        createBtn.setOnClickListener(view -> newSessionAndOpen());
         recycler.setLayoutManager(new LinearLayoutManager(getContext()));
         adapter = new SessionAdapter(new ArrayList<Session>());
         recycler.setAdapter(adapter);
         load();
         return v;
+    }
+
+    // 空态"创建第一个会话"：建一个会话并直接进聊天页
+    private void newSessionAndOpen() {
+        String id = AgentBackend.get().createSession("新对话", null);
+        Intent i = new Intent(requireContext(), SessionDetailActivity.class);
+        i.putExtra(SessionDetailActivity.EXTRA_SESSION_ID, id);
+        startActivity(i);
     }
 
     // 后台读一遍再回界面，列表数据量小的话其实也够快，但不想卡主线程
@@ -58,7 +69,9 @@ public class SessionsFragment extends Fragment {
                         if (!isAdded()) return;
                         progress.setVisibility(View.GONE);
                         adapter.update(data);
-                        empty.setVisibility(data.isEmpty() ? View.VISIBLE : View.GONE);
+                        boolean isEmpty = data.isEmpty();
+                        SessionsFragment.this.empty.setVisibility(isEmpty ? View.VISIBLE : View.GONE);
+                        createBtn.setVisibility(isEmpty ? View.VISIBLE : View.GONE);
                     }
                 });
             }

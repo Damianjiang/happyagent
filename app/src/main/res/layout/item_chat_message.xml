@@ -36,6 +36,16 @@
                 android:paddingLeft="6dp"
                 android:textColor="?attr/colorOnSurfaceVariant" />
 
+            <!-- 用户附件：图片缩略图 + 文件 chip，靠气泡上方排 -->
+            <LinearLayout
+                android:id="@+id/user_attachments"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="end"
+                android:layout_marginTop="4dp"
+                android:visibility="gone" />
+
             <TextView
                 android:id="@+id/bubble_user"
                 android:layout_width="wrap_content"

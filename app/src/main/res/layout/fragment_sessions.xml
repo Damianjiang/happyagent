@@ -15,12 +15,23 @@
     <TextView
         android:id="@+id/sessions_empty"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="0dp"
+        android:layout_weight="1"
         android:gravity="center"
         android:padding="40dp"
         android:text="@string/no_sessions_hint"
         android:textColor="?attr/colorOnSurfaceVariant"
         android:visibility="gone" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/sessions_create"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:layout_margin="16dp"
+        android:text="@string/create_first_session"
+        android:visibility="gone"
+        style="@style/Widget.Material3.Button" />
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/sessions_recycler"

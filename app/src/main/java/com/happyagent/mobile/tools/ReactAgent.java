@@ -1,5 +1,6 @@
 package com.happyagent.mobile.tools;
 
+import com.happyagent.mobile.model.Models.Attachment;
 import com.happyagent.mobile.model.Models.Config;
 import com.happyagent.mobile.model.Models.Message;
 
@@ -7,6 +8,7 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.ByteArrayOutputStream;
+import java.io.FileInputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
@@ -30,6 +32,8 @@ public final class ReactAgent {
     private final ShellExecutor shell;
     private final List<Message> trace;
     private final TaskControl control;
+    // 本轮任务携带的图片附件，多模态喂模型用
+    private List<Attachment> currentImages;
 
     public ReactAgent(Config cfg, FileTools ft, ShellExecutor se, List<Message> trace) {
         this(cfg, ft, se, trace, new TaskControl());
@@ -43,12 +47,13 @@ public final class ReactAgent {
         this.control = control;
     }
 
-    public String run(String task, List<Message> history) throws Exception {
+    public String run(String task, List<Message> history, List<Attachment> attachments) throws Exception {
+        this.currentImages = attachments == null ? new ArrayList<Attachment>() : attachments;
         String systemPrompt = buildSystemPrompt();
         trace.add(new Message("system", "PLAN: " + task, System.currentTimeMillis()));
 
         if (!cfg.hasKey()) {
-            return localFallback(task, history);
+            return localFallback(task, history, currentImages);
         }
 
         // 只喂最近 HISTORY_WINDOW 条 user/assistant，控制上下文长度，避免聊多了卡
@@ -58,7 +63,8 @@ public final class ReactAgent {
         for (Message h : window) {
             addMsg(messages, h.role, h.text);
         }
-        addMsg(messages, "user", task);
+        // 当前任务：文本 + 本轮图片一起送（多模态）
+        addUserTask(messages, task);
 
         for (int step = 1; step <= MAX_STEPS; step++) {
             // 每步自查控制：取消/线程被打断则停；暂停则阻塞等待继续
@@ -228,7 +234,26 @@ public final class ReactAgent {
         body.put("temperature", cfg.temperature / 100.0);
         body.put("max_tokens", cfg.maxTokens);
         JSONArray arr = new JSONArray();
-        for (JSONObject m : messages) arr.put(m);
+        for (JSONObject m : messages) {
+            JSONObject copy = new JSONObject(m.toString());
+            JSONArray imgs = imagesOf(copy);
+            copy.remove("__images__");
+            if (imgs != null && imgs.length() > 0) {
+                JSONArray content = new JSONArray();
+                content.put(new JSONObject().put("type", "text").put("text", copy.optString("content", "")));
+                for (int i = 0; i < imgs.length(); i++) {
+                    JSONObject im = imgs.getJSONObject(i);
+                    String dataUri = "data:" + im.optString("mime", "image/png")
+                            + ";base64," + im.optString("data", "");
+                    JSONObject part = new JSONObject();
+                    part.put("type", "image_url");
+                    part.put("image_url", new JSONObject().put("url", dataUri));
+                    content.put(part);
+                }
+                copy.put("content", content);
+            }
+            arr.put(copy);
+        }
         body.put("messages", arr);
 
         String base = cfg.openaiBaseUrl.trim();
@@ -250,15 +275,27 @@ public final class ReactAgent {
         for (JSONObject m : messages) {
             String role = m.optString("role");
             String text = m.optString("content");
+            JSONArray imgs = imagesOf(m);
             if ("system".equals(role)) {
                 if (sys.length() > 0) sys.append("\n");
                 sys.append(text);
             } else {
-                JSONObject part = new JSONObject();
-                part.put("text", text);
+                JSONArray parts = new JSONArray();
+                if (text != null && text.length() > 0) {
+                    parts.put(new JSONObject().put("text", text));
+                }
+                if (imgs != null) {
+                    for (int i = 0; i < imgs.length(); i++) {
+                        JSONObject im = imgs.getJSONObject(i);
+                        JSONObject inline = new JSONObject();
+                        inline.put("mime_type", im.optString("mime", "image/png"));
+                        inline.put("data", im.optString("data", ""));
+                        parts.put(new JSONObject().put("inline_data", inline));
+                    }
+                }
                 JSONObject c = new JSONObject();
                 c.put("role", "user".equals(role) ? "user" : "model");
-                c.put("parts", new JSONArray().put(part));
+                c.put("parts", parts);
                 contents.put(c);
             }
         }
@@ -294,6 +331,7 @@ public final class ReactAgent {
         for (JSONObject m : messages) {
             String role = m.optString("role");
             String text = m.optString("content");
+            JSONArray imgs = imagesOf(m);
             if ("system".equals(role)) {
                 if (sys.length() > 0) sys.append("\n");
                 sys.append(text);
@@ -305,7 +343,24 @@ public final class ReactAgent {
             } else {
                 JSONObject o = new JSONObject();
                 o.put("role", "user".equals(role) ? "user" : "assistant");
-                o.put("content", text);
+                if (imgs != null && imgs.length() > 0) {
+                    JSONArray content = new JSONArray();
+                    if (text != null && text.length() > 0) {
+                        content.put(new JSONObject().put("type", "text").put("text", text));
+                    }
+                    for (int i = 0; i < imgs.length(); i++) {
+                        JSONObject im = imgs.getJSONObject(i);
+                        JSONObject src = new JSONObject();
+                        src.put("type", "base64");
+                        src.put("media_type", im.optString("mime", "image/png"));
+                        src.put("data", im.optString("data", ""));
+                        content.put(new JSONObject().put("type", "image")
+                                .put("source", src));
+                    }
+                    o.put("content", content);
+                } else {
+                    o.put("content", text);
+                }
                 arr.put(o);
             }
         }
@@ -374,6 +429,49 @@ public final class ReactAgent {
         } catch (Exception ignored) {}
     }
 
+    // 当前任务的用户消息：文本 + 图片（图片存成 data URI 标记，各家展开时读）
+    private void addUserTask(List<JSONObject> msgs, String task) {
+        try {
+            JSONObject m = new JSONObject();
+            m.put("role", "user");
+            m.put("content", task);
+            JSONArray imgs = new JSONArray();
+            for (Attachment a : currentImages) {
+                if (!a.isImage()) continue;
+                String b64 = readImageBase64(a.path);
+                if (b64 == null) continue;
+                JSONObject im = new JSONObject();
+                im.put("mime", a.mime);
+                im.put("data", b64);
+                im.put("name", a.fileName);
+                imgs.put(im);
+            }
+            m.put("__images__", imgs);
+            msgs.add(m);
+        } catch (Exception ignored) {}
+    }
+
+    private String readImageBase64(String path) {
+        if (path == null) return null;
+        FileInputStream fis = null;
+        try {
+            fis = new FileInputStream(path);
+            byte[] buf = new byte[65536];
+            ByteArrayOutputStream bo = new ByteArrayOutputStream();
+            int n;
+            while ((n = fis.read(buf)) != -1) bo.write(buf, 0, n);
+            byte[] bytes = bo.toByteArray();
+            fis.close();
+            return android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private JSONArray imagesOf(JSONObject m) {
+        return m.optJSONArray("__images__");
+    }
+
     private JSONObject parseLlmResponse(String raw) {
         try {
             return new JSONObject(raw);
@@ -395,14 +493,19 @@ public final class ReactAgent {
         }
     }
 
-    private String localFallback(String task, List<Message> history) {
+    private String localFallback(String task, List<Message> history, List<Attachment> images) {
         StringBuilder sb = new StringBuilder();
         sb.append("Task: ").append(task).append("\n");
         sb.append("Local engine (no API key configured)\n");
         sb.append("Rounds so far: ").append(history.size()).append("\n");
-        sb.append("Reply: 收到「").append(task)
-          .append("」。离线本地模式，在配置页填 ").append(providerLabel())
-          .append(" 的 API Key 后我会真正理解并回答你。");
+        if (images != null && !images.isEmpty()) {
+            sb.append("Attachments: ").append(images.size())
+              .append(" file(s) received: ");
+            for (Attachment a : images) sb.append(a.fileName).append(' ');
+        }
+        sb.append("\nReply: 收到「").append(task)
+          .append("」。离线本地模式，已收到附件存到工作区；在配置页填 ")
+          .append(providerLabel()).append(" 的 API Key 后我会真正理解并回答你。");
         return sb.toString();
     }
 

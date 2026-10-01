@@ -36,5 +36,6 @@
     <string name="shake_to_log">摇一摇抓取日志</string>
     <string name="start_page">起始停在工具页</string>
     <string name="detail_summary_header">结果</string>
-    <string name="no_sessions_hint">还没有会话，点右下角加号新建一个。</string>
+    <string name="no_sessions_hint">还没有会话</string>
+    <string name="create_first_session">创建第一个会话</string>
 </resources>

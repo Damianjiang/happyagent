@@ -1,11 +1,17 @@
 package com.happyagent.mobile.ui;
 
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.net.Uri;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.EditText;
+import android.widget.HorizontalScrollView;
 import android.widget.ImageButton;
+import android.widget.ImageView;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -20,32 +26,40 @@ import com.google.android.material.button.MaterialButton;
 import com.happyagent.mobile.CrashHandler;
 import com.happyagent.mobile.R;
 import com.happyagent.mobile.data.AgentBackend;
+import com.happyagent.mobile.model.Models.Attachment;
 import com.happyagent.mobile.model.Models.Message;
 import com.happyagent.mobile.model.Models.Session;
+import com.happyagent.mobile.tools.FileTools;
 
 import java.util.ArrayList;
 import java.util.List;
 
-// 对话页：聊天气泡流（user/tool/assistant 三类）+ 底部输入发送，多轮上下文，
-// 列表局部刷新，工具调用可见。任务跑在单例后端，离开页面可继续，回来重挂轮询。
+// 对话页：聊天气泡流（user/tool/assistant 三类）+ 底部输入/附件/发送，多轮上下文，
+// 图片文件附件，任务跑在单例后端，离开页面可继续，回来重挂轮询。
 public class SessionDetailActivity extends AppCompatActivity {
 
     public static final String EXTRA_SESSION_ID = "session_id";
+    private static final int PICK_IMAGE = 101;
+    private static final int PICK_FILE = 102;
 
     private TextView modelLabel, status, empty;
     private EditText promptBox;
-    private ImageButton sendBtn;
+    private ImageButton sendBtn, pickImage, pickFile;
     private RecyclerView recycler;
     private LinearLayoutManager layoutMgr;
 
     private View controlsRow;
     private MaterialButton pauseBtn, resumeBtn, cancelBtn;
+    private LinearLayout attachStrip;
+    private LinearLayout attachItems;
 
     private String sessionId;
     private ChatAdapter adapter;
+    private final List<Attachment> pending = new ArrayList<Attachment>();
 
     private android.os.Handler mainHandler;
     private Runnable pollTask;
+    private FileTools fileTools;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -54,20 +68,28 @@ public class SessionDetailActivity extends AppCompatActivity {
 
         sessionId = getIntent().getStringExtra(EXTRA_SESSION_ID);
         mainHandler = new android.os.Handler(getMainLooper());
+        fileTools = new FileTools(getApplication());
 
         modelLabel = findViewById(R.id.detail_model);
         status = findViewById(R.id.detail_status);
         promptBox = findViewById(R.id.detail_prompt);
         sendBtn = findViewById(R.id.detail_send);
+        pickImage = findViewById(R.id.detail_pick_image);
+        pickFile = findViewById(R.id.detail_pick_file);
         recycler = findViewById(R.id.chat_recycler);
         empty = findViewById(R.id.chat_empty);
         controlsRow = findViewById(R.id.detail_controls);
         pauseBtn = findViewById(R.id.detail_pause);
         resumeBtn = findViewById(R.id.detail_resume);
         cancelBtn = findViewById(R.id.detail_cancel);
+        attachStrip = findViewById(R.id.detail_attach_strip);
+        attachItems = findViewById(R.id.attach_strip_items);
+
         pauseBtn.setOnClickListener(v -> AgentBackend.get().pauseTask());
         resumeBtn.setOnClickListener(v -> AgentBackend.get().resumeTask());
         cancelBtn.setOnClickListener(v -> AgentBackend.get().cancelTask());
+        pickImage.setOnClickListener(v -> pick(PICK_IMAGE));
+        pickFile.setOnClickListener(v -> pick(PICK_FILE));
 
         AgentBackend backend = AgentBackend.get();
         Session s = backend.getSession(sessionId);
@@ -86,7 +108,7 @@ public class SessionDetailActivity extends AppCompatActivity {
 
         adapter = new ChatAdapter();
         layoutMgr = new LinearLayoutManager(this);
-        layoutMgr.setStackFromEnd(true);   // 从底部往上排，聊天习惯
+        layoutMgr.setStackFromEnd(true);
         recycler.setLayoutManager(layoutMgr);
         recycler.setAdapter(adapter);
         recycler.setNestedScrollingEnabled(false);
@@ -102,7 +124,107 @@ public class SessionDetailActivity extends AppCompatActivity {
         });
     }
 
-    // 回来时若后台仍有本会话任务在跑（比如页面被重建、或切回来），重新挂上轮询
+    private void pick(int req) {
+        android.content.Intent i = new android.content.Intent(android.content.Intent.ACTION_GET_CONTENT);
+        i.addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        i.setType(req == PICK_IMAGE ? "image/*" : "*/*");
+        startActivityForResult(android.content.Intent.createChooser(i,
+                req == PICK_IMAGE ? "选图片" : "选文件"), req);
+    }
+
+    @Override
+    protected void onActivityResult(int req, int res, android.content.Intent data) {
+        super.onActivityResult(req, res, data);
+        if (res != RESULT_OK || data == null || data.getData() == null) return;
+        Attachment a;
+        try {
+            a = fileTools.saveAttachment(getContentResolver(), data.getData(),
+                    displayName(data.getData()));
+        } catch (Exception e) {
+            a = null;
+        }
+        if (a == null) {
+            Toast.makeText(this, "读取附件失败", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        pending.add(a);
+        renderPending();
+    }
+
+    private String displayName(Uri uri) {
+        String out = null;
+        android.database.Cursor c = getContentResolver().query(uri,
+                new String[]{android.provider.OpenableColumns.DISPLAY_NAME},
+                null, null, null);
+        if (c != null) {
+            try {
+                if (c.moveToFirst()) out = c.getString(0);
+            } finally {
+                c.close();
+            }
+        }
+        return out;
+    }
+
+    // 待发附件预览：缩略图/文件名 + 移除按钮
+    private void renderPending() {
+        attachItems.removeAllViews();
+        attachStrip.setVisibility(pending.isEmpty() ? View.GONE : View.VISIBLE);
+        for (int i = 0; i < pending.size(); i++) {
+            Attachment a = pending.get(i);
+            attachItems.addView(makeChip(a, i));
+        }
+    }
+
+    private View makeChip(Attachment a, int idx) {
+        LinearLayout chip = new LinearLayout(this);
+        chip.setOrientation(LinearLayout.HORIZONTAL);
+        chip.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        int m = (int) (6 * getResources().getDisplayMetrics().density);
+        chip.setPadding(m, m, m / 2, m);
+        chip.setBackgroundResource(R.drawable.bg_chip);
+
+        if (a.isImage()) {
+            ImageView iv = new ImageView(this);
+            int sz = (int) (56 * getResources().getDisplayMetrics().density);
+            iv.setLayoutParams(new LinearLayout.LayoutParams(sz, sz));
+            iv.setImageBitmap(thumb(a.path, sz));
+            iv.setScaleType(ImageView.ScaleType.CENTER_CROP);
+            chip.addView(iv);
+        } else {
+            TextView label = new TextView(this);
+            label.setText("📄 " + a.fileName);
+            label.setTextSize(12);
+            label.setTextColor(0xFF475569);
+            label.setMaxWidth((int) (140 * getResources().getDisplayMetrics().density));
+            chip.addView(label);
+        }
+
+        TextView x = new TextView(this);
+        x.setText(" ×");
+        x.setTextSize(16);
+        x.setTextColor(0xFF475569);
+        x.setOnClickListener(v -> {
+            pending.remove(idx);
+            renderPending();
+        });
+        chip.addView(x);
+        return chip;
+    }
+
+    private Bitmap thumb(String path, int px) {
+        int s = 1;
+        BitmapFactory.Options o = new BitmapFactory.Options();
+        o.inJustDecodeBounds = true;
+        BitmapFactory.decodeFile(path, o);
+        int w = o.outWidth, h = o.outHeight;
+        while (w / s > px && h / s > px) s *= 2;
+        o.inSampleSize = s;
+        o.inJustDecodeBounds = false;
+        return BitmapFactory.decodeFile(path, o);
+    }
+
+    // 回来时若后台仍有本会话任务在跑，重新挂上轮询
     @Override
     protected void onResume() {
         super.onResume();
@@ -111,25 +233,30 @@ public class SessionDetailActivity extends AppCompatActivity {
 
     private void send() {
         String p = promptBox.getText().toString().trim();
-        if (p.isEmpty()) return;
-        if (anyRunning()) return;   // 有任务在跑就不重复发
+        boolean hasFiles = pending.size() > 0;
+        if (p.isEmpty() && !hasFiles) return;
+        if (anyRunning()) return;
 
-        // 乐观插用户气泡（局部 insert），adapter 是界面上唯一数据源
-        adapter.append(new Message("user", p, System.currentTimeMillis()));
+        List<Attachment> atts = new ArrayList<Attachment>(pending);
+        String text = p.isEmpty() ? ("(附件 " + atts.size() + " 个)") : p;
+
+        // 乐观插用户气泡（带附件），adapter 是唯一数据源
+        adapter.append(new Message("user", text, System.currentTimeMillis(), atts));
+        pending.clear();
+        renderPending();
         updateEmpty();
         scrollBottom();
 
         promptBox.setText("");
         sendBtn.setEnabled(false);
         try {
-            AgentBackend.get().runTask(sessionId, p);
+            AgentBackend.get().runTask(sessionId, text, atts);
             startPolling();
         } catch (Exception e) {
             CrashHandler.showFrom(e);
         }
     }
 
-    // 轮询由 mainHandler 驱动；send / onResume 都走这里，避免重复 post
     private void startPolling() {
         updateControls();
         if (pollTask == null) {
@@ -143,7 +270,6 @@ public class SessionDetailActivity extends AppCompatActivity {
         mainHandler.postDelayed(pollTask, 250);
     }
 
-    // 本会话是不是当前在跑的那个任务（App 全局单任务）
     private boolean anyRunning() {
         return AgentBackend.get().isSessionRunning(sessionId);
     }
@@ -154,7 +280,6 @@ public class SessionDetailActivity extends AppCompatActivity {
             mainHandler.postDelayed(pollTask, 250);
             return;
         }
-        // 跑完了：把本会话的权威对话补进列表（只插尾部，一次 notify）
         Session s = AgentBackend.get().getSession(sessionId);
         if (s != null) {
             List<Message> full = chatOf(s.messages);
@@ -179,7 +304,6 @@ public class SessionDetailActivity extends AppCompatActivity {
         status.setBackgroundResource(bg);
     }
 
-    // 聊天流展示 user / tool / assistant 三类（工具调用可见，对齐 Operit）
     private List<Message> chatOf(List<Message> all) {
         List<Message> out = new ArrayList<Message>();
         for (Message m : all) {
@@ -208,7 +332,6 @@ public class SessionDetailActivity extends AppCompatActivity {
         });
     }
 
-    // 控制条跟任务运行/暂停状态同步；任务跑完或不是本会话就整行收起
     private void updateControls() {
         AgentBackend backend = AgentBackend.get();
         boolean run = backend.isSessionRunning(sessionId);
@@ -222,7 +345,6 @@ public class SessionDetailActivity extends AppCompatActivity {
 
     @Override
     protected void onDestroy() {
-        // 任务在单例后端里跑，离开页面不打断它，只撤掉本页的轮询回调
         if (pollTask != null) {
             mainHandler.removeCallbacks(pollTask);
             pollTask = null;
@@ -230,7 +352,7 @@ public class SessionDetailActivity extends AppCompatActivity {
         super.onDestroy();
     }
 
-    // 聊天气泡 adapter：user 靠右、assistant 靠左、tool 中间小灰字
+    // 聊天气泡 adapter：user 靠右(带附件)、assistant 靠左、tool 中间小灰字
     static class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.VH> {
         private final List<Message> items = new ArrayList<Message>();
 
@@ -244,13 +366,11 @@ public class SessionDetailActivity extends AppCompatActivity {
             notifyDataSetChanged();
         }
 
-        // 追加一条（乐观气泡），只 insert 尾部
         void append(Message m) {
             items.add(m);
             notifyItemInserted(items.size() - 1);
         }
 
-        // 追加一批尾部（任务完成时补工具/助手消息），一次 range notify，避免不一致
         void appendRange(List<Message> newTail) {
             if (newTail.isEmpty()) return;
             int from = items.size();
@@ -277,11 +397,57 @@ public class SessionDetailActivity extends AppCompatActivity {
             h.toolRow.setVisibility(isTool ? View.VISIBLE : View.GONE);
             if (isUser) {
                 h.userBubble.setText(m.text);
+                bindUserAttachments(h, m);
             } else if (isAi) {
                 h.aiBubble.setText(m.text);
             } else if (isTool) {
                 h.toolLine.setText(m.text);
             }
+        }
+
+        // 用户气泡上方渲染附件：图片缩略图 + 文件 chip
+        private void bindUserAttachments(VH h, Message m) {
+            List<Attachment> atts = m.safeAttachments();
+            h.userAttach.removeAllViews();
+            if (atts.isEmpty()) {
+                h.userAttach.setVisibility(View.GONE);
+                return;
+            }
+            h.userAttach.setVisibility(View.VISIBLE);
+            for (Attachment a : atts) {
+                if (a.isImage()) {
+                    ImageView iv = new ImageView(h.itemView.getContext());
+                    int sz = dp(h, 72);
+                    iv.setLayoutParams(new LinearLayout.LayoutParams(sz, sz));
+                    iv.setImageBitmap(thumbFor(a.path, sz));
+                    iv.setScaleType(ImageView.ScaleType.CENTER_CROP);
+                    iv.setBackgroundResource(R.drawable.bg_chip);
+                    h.userAttach.addView(iv);
+                } else {
+                    TextView chip = new TextView(h.itemView.getContext());
+                    chip.setText("📄 " + a.fileName);
+                    chip.setTextSize(12);
+                    chip.setTextColor(0xFF475569);
+                    chip.setPadding(dp(h, 8), dp(h, 4), dp(h, 8), dp(h, 4));
+                    chip.setBackgroundResource(R.drawable.bg_chip);
+                    h.userAttach.addView(chip);
+                }
+            }
+        }
+
+        private int dp(VH h, int v) {
+            return (int) (v * h.itemView.getContext().getResources().getDisplayMetrics().density);
+        }
+
+        private Bitmap thumbFor(String path, int px) {
+            int s = 1;
+            BitmapFactory.Options o = new BitmapFactory.Options();
+            o.inJustDecodeBounds = true;
+            BitmapFactory.decodeFile(path, o);
+            while (o.outWidth / s > px && o.outHeight / s > px) s *= 2;
+            o.inSampleSize = s;
+            o.inJustDecodeBounds = false;
+            return BitmapFactory.decodeFile(path, o);
         }
 
         @Override
@@ -292,6 +458,7 @@ public class SessionDetailActivity extends AppCompatActivity {
         static class VH extends RecyclerView.ViewHolder {
             final TextView userBubble, aiBubble, toolLine;
             final View userRow, aiRow, toolRow;
+            final LinearLayout userAttach;
 
             VH(View v) {
                 super(v);
@@ -301,6 +468,7 @@ public class SessionDetailActivity extends AppCompatActivity {
                 userRow = v.findViewById(R.id.row_user);
                 aiRow = v.findViewById(R.id.row_ai);
                 toolRow = v.findViewById(R.id.row_tool);
+                userAttach = v.findViewById(R.id.user_attachments);
             }
         }
     }
