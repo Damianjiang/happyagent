@@ -31,19 +31,25 @@ public final class ReactAgent {
     private final FileTools fileTools;
     private final ShellExecutor shell;
     private final List<Message> trace;
+    private final TaskControl control;
 
     public ReactAgent(Config cfg, FileTools ft, ShellExecutor se, List<Message> trace) {
+        this(cfg, ft, se, trace, new TaskControl());
+    }
+
+    public ReactAgent(Config cfg, FileTools ft, ShellExecutor se, List<Message> trace, TaskControl control) {
         this.cfg = cfg;
         this.fileTools = ft;
         this.shell = se;
         this.trace = trace;
+        this.control = control;
     }
 
     public String run(String task, List<Message> history) {
         String systemPrompt = buildSystemPrompt();
         trace.add(new Message("system", "PLAN: " + task, System.currentTimeMillis()));
 
-        if (!cfg.hasOpenAIKey()) {
+        if (!cfg.hasKey()) {
             return localFallback(task, history);
         }
 
@@ -57,6 +63,11 @@ public final class ReactAgent {
         addMsg(messages, "user", task);
 
         for (int step = 1; step <= MAX_STEPS; step++) {
+            // 每步自查控制：取消/线程被打断则停；暂停则阻塞等待继续
+            if (control.shouldStop()) return cancelled();
+            control.waitForResume();
+            if (control.shouldStop()) return cancelled();
+
             trace.add(new Message("system", "STEP " + step + " / " + MAX_STEPS, System.currentTimeMillis()));
             try {
                 String llmResponse = callLlm(messages);
@@ -94,6 +105,12 @@ public final class ReactAgent {
             }
         }
         return "Reached max steps (" + MAX_STEPS + ").";
+    }
+
+    // 取消/被打断的统一收尾：记录一条停止原因，返回占位文案
+    private String cancelled() {
+        trace.add(new Message("system", "Agent stopped by user", System.currentTimeMillis()));
+        return "任务已停止";
     }
 
     // 每个工具的必填参数 + 默认值。缺必填且无默认 → 返回缺失名单；否则 null（可执行）
@@ -194,7 +211,15 @@ public final class ReactAgent {
                 + "Up to " + MAX_STEPS + " steps. Think step by step.";
     }
 
+    // 按供应商适配请求/响应格式
     private String callLlm(List<JSONObject> messages) throws Exception {
+        String provider = cfg.getProvider();
+        if (Config.PROVIDER_GOOGLE.equals(provider)) return callGoogle(messages);
+        if (Config.PROVIDER_ANTHROPIC.equals(provider)) return callAnthropic(messages);
+        return callOpenAI(messages);
+    }
+
+    private String callOpenAI(List<JSONObject> messages) throws Exception {
         JSONObject body = new JSONObject();
         body.put("model", cfg.model);
         body.put("temperature", cfg.temperature / 100.0);
@@ -207,16 +232,115 @@ public final class ReactAgent {
         while (base.endsWith("/")) base = base.substring(0, base.length() - 1);
         String url = base + "/chat/completions";
 
+        HttpURLConnection conn = connPost(url, body.toString());
+        conn.setRequestProperty("Authorization", "Bearer " + cfg.apiKey().trim());
+        String resp = post(conn, url, body.toString());
+        JSONObject jo = new JSONObject(resp);
+        JSONArray choices = jo.getJSONArray("choices");
+        return choices.getJSONObject(0).getJSONObject("message").getString("content");
+    }
+
+    private String callGoogle(List<JSONObject> messages) throws Exception {
+        // 把对话压成 contents，system 归到 systemInstruction
+        StringBuilder sys = new StringBuilder();
+        JSONArray contents = new JSONArray();
+        for (JSONObject m : messages) {
+            String role = m.optString("role");
+            String text = m.optString("content");
+            if ("system".equals(role)) {
+                if (sys.length() > 0) sys.append("\n");
+                sys.append(text);
+            } else {
+                JSONObject part = new JSONObject();
+                part.put("text", text);
+                JSONObject c = new JSONObject();
+                c.put("role", "user".equals(role) ? "user" : "model");
+                c.put("parts", new JSONArray().put(part));
+                contents.put(c);
+            }
+        }
+        JSONObject body = new JSONObject();
+        body.put("contents", contents);
+        body.put("temperature", cfg.temperature / 100.0);
+        body.put("maxOutputTokens", cfg.maxTokens);
+        if (sys.length() > 0) {
+            body.put("systemInstruction", new JSONObject()
+                    .put("parts", new JSONArray().put(new JSONObject().put("text", sys.toString()))));
+        }
+
+        String url = "https://generativelanguage.googleapis.com/v1beta/models/"
+                + cfg.model + ":generateContent";
+        HttpURLConnection conn = connPost(url, body.toString());
+        conn.setRequestProperty("x-goog-api-key", cfg.apiKey().trim());
+        String resp = post(conn, url, body.toString());
+        JSONObject jo = new JSONObject(resp);
+        JSONArray cand = jo.getJSONArray("candidates");
+        StringBuilder out = new StringBuilder();
+        for (int i = 0; i < cand.length(); i++) {
+            JSONArray parts = cand.getJSONObject(i).getJSONObject("content").getJSONArray("parts");
+            for (int j = 0; j < parts.length(); j++) {
+                out.append(parts.getJSONObject(j).optString("text", ""));
+            }
+        }
+        return out.length() > 0 ? out.toString() : "";
+    }
+
+    private String callAnthropic(List<JSONObject> messages) throws Exception {
+        StringBuilder sys = new StringBuilder();
+        JSONArray arr = new JSONArray();
+        for (JSONObject m : messages) {
+            String role = m.optString("role");
+            String text = m.optString("content");
+            if ("system".equals(role)) {
+                if (sys.length() > 0) sys.append("\n");
+                sys.append(text);
+            } else if ("tool".equals(role)) {
+                JSONObject o = new JSONObject();
+                o.put("role", "user");
+                o.put("content", "[tool result] " + text);
+                arr.put(o);
+            } else {
+                JSONObject o = new JSONObject();
+                o.put("role", "user".equals(role) ? "user" : "assistant");
+                o.put("content", text);
+                arr.put(o);
+            }
+        }
+        JSONObject body = new JSONObject();
+        body.put("model", cfg.model);
+        body.put("max_tokens", cfg.maxTokens);
+        body.put("temperature", Math.min(1.0, cfg.temperature / 100.0));
+        body.put("messages", arr);
+        if (sys.length() > 0) body.put("system", sys.toString());
+
+        String url = "https://api.anthropic.com/v1/messages";
+        HttpURLConnection conn = connPost(url, body.toString());
+        conn.setRequestProperty("x-api-key", cfg.apiKey().trim());
+        conn.setRequestProperty("anthropic-version", "2023-06-01");
+        String resp = post(conn, url, body.toString());
+        JSONObject jo = new JSONObject(resp);
+        JSONArray blocks = jo.getJSONArray("content");
+        StringBuilder out = new StringBuilder();
+        for (int i = 0; i < blocks.length(); i++) {
+            out.append(blocks.getJSONObject(i).optString("text", ""));
+        }
+        return out.length() > 0 ? out.toString() : "";
+    }
+
+    private HttpURLConnection connPost(String url, String body) throws Exception {
         HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
         conn.setRequestMethod("POST");
         conn.setDoOutput(true);
         conn.setConnectTimeout(CONNECT_TIMEOUT);
         conn.setReadTimeout(READ_TIMEOUT);
-        conn.setRequestProperty("Authorization", "Bearer " + cfg.openaiKey.trim());
         conn.setRequestProperty("Content-Type", "application/json");
+        return conn;
+    }
 
+    // 真正写请求体 + 读响应体
+    private String post(HttpURLConnection conn, String url, String body) throws Exception {
         OutputStream os = conn.getOutputStream();
-        os.write(body.toString().getBytes(StandardCharsets.UTF_8));
+        os.write(body.getBytes(StandardCharsets.UTF_8));
         os.flush();
         os.close();
 
@@ -229,12 +353,8 @@ public final class ReactAgent {
         is.close();
         conn.disconnect();
         String resp = new String(bo.toByteArray(), StandardCharsets.UTF_8);
-
         if (code < 200 || code >= 300) throw new Exception("HTTP " + code + ": " + resp);
-
-        JSONObject jo = new JSONObject(resp);
-        JSONArray choices = jo.getJSONArray("choices");
-        return choices.getJSONObject(0).getJSONObject("message").getString("content");
+        return resp;
     }
 
     private void addMsg(List<JSONObject> msgs, String role, String content) {

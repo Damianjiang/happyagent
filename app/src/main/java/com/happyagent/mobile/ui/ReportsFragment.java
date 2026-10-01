@@ -25,7 +25,7 @@ import java.util.Locale;
 public class ReportsFragment extends Fragment {
 
     private TextView sessionsCount, toolsEnabled, toolsDisabled;
-    private TextView modelLabel, lastUpdate, openaiLabel, baseUrlLabel;
+    private TextView modelLabel, lastUpdate, openaiLabel, baseUrlLabel, providerLabel;
     private ProgressBar progress;
 
     @Override
@@ -38,6 +38,7 @@ public class ReportsFragment extends Fragment {
         lastUpdate = v.findViewById(R.id.reports_last_update);
         openaiLabel = v.findViewById(R.id.reports_openai);
         baseUrlLabel = v.findViewById(R.id.reports_baseurl);
+        providerLabel = v.findViewById(R.id.reports_provider);
         progress = v.findViewById(R.id.reports_progress);
         load();
         return v;
@@ -58,7 +59,8 @@ public class ReportsFragment extends Fragment {
                 }
                 final int e = enabled, d = disabled;
                 final String model = backend.getConfig().model;
-                final String openaiState = backend.getConfig().hasOpenAIKey() ? "已配置" : "未配置";
+                final String provider = backend.getConfig().getProvider();
+                final String keyState = backend.getConfig().hasKey() ? "已配置" : "未配置";
                 final String baseUrl = backend.getConfig().openaiBaseUrl;
                 final String lastUpdated = sessions.isEmpty() ? "无" :
                         new SimpleDateFormat("MM-dd HH:mm", Locale.getDefault())
@@ -74,7 +76,8 @@ public class ReportsFragment extends Fragment {
                         toolsDisabled.setText(String.valueOf(d));
                         modelLabel.setText(model);
                         lastUpdate.setText(lastUpdated);
-                        openaiLabel.setText(openaiState);
+                        providerLabel.setText(provider);
+                        openaiLabel.setText(keyState);
                         baseUrlLabel.setText(baseUrl);
                     }
                 });

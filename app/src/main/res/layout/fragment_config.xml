@@ -118,47 +118,149 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="18dp"
-            android:text="OpenAI 接入"
+            android:text="模型供应商"
             style="@style/SectionHeader" />
 
-        <TextView
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:text="填了 API Key 就调真接口，留空则降级本地模拟"
-            android:textSize="12sp"
-            android:textColor="?attr/colorOnSurfaceVariant" />
+            android:orientation="horizontal"
+            android:layout_marginTop="8dp">
 
-        <EditText
-            android:id="@+id/config_openai_key"
+            <RadioButton
+                android:id="@+id/config_provider_openai"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="OpenAI" />
+
+            <RadioButton
+                android:id="@+id/config_provider_google"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Google" />
+
+            <RadioButton
+                android:id="@+id/config_provider_anthropic"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Anthropic" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/config_provider_openai_group"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:background="@drawable/bg_input"
-            android:padding="14dp"
-            android:textSize="14sp"
-            android:inputType="textPassword"
-            android:hint="sk-..."
-            android:textColor="?attr/colorOnSurface" />
+            android:orientation="vertical"
+            android:layout_marginTop="10dp">
 
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="14dp"
-            android:text="OpenAI Base URL"
-            style="@style/SectionHeader" />
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="OpenAI 接入"
+                android:textSize="13sp"
+                android:textStyle="bold"
+                android:textColor="?attr/colorOnSurface" />
 
-        <EditText
-            android:id="@+id/config_openai_url"
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="填了 API Key 就调真接口，留空则降级本地模拟"
+                android:textSize="12sp"
+                android:textColor="?attr/colorOnSurfaceVariant" />
+
+            <EditText
+                android:id="@+id/config_openai_key"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:background="@drawable/bg_input"
+                android:padding="14dp"
+                android:textSize="14sp"
+                android:inputType="textPassword"
+                android:hint="sk-..."
+                android:textColor="?attr/colorOnSurface" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:text="Base URL（可指向 OpenAI 兼容接口）"
+                android:textSize="12sp"
+                android:textColor="?attr/colorOnSurfaceVariant" />
+
+            <EditText
+                android:id="@+id/config_openai_url"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:background="@drawable/bg_input"
+                android:padding="14dp"
+                android:textSize="14sp"
+                android:inputType="textUri"
+                android:hint="https://api.openai.com/v1"
+                android:textColor="?attr/colorOnSurface" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/config_provider_google_group"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="6dp"
-            android:background="@drawable/bg_input"
-            android:padding="14dp"
-            android:textSize="14sp"
-            android:inputType="textUri"
-            android:hint="https://api.openai.com/v1"
-            android:textColor="?attr/colorOnSurface" />
+            android:orientation="vertical"
+            android:visibility="gone"
+            android:layout_marginTop="10dp">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Google 接入（Gemini）"
+                android:textSize="13sp"
+                android:textStyle="bold"
+                android:textColor="?attr/colorOnSurface" />
+
+            <EditText
+                android:id="@+id/config_google_key"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:background="@drawable/bg_input"
+                android:padding="14dp"
+                android:textSize="14sp"
+                android:inputType="textPassword"
+                android:hint="AIza..."
+                android:textColor="?attr/colorOnSurface" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/config_provider_anthropic_group"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone"
+            android:layout_marginTop="10dp">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Anthropic 接入（Claude）"
+                android:textSize="13sp"
+                android:textStyle="bold"
+                android:textColor="?attr/colorOnSurface" />
+
+            <EditText
+                android:id="@+id/config_anthropic_key"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:background="@drawable/bg_input"
+                android:padding="14dp"
+                android:textSize="14sp"
+                android:inputType="textPassword"
+                android:hint="sk-ant-..."
+                android:textColor="?attr/colorOnSurface" />
+        </LinearLayout>
 
         <LinearLayout
             android:layout_width="match_parent"

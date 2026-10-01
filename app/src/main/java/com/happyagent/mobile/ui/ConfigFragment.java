@@ -6,6 +6,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.RadioButton;
 import android.widget.SeekBar;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -17,10 +18,13 @@ import com.happyagent.mobile.R;
 import com.happyagent.mobile.data.AgentBackend;
 import com.happyagent.mobile.model.Models.Config;
 
-// 运行配置页：模型、温度、token、工作区、OpenAI Key / Base URL
+// 运行配置页：供应商、模型、温度、token、工作区 + 各家 API Key / Base URL
 public class ConfigFragment extends Fragment {
 
-    private EditText modelBox, agentBox, workspaceBox, maxTokensBox, openaiKeyBox, openaiUrlBox;
+    private EditText modelBox, agentBox, workspaceBox, maxTokensBox;
+    private EditText openaiKeyBox, openaiUrlBox, googleKeyBox, anthropicKeyBox;
+    private RadioButton providerOpenai, providerGoogle, providerAnthropic;
+    private View openaiGroup, googleGroup, anthropicGroup;
     private SeekBar tempBar;
     private TextView tempLabel;
     private com.google.android.material.switchmaterial.SwitchMaterial autoCommit;
@@ -34,6 +38,14 @@ public class ConfigFragment extends Fragment {
         maxTokensBox = v.findViewById(R.id.config_max_tokens);
         openaiKeyBox = v.findViewById(R.id.config_openai_key);
         openaiUrlBox = v.findViewById(R.id.config_openai_url);
+        googleKeyBox = v.findViewById(R.id.config_google_key);
+        anthropicKeyBox = v.findViewById(R.id.config_anthropic_key);
+        providerOpenai = v.findViewById(R.id.config_provider_openai);
+        providerGoogle = v.findViewById(R.id.config_provider_google);
+        providerAnthropic = v.findViewById(R.id.config_provider_anthropic);
+        openaiGroup = v.findViewById(R.id.config_provider_openai_group);
+        googleGroup = v.findViewById(R.id.config_provider_google_group);
+        anthropicGroup = v.findViewById(R.id.config_provider_anthropic_group);
         tempBar = v.findViewById(R.id.config_temp);
         tempLabel = v.findViewById(R.id.config_temp_label);
         autoCommit = v.findViewById(R.id.config_autocommit);
@@ -46,6 +58,8 @@ public class ConfigFragment extends Fragment {
         maxTokensBox.setText(String.valueOf(c.maxTokens));
         openaiKeyBox.setText(c.openaiKey);
         openaiUrlBox.setText(c.openaiBaseUrl);
+        googleKeyBox.setText(c.googleKey);
+        anthropicKeyBox.setText(c.anthropicKey);
         autoCommit.setChecked(c.autoCommit);
 
         tempBar.setMax(2000);
@@ -60,6 +74,18 @@ public class ConfigFragment extends Fragment {
             @Override public void onStopTrackingTouch(SeekBar seekBar) {}
         });
 
+        // 供应商单选 + 对应凭据分组显隐
+        final View.OnClickListener pickProvider = new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                applyProviderPick();
+            }
+        };
+        providerOpenai.setOnClickListener(pickProvider);
+        providerGoogle.setOnClickListener(pickProvider);
+        providerAnthropic.setOnClickListener(pickProvider);
+        checkProviderRadio(c.getProvider());
+
         saveBtn.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
@@ -70,13 +96,36 @@ public class ConfigFragment extends Fragment {
                         parseIntSafe(maxTokensBox.getText().toString(), 4096),
                         autoCommit.isChecked(),
                         workspaceBox.getText().toString().trim(),
+                        currentProvider(),
                         openaiKeyBox.getText().toString().trim(),
-                        openaiUrlBox.getText().toString().trim());
+                        openaiUrlBox.getText().toString().trim(),
+                        googleKeyBox.getText().toString().trim(),
+                        anthropicKeyBox.getText().toString().trim());
                 AgentBackend.get().updateConfig(nc);
                 Toast.makeText(getContext(), "配置已保存", Toast.LENGTH_SHORT).show();
             }
         });
         return v;
+    }
+
+    private void checkProviderRadio(String provider) {
+        providerOpenai.setChecked(Config.PROVIDER_OPENAI.equals(provider));
+        providerGoogle.setChecked(Config.PROVIDER_GOOGLE.equals(provider));
+        providerAnthropic.setChecked(Config.PROVIDER_ANTHROPIC.equals(provider));
+        applyProviderPick();
+    }
+
+    private void applyProviderPick() {
+        String p = currentProvider();
+        openaiGroup.setVisibility(Config.PROVIDER_OPENAI.equals(p) ? View.VISIBLE : View.GONE);
+        googleGroup.setVisibility(Config.PROVIDER_GOOGLE.equals(p) ? View.VISIBLE : View.GONE);
+        anthropicGroup.setVisibility(Config.PROVIDER_ANTHROPIC.equals(p) ? View.VISIBLE : View.GONE);
+    }
+
+    private String currentProvider() {
+        if (providerGoogle.isChecked()) return Config.PROVIDER_GOOGLE;
+        if (providerAnthropic.isChecked()) return Config.PROVIDER_ANTHROPIC;
+        return Config.PROVIDER_OPENAI;
     }
 
     private int parseIntSafe(String s, int def) {

@@ -15,6 +15,7 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.android.material.appbar.MaterialToolbar;
+import com.google.android.material.button.MaterialButton;
 
 import com.happyagent.mobile.CrashHandler;
 import com.happyagent.mobile.R;
@@ -38,6 +39,9 @@ public class SessionDetailActivity extends AppCompatActivity {
     private RecyclerView recycler;
     private LinearLayoutManager layoutMgr;
 
+    private View controlsRow;
+    private MaterialButton pauseBtn, resumeBtn, cancelBtn;
+
     private String sessionId;
     private ChatAdapter adapter;
     private List<Message> ui = new ArrayList<Message>();
@@ -60,6 +64,13 @@ public class SessionDetailActivity extends AppCompatActivity {
         sendBtn = findViewById(R.id.detail_send);
         recycler = findViewById(R.id.chat_recycler);
         empty = findViewById(R.id.chat_empty);
+        controlsRow = findViewById(R.id.detail_controls);
+        pauseBtn = findViewById(R.id.detail_pause);
+        resumeBtn = findViewById(R.id.detail_resume);
+        cancelBtn = findViewById(R.id.detail_cancel);
+        pauseBtn.setOnClickListener(v -> AgentBackend.get().pauseTask());
+        resumeBtn.setOnClickListener(v -> AgentBackend.get().resumeTask());
+        cancelBtn.setOnClickListener(v -> cancelRunning());
 
         AgentBackend backend = AgentBackend.get();
         Session s = backend.getSession(sessionId);
@@ -117,15 +128,33 @@ public class SessionDetailActivity extends AppCompatActivity {
                     checkRunning();
                 }
             };
+            updateControls();
             mainHandler.postDelayed(pollTask, 250);
         } catch (Exception e) {
             CrashHandler.showFrom(e);
         }
     }
 
+    private void cancelRunning() {
+        AgentBackend.get().cancelTask();
+    }
+
+    // 控制条可见性与按钮可用性，跟任务运行时/暂停状态同步
+    private void updateControls() {
+        AgentBackend backend = AgentBackend.get();
+        boolean run = backend.isTaskRunning();
+        controlsRow.setVisibility(run ? View.VISIBLE : View.GONE);
+        if (run) {
+            boolean paused = backend.isTaskPaused();
+            pauseBtn.setVisibility(paused ? View.GONE : View.VISIBLE);
+            resumeBtn.setVisibility(paused ? View.VISIBLE : View.GONE);
+        }
+    }
+
     private void checkRunning() {
         if (running == null) return;
         if (!running.isDone()) {
+            updateControls();
             mainHandler.postDelayed(pollTask, 250);
             return;
         }

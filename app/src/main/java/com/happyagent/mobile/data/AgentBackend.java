@@ -11,6 +11,7 @@ import com.happyagent.mobile.model.Models.Tool;
 import com.happyagent.mobile.tools.FileTools;
 import com.happyagent.mobile.tools.ReactAgent;
 import com.happyagent.mobile.tools.ShellExecutor;
+import com.happyagent.mobile.tools.TaskControl;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -43,6 +44,10 @@ public final class AgentBackend {
     private List<Tool> tools = new ArrayList<Tool>();
     private Config config = new Config();
     private volatile boolean loaded;
+
+    // 正在跑的任务：Future 用于取消（中断线程），TaskControl 用于暂停/继续（协作式）
+    private volatile Future<Session> runningFuture;
+    private volatile TaskControl runningControl;
 
     private AgentBackend() {
         Context ctx = HappyAgentApplication.get();
@@ -139,9 +144,11 @@ public final class AgentBackend {
             session.updatedAt = System.currentTimeMillis();
         }
 
-        return io.submit(new Callable<Session>() {
+        final TaskControl control = new TaskControl();
+        Future<Session> future = io.submit(new Callable<Session>() {
             @Override
             public Session call() {
+                runningControl = control;
                 List<Message> trace = new ArrayList<Message>();
                 trace.add(new Message("user", prompt, System.currentTimeMillis()));
                 try {
@@ -152,23 +159,27 @@ public final class AgentBackend {
                             history.add(m);
                         }
                     }
-                    // 多步 ReAct：有 OpenAI Key 时 LLM 带历史驱动工具，没 Key 降级本地
+                    // 多步 ReAct：有 Key 时 LLM 带历史驱动工具，没 Key 降级本地
                     ReactAgent agent = new ReactAgent(getConfig(),
                             new FileTools(HappyAgentApplication.get()),
                             new ShellExecutor(HappyAgentApplication.get()),
-                            trace);
+                            trace, control);
                     final String summary = agent.run(prompt, history);
-                    // 收集工具调用步骤（trace 里 role=tool），存进会话用于聊天里可见
+                    // 被取消/停止时，只记用户输入 + 已发生的工具步骤 + 停止说明，不标完成
                     List<Message> toolSteps = new ArrayList<Message>();
                     for (Message m : trace) {
                         if (m.role.equals("tool")) toolSteps.add(m);
                     }
-                    // 持久化：user + 工具步骤 + assistant（工具步骤只在界面展示，不喂回 LLM）
+                    boolean stopped = control.isCancelled();
                     synchronized (lock) {
                         session.messages.add(new Message("user", prompt, System.currentTimeMillis()));
                         for (Message t : toolSteps) session.messages.add(t);
                         session.messages.add(new Message("assistant", summary, System.currentTimeMillis()));
-                        session.status = 2;
+                        session.status = stopped ? 3 : 2;
+                        if (stopped) {
+                            session.messages.add(new Message("system", "任务被停止",
+                                    System.currentTimeMillis()));
+                        }
                         session.updatedAt = System.currentTimeMillis();
                     }
                     persistNow();
@@ -183,9 +194,43 @@ public final class AgentBackend {
                     }
                     persistNow();
                     return session;
+                } finally {
+                    clearRunning();
                 }
             }
         });
+        runningFuture = future;
+        return future;
+    }
+
+    private void clearRunning() {
+        runningControl = null;
+        runningFuture = null;
+    }
+
+    // ---- 任务控制：暂停 / 继续 / 取消 ----
+
+    public boolean isTaskRunning() {
+        return runningFuture != null && !runningFuture.isDone();
+    }
+
+    public boolean isTaskPaused() {
+        TaskControl c = runningControl;
+        return c != null && c.isPaused();
+    }
+
+    public void pauseTask() {
+        if (runningControl != null) runningControl.pause();
+    }
+
+    public void resumeTask() {
+        if (runningControl != null) runningControl.resume();
+    }
+
+    public void cancelTask() {
+        if (runningControl != null) runningControl.cancel();
+        Future<Session> f = runningFuture;
+        if (f != null) f.cancel(true);   // 同时打断 HTTP 读取，让阻塞立刻结束
     }
 
     // ---- 工具 ----

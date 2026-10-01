@@ -66,15 +66,24 @@ public final class Models {
     }
 
     public static class Config implements Serializable {
+        // 三家供应商 id，老存档没有该字段（反序列化时为 null），getProvider() 归一为 openai
+        public static final String PROVIDER_OPENAI = "openai";
+        public static final String PROVIDER_GOOGLE = "google";
+        public static final String PROVIDER_ANTHROPIC = "anthropic";
+
         public String agentName = "Happy-Agent";
         public String model = "gpt-4o-mini";
         public int temperature = 0;      // 百分制，0~2000
         public int maxTokens = 4096;
         public boolean autoCommit = true;
         public String workspace = "~/workspace";
-        // OpenAI 接入：填了 Key 就调真 API，没填就降级本地模拟
+
+        public String provider = PROVIDER_OPENAI;
+        // 各供应商凭据，留空则降级本地模拟
         public String openaiKey = "";
         public String openaiBaseUrl = "https://api.openai.com/v1";
+        public String googleKey = "";
+        public String anthropicKey = "";
 
         public Config() {}
 
@@ -97,20 +106,55 @@ public final class Models {
                     ? "https://api.openai.com/v1" : openaiBaseUrl;
         }
 
+        // 保存配置页整包用：provider + 三家凭据一起存
+        public Config(String agentName, String model, int temperature,
+                     int maxTokens, boolean autoCommit, String workspace,
+                     String provider,
+                     String openaiKey, String openaiBaseUrl,
+                     String googleKey, String anthropicKey) {
+            this(agentName, model, temperature, maxTokens, autoCommit, workspace,
+                    openaiKey, openaiBaseUrl);
+            this.provider = (provider == null || provider.trim().isEmpty())
+                    ? PROVIDER_OPENAI : provider;
+            this.googleKey = googleKey == null ? "" : googleKey;
+            this.anthropicKey = anthropicKey == null ? "" : anthropicKey;
+        }
+
+        public String getProvider() {
+            return provider == null || provider.trim().isEmpty() ? PROVIDER_OPENAI : provider;
+        }
+
+        // 当前供应商对应的 Key，没配（或老存档为 null）返回空串
+        public String apiKey() {
+            String k;
+            switch (getProvider()) {
+                case PROVIDER_GOOGLE:   k = googleKey; break;
+                case PROVIDER_ANTHROPIC: k = anthropicKey; break;
+                default:                 k = openaiKey; break;
+            }
+            return k == null ? "" : k;
+        }
+
+        // 有当前供应商的 Key 才调真接口，否则本地模拟
+        public boolean hasKey() {
+            return apiKey().trim().length() > 0;
+        }
+
+        // 兼容旧调用点
         public boolean hasOpenAIKey() {
-            return openaiKey != null && openaiKey.trim().length() > 0;
+            return hasKey();
         }
 
         @Override
         public String toString() {
-            String key = hasOpenAIKey() ? "已配置（" + openaiKey.substring(0, Math.min(8, openaiKey.length())) + "…）" : "未配置";
-            return "Agent: " + agentName + "\nModel: " + model
+            String key = hasKey() ? "已配置" : "未配置";
+            return "Agent: " + agentName + "\nProvider: " + getProvider()
+                    + "\nModel: " + model
                     + "\nTemperature: " + (temperature / 100.0)
                     + "\nMax tokens: " + maxTokens
                     + "\nAuto commit: " + autoCommit
                     + "\nWorkspace: " + workspace
-                    + "\nOpenAI Base URL: " + openaiBaseUrl
-                    + "\nOpenAI Key: " + key;
+                    + "\nKey: " + key;
         }
     }
 }

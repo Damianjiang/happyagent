@@ -44,6 +44,53 @@
             style="@style/StatusBadge" />
     </LinearLayout>
 
+    <!-- 任务控制条：暂停 / 继续 / 取消，任务运行时才出现 -->
+    <LinearLayout
+        android:id="@+id/detail_controls"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:visibility="gone"
+        android:paddingLeft="12dp"
+        android:paddingRight="12dp"
+        android:paddingTop="4dp"
+        android:paddingBottom="4dp"
+        android:background="?attr/colorSurface">
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/detail_pause"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginEnd="4dp"
+            android:layout_marginRight="4dp"
+            android:text="暂停"
+            style="@style/Widget.Material3.Button.TonalButton" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/detail_resume"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginLeft="4dp"
+            android:layout_marginStart="4dp"
+            android:layout_marginEnd="4dp"
+            android:layout_marginRight="4dp"
+            android:text="继续"
+            android:visibility="gone"
+            style="@style/Widget.Material3.Button.TonalButton" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/detail_cancel"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginLeft="4dp"
+            android:layout_marginStart="4dp"
+            android:text="取消"
+            style="@style/Widget.Material3.Button.OutlinedButton" />
+    </LinearLayout>
+
     <!-- 消息流 -->
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/chat_recycler"
