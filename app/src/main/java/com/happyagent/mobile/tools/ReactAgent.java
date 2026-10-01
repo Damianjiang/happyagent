@@ -633,8 +633,11 @@ public final class ReactAgent {
     // 被工具页停用的分组即便模型仍发出调用，也只返回可行动提示、不执行。
     private String dispatchTool(String name, JSONObject args) {
         try {
-            if (!toolOn(toolGroup(name))) {
-                return "工具分组「" + toolGroup(name) + "」当前已停用（见「工具」页开关），本条未执行。请改用其它可用工具或在工具页重新启用。";
+            // 只拦「已知但被工具页停用」的分组；未知工具名落进下方 switch 的 default，
+            // 仍给"未知工具"提示，而不是误报成"分组已停用"
+            String group = toolGroup(name);
+            if (group.length() > 0 && !toolOn(group)) {
+                return "工具分组「" + group + "」当前已停用（见「工具」页开关），本条未执行。请改用其它可用工具或在工具页重新启用。";
             }
             switch (name) {
                 case "file_read": {
