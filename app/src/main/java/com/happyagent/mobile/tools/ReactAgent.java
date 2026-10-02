@@ -162,6 +162,11 @@ public final class ReactAgent {
             arr.put(fn("file_write", "创建或覆盖文件", schema2("path", true, "content", true)));
             arr.put(fn("file_list", "列目录", schema("path", false)));
             arr.put(fn("file_info", "文件信息", schema("path", false)));
+            arr.put(fn("file_exists", "检查文件/目录是否存在", schema("path", true)));
+            arr.put(fn("file_move", "移动或重命名文件/目录", schema2("path", true, "to", true)));
+            arr.put(fn("file_copy", "复制文件/目录", schema2("path", true, "to", true)));
+            arr.put(fn("file_zip", "把文件/目录压缩成 zip", schema2("path", true, "to", true)));
+            arr.put(fn("file_unzip", "把 zip 解压到目录", schema2("path", true, "to", true)));
             if (toolOn("tool.search")) {
                 arr.put(fn("file_find", "按名查找文件", schema2("path", false, "name", true)));
                 arr.put(fn("file_grep", "在文件里搜关键词", schema2("path", true, "keyword", true)));
@@ -173,13 +178,20 @@ public final class ReactAgent {
         if (toolOn("tool.http")) {
             arr.put(fn("http_get", "抓取网页", schema("url", true)));
         }
+        // 时间工具始终可用（无副作用）
+        arr.put(fn("time_now", "获取当前日期时间", schema0()));
         return arr;
     }
 
     private JSONObject fn(String name, String desc, JSONObject params) throws Exception {
         JSONObject f = new JSONObject().put("name", name).put("description", desc);
-        try { f.put("parameters", params); } catch (Exception ignored) {}
+        if (params != null) f.put("parameters", params);
         return new JSONObject().put("type", "function").put("function", f);
+    }
+
+    private JSONObject schema0() throws Exception {
+        JSONObject o = new JSONObject().put("type", "object").put("properties", new JSONObject());
+        return o;
     }
 
     private JSONObject schema(String p, boolean req) throws Exception {
@@ -298,6 +310,11 @@ public final class ReactAgent {
             decls.put(decl2("file_write", "创建或覆盖文件", "path", "content"));
             decls.put(decl("file_list", "列目录", "path", null));
             decls.put(decl("file_info", "文件信息", "path", null));
+            decls.put(decl("file_exists", "检查文件/目录是否存在", "path", new String[]{"path"}));
+            decls.put(decl2("file_move", "移动或重命名文件/目录", "path", "to"));
+            decls.put(decl2("file_copy", "复制文件/目录", "path", "to"));
+            decls.put(decl2("file_zip", "把文件/目录压缩成 zip", "path", "to"));
+            decls.put(decl2("file_unzip", "把 zip 解压到目录", "path", "to"));
             if (toolOn("tool.search")) {
                 decls.put(decl2("file_find", "按名查找文件", "name", "path"));
                 decls.put(decl2("file_grep", "在文件里搜关键词", "path", "keyword"));
@@ -309,6 +326,7 @@ public final class ReactAgent {
         if (toolOn("tool.http")) {
             decls.put(decl("http_get", "抓取网页", "url", new String[]{"url"}));
         }
+        decls.put(decl0("time_now", "获取当前日期时间"));
         return new JSONArray().put(new JSONObject().put("function_declarations", decls));
     }
 
@@ -320,6 +338,12 @@ public final class ReactAgent {
     private JSONObject decl2(String name, String desc, String p1, String p2) throws Exception {
         return new JSONObject().put("name", name).put("description", desc)
                 .put("parameters", schema2(p1, true, p2, true));
+    }
+
+    private JSONObject decl0(String name, String desc) throws Exception {
+        return new JSONObject().put("name", name).put("description", desc)
+                .put("parameters", new JSONObject().put("type", "object")
+                        .put("properties", new JSONObject()));
     }
 
     private JSONObject callGoogle(List<JSONObject> transcript) throws Exception {
@@ -416,6 +440,11 @@ public final class ReactAgent {
             arr.put(declA2("file_write", "创建或覆盖文件", "path", "content"));
             arr.put(declA("file_list", "列目录", "path", false));
             arr.put(declA("file_info", "文件信息", "path", false));
+            arr.put(declA("file_exists", "检查文件/目录是否存在", "path", true));
+            arr.put(declA2("file_move", "移动或重命名文件/目录", "path", "to"));
+            arr.put(declA2("file_copy", "复制文件/目录", "path", "to"));
+            arr.put(declA2("file_zip", "把文件/目录压缩成 zip", "path", "to"));
+            arr.put(declA2("file_unzip", "把 zip 解压到目录", "path", "to"));
             if (toolOn("tool.search")) {
                 arr.put(declA2("file_find", "按名查找文件", "name", "path"));
                 arr.put(declA2("file_grep", "在文件里搜关键词", "path", "keyword"));
@@ -427,7 +456,15 @@ public final class ReactAgent {
         if (toolOn("tool.http")) {
             arr.put(declA("http_get", "抓取网页", "url", true));
         }
+        arr.put(declA0("time_now", "获取当前日期时间"));
         return arr;
+    }
+
+    private JSONObject declA0(String name, String desc) throws Exception {
+        JSONObject o = new JSONObject().put("type", "object")
+                .put("properties", new JSONObject());
+        return new JSONObject().put("name", name).put("description", desc)
+                .put("input_schema", o);
     }
 
     private JSONObject declA(String name, String desc, String p, boolean req) throws Exception {
@@ -530,7 +567,8 @@ public final class ReactAgent {
     }
 
     private String systemPrompt() {
-        return "你是一名 Android 上的 AI 助手，可调用文件/Shell/网页工具完成用户任务。"
+        return "你是一名 Android 上的 AI 助手，可调用文件工具（读写/列目录/信息/存在性/移动/复制/压缩/解压/查找/grep）、"
+                + "Shell 白名单命令、网页抓取、时间工具完成用户任务。"
                 + "需要时用工具，取到结果后继续；可以全部完成后，用与用户相同的语言简洁回答。";
     }
 
@@ -659,6 +697,12 @@ public final class ReactAgent {
                 {"file_find", "find", "find_file"},
                 {"file_grep", "grep", "search", "search_file", "search_files"},
                 {"file_info", "info", "stat"},
+                {"file_exists", "exists", "file_exists_check", "check_file"},
+                {"file_move", "move", "move_file", "rename", "rename_file"},
+                {"file_copy", "copy", "copy_file"},
+                {"file_zip", "zip", "compress", "compress_file", "zip_file"},
+                {"file_unzip", "unzip", "extract", "extract_file", "unzip_file"},
+                {"time_now", "time", "now", "date", "datetime", "current_time"},
                 {"shell_exec", "shell", "exec", "execute", "run", "run_shell"},
                 {"http_get", "http", "fetch", "download", "get_url", "web"},
         };
@@ -678,6 +722,11 @@ public final class ReactAgent {
             case "file_write":
             case "file_list":
             case "file_info":
+            case "file_exists":
+            case "file_move":
+            case "file_copy":
+            case "file_zip":
+            case "file_unzip":
                 return "tool.file";
             case "file_find":
             case "file_grep":
@@ -686,6 +735,8 @@ public final class ReactAgent {
                 return "tool.shell";
             case "http_get":
                 return "tool.http";
+            case "time_now":
+                return "";   // 时间工具无副作用，始终可用，不受工具页开关门控
             default:
                 return "";
         }
@@ -725,6 +776,35 @@ public final class ReactAgent {
                 }
                 case "file_info":
                     return fileTools.info(str(args, "path", "file", "file_path"));
+                case "file_exists":
+                    return fileTools.exists(str(args, "path", "file", "file_path"));
+                case "file_move": {
+                    String s = str(args, "path", "from", "source", "file", "file_path");
+                    String d = str(args, "to", "dest", "destination");
+                    if (s.isEmpty() || d.isEmpty()) return "需要 'path'(源) 和 'to'(目标)。";
+                    return fileTools.move(s, d);
+                }
+                case "file_copy": {
+                    String s = str(args, "path", "from", "source", "file", "file_path");
+                    String d = str(args, "to", "dest", "destination");
+                    if (s.isEmpty() || d.isEmpty()) return "需要 'path'(源) 和 'to'(目标)。";
+                    return fileTools.copy(s, d);
+                }
+                case "file_zip": {
+                    String s = str(args, "path", "from", "source", "file", "file_path", "dir");
+                    String d = str(args, "to", "dest", "destination");
+                    if (s.isEmpty() || d.isEmpty()) return "需要 'path'(源文件/目录) 和 'to'(输出 zip 路径)。";
+                    return fileTools.zip(s, d);
+                }
+                case "file_unzip": {
+                    String s = str(args, "path", "from", "source", "file", "file_path");
+                    String d = str(args, "to", "dest", "destination", "dir");
+                    if (s.isEmpty() || d.isEmpty()) return "需要 'path'(zip 文件) 和 'to'(解压目标目录)。";
+                    return fileTools.unzip(s, d);
+                }
+                case "time_now":
+                    return new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss EEEE",
+                            java.util.Locale.CHINA).format(new java.util.Date());
                 case "shell_exec": {
                     String c = str(args, "command", "cmd");
                     if (c.isEmpty()) return "缺 'command'。允许的命令：ls cat echo date uname whoami pwd grep find";
@@ -737,7 +817,7 @@ public final class ReactAgent {
                     return httpGet(u);
                 }
                 default:
-                    return "未知工具 '" + name + "'。可用：file_read, file_write, file_list, file_find, file_grep, file_info, shell_exec, http_get。";
+                    return "未知工具 '" + name + "'。可用：file_read, file_write, file_list, file_info, file_exists, file_move, file_copy, file_zip, file_unzip, file_find, file_grep, shell_exec, http_get, time_now。";
             }
         } catch (Exception e) {
             return "工具出错: " + e.getMessage();

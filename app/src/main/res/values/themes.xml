@@ -43,7 +43,7 @@
     <style name="SectionHeader">
         <item name="android:textSize">13sp</item>
         <item name="android:textStyle">bold</item>
-        <item name="android:textColor">@color/seed_blue</item>
+        <item name="android:textColor">?attr/colorPrimary</item>
         <item name="android:letterSpacing">0.1</item>
     </style>
 </resources>

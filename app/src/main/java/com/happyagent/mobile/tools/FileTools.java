@@ -208,4 +208,165 @@ public final class FileTools {
         if (!f.exists()) return "not found: " + path;
         return f.getName() + (f.isDirectory() ? " [dir]" : " [file " + f.length() + " bytes]");
     }
+
+    // ---- 文件系统操作（参考 operit 扩展文件工具）：源/目标都做沙箱校验 ----
+
+    public String exists(String path) {
+        File f = resolveSafe(path);
+        return f.exists() ? "exists: " + path
+                : (f.getParentFile() != null && f.getParentFile().exists() ? "not found: " + path : "parent missing: " + path);
+    }
+
+    public String move(String src, String dst) {
+        File s = resolveSafe(src);
+        File d = resolveSafe(dst);
+        if (!s.exists()) return "not found: " + src;
+        if (d.getParentFile() != null && !d.getParentFile().exists() && !d.getParentFile().mkdirs())
+            return "cannot create target parent: " + dst;
+        if (s.renameTo(d)) return "moved " + src + " -> " + dst;
+        // 跨设备 rename 失败时退化为「拷过去再删源」
+        if (copyRec(s, d)) {
+            deleteRec(s);
+            return "moved (via copy) " + src + " -> " + dst;
+        }
+        return "move failed: " + src;
+    }
+
+    public String copy(String src, String dst) {
+        File s = resolveSafe(src);
+        File d = resolveSafe(dst);
+        if (!s.exists()) return "not found: " + src;
+        if (d.getParentFile() != null && !d.getParentFile().exists() && !d.getParentFile().mkdirs())
+            return "cannot create target parent: " + dst;
+        return copyRec(s, d) ? "copied " + src + " -> " + dst : "copy failed: " + src;
+    }
+
+    // 把文件（或整棵目录树）打成一个 zip 文件
+    public String zip(String src, String dst) {
+        File s = resolveSafe(src);
+        File d = resolveSafe(dst);
+        if (!s.exists()) return "not found: " + src;
+        if (d.getParentFile() != null && !d.getParentFile().exists() && !d.getParentFile().mkdirs())
+            return "cannot create target parent: " + dst;
+        java.util.zip.ZipOutputStream zos = null;
+        try {
+            zos = new java.util.zip.ZipOutputStream(new FileOutputStream(d));
+            if (s.isDirectory()) {
+                addDirToZip(s, s.getParentFile() == null ? "" : s.getName() + "/", zos);
+            } else {
+                putFileToZip(s, s.getName(), zos);
+            }
+            zos.close();
+            zos = null;
+            return "zipped " + src + " -> " + d.getName() + " (" + d.length() + " bytes)";
+        } catch (IOException e) {
+            Log.e(TAG, "zip", e);
+            return "zip error: " + e.getMessage();
+        } finally {
+            if (zos != null) {
+                try { zos.close(); } catch (Exception ignored) {}
+            }
+        }
+    }
+
+    // 把 zip 解到目录
+    public String unzip(String src, String dst) {
+        File s = resolveSafe(src);
+        File dir = resolveSafe(dst);
+        if (!s.exists()) return "not found: " + src;
+        if (!dir.exists() && !dir.mkdirs()) return "cannot create dest dir: " + dst;
+        java.util.zip.ZipInputStream zis = null;
+        int count = 0;
+        try {
+            zis = new java.util.zip.ZipInputStream(new FileInputStream(s));
+            java.util.zip.ZipEntry ze;
+            while ((ze = zis.getNextEntry()) != null) {
+                // 防 zip 滑出：目标必须落在 dst 目录内
+                File out = new File(dir, ze.getName()).getCanonicalFile();
+                String root = dir.getCanonicalPath();
+                if (!out.getPath().startsWith(root + File.separator) && !out.getPath().equals(root)) {
+                    throw new SecurityException("zip entry out of dir: " + ze.getName());
+                }
+                if (ze.isDirectory()) {
+                    out.mkdirs();
+                } else {
+                    File parent = out.getParentFile();
+                    if (parent != null && !parent.exists()) parent.mkdirs();
+                    java.io.FileOutputStream fos = new FileOutputStream(out);
+                    byte[] buf = new byte[8192];
+                    int n;
+                    while ((n = zis.read(buf)) != -1) fos.write(buf, 0, n);
+                    fos.close();
+                    count++;
+                }
+                zis.closeEntry();
+            }
+            zis.close();
+            zis = null;
+            return "unzipped " + count + " file(s) into " + dst;
+        } catch (IOException e) {
+            Log.e(TAG, "unzip", e);
+            return "unzip error: " + e.getMessage();
+        } finally {
+            if (zis != null) {
+                try { zis.close(); } catch (Exception ignored) {}
+            }
+        }
+    }
+
+    // ---- 上面用到的私有递归助手 ----
+
+    private boolean copyRec(File s, File d) {
+        try {
+            if (s.isDirectory()) {
+                if (!d.exists() && !d.mkdirs()) return false;
+                File[] children = s.listFiles();
+                if (children == null) return false;
+                for (File c : children) if (!copyRec(c, new File(d, c.getName()))) return false;
+                return true;
+            }
+            if (d.getParentFile() != null && !d.getParentFile().exists() && !d.getParentFile().mkdirs())
+                return false;
+            FileInputStream in = new FileInputStream(s);
+            FileOutputStream out = new FileOutputStream(d);
+            byte[] buf = new byte[8192];
+            int n;
+            while ((n = in.read(buf)) != -1) out.write(buf, 0, n);
+            in.close();
+            out.close();
+            return true;
+        } catch (IOException e) {
+            Log.e(TAG, "copyRec", e);
+            return false;
+        }
+    }
+
+    private void deleteRec(File f) {
+        if (f.isDirectory()) {
+            File[] children = f.listFiles();
+            if (children != null) for (File c : children) deleteRec(c);
+        }
+        f.delete();
+    }
+
+    private void addDirToZip(File dir, String prefix, java.util.zip.ZipOutputStream zos)
+            throws IOException {
+        File[] children = dir.listFiles();
+        if (children == null) return;
+        for (File c : children) {
+            if (c.isDirectory()) addDirToZip(c, prefix + c.getName() + "/", zos);
+            else putFileToZip(c, prefix + c.getName(), zos);
+        }
+    }
+
+    private void putFileToZip(File f, String name, java.util.zip.ZipOutputStream zos)
+            throws IOException {
+        zos.putNextEntry(new java.util.zip.ZipEntry(name));
+        FileInputStream in = new FileInputStream(f);
+        byte[] buf = new byte[8192];
+        int n;
+        while ((n = in.read(buf)) != -1) zos.write(buf, 0, n);
+        in.close();
+        zos.closeEntry();
+    }
 }

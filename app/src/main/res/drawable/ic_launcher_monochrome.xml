@@ -1,24 +1,24 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 自适应图标前景层：黄色笑脸圆（黄圆 + 两个黑眼睛 + 微笑弧），与 API 23~25 的 mipmap PNG 回退一致，
-     让安卓 7+ 也看到笑脸而不是旧的蓝色六边形。安全区内绘制（108 视口中心约 66dp）。 -->
+<!-- adaptive icon 的 monochrome 层：单色线条笑脸（白色描边），系统按主题色着色，安卓 13+ 单色模式规范显示 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp" android:height="108dp"
     android:viewportWidth="108" android:viewportHeight="108">
-    <!-- 黄色笑脸圆 -->
+    <!-- 圆轮廓 -->
     <path
-        android:fillColor="#F5C518"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="4"
         android:pathData="M54,54 m-30,0 a30,30 0 1,0 60,0 a30,30 0 1,0 -60,0" />
     <!-- 左眼 -->
     <path
-        android:fillColor="#23272E"
+        android:fillColor="#FFFFFF"
         android:pathData="M44,47 m-4.5,0 a4.5,4.5 0 1,0 9,0 a4.5,4.5 0 1,0 -9,0" />
     <!-- 右眼 -->
     <path
-        android:fillColor="#23272E"
+        android:fillColor="#FFFFFF"
         android:pathData="M64,47 m-4.5,0 a4.5,4.5 0 1,0 9,0 a4.5,4.5 0 1,0 -9,0" />
-    <!-- 微笑弧（开口向上的弧线，端点在下方） -->
+    <!-- 微笑弧 -->
     <path
-        android:strokeColor="#23272E"
+        android:strokeColor="#FFFFFF"
         android:strokeWidth="4"
         android:strokeLineCap="round"
         android:pathData="M42,62 q12,11 24,0" />

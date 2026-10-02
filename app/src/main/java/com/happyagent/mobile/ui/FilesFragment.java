@@ -29,13 +29,16 @@ public class FilesFragment extends Fragment {
     private static final int RC_PICK_FOLDER = 1;
 
     private View grantCard, crumb;
-    private TextView empty;
+    private TextView empty, countTv;
     private RecyclerView recycler;
+    private android.widget.EditText searchBox;
     private FileAdapter adapter;
     // 当前目录 docId 栈：栈顶 = 正在看的目录，空 = 授权根
     private final List<String> path = new ArrayList<String>();
     // 与 path 平行的目录显示名栈（面包屑用）
     private final List<String> pathNames = new ArrayList<String>();
+    // 当前目录全量子项（搜索过滤的源数据）；过滤只改展示，不重查
+    private List<StorageAccess.Entry> allItems = new ArrayList<StorageAccess.Entry>();
     private String currentParent;
 
     @Override
@@ -44,6 +47,8 @@ public class FilesFragment extends Fragment {
         grantCard = v.findViewById(R.id.files_grant);
         crumb = v.findViewById(R.id.files_breadcrumb);
         empty = v.findViewById(R.id.files_empty);
+        countTv = v.findViewById(R.id.files_count);
+        searchBox = v.findViewById(R.id.files_search);
         recycler = v.findViewById(R.id.files_recycler);
         recycler.setLayoutManager(new LinearLayoutManager(getContext()));
         adapter = new FileAdapter(new ArrayList<StorageAccess.Entry>());
@@ -61,6 +66,18 @@ public class FilesFragment extends Fragment {
             public void onClick(View view) {
                 goUp();
             }
+        });
+
+        // 目录内按名过滤（即时、本地，不重查 SAF）
+        searchBox.addTextChangedListener(new android.text.TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence c, int a, int b, int cn) {}
+            @Override
+            public void onTextChanged(CharSequence c, int a, int b, int cn) {
+                applyFilter(c == null ? "" : c.toString().trim());
+            }
+            @Override
+            public void afterTextChanged(android.text.Editable e) {}
         });
 
         refresh();
@@ -113,17 +130,16 @@ public class FilesFragment extends Fragment {
                     @Override
                     public void run() {
                         if (!isAdded()) return;
-                        adapter.update(data);
-                        boolean isEmpty = data.isEmpty();
-                        empty.setVisibility(isEmpty ? View.VISIBLE : View.GONE);
-                        recycler.setVisibility(isEmpty ? View.GONE : View.VISIBLE);
+                        allItems = data;
                         updateCrumb();
+                        applyFilter(searchBox.getText().toString());
                     }
                 });
             }
         }).start();
     }
 
+    // 目录统计：文件夹数 / 文件数 / 总大小
     private void updateCrumb() {
         TextView name = crumb.findViewById(R.id.files_folder_name);
         if (path.isEmpty()) {
@@ -132,6 +148,30 @@ public class FilesFragment extends Fragment {
             name.setText(StorageAccess.rootDisplayName(requireContext())
                     + " / " + pathNames.get(pathNames.size() - 1));
         }
+        int dirs = 0;
+        long total = 0;
+        for (StorageAccess.Entry e : allItems) {
+            if (e.isDir) dirs++;
+            else total += e.size;
+        }
+        countTv.setText(dirs + " 目录 · " + (allItems.size() - dirs) + " 文件 · " + FileAdapter.fmtSize(total));
+    }
+
+    // 按名称过滤当前目录列表；空过滤显示全部
+    private void applyFilter(String query) {
+        List<StorageAccess.Entry> shown = allItems;
+        if (query != null && !query.isEmpty()) {
+            List<StorageAccess.Entry> filtered = new ArrayList<StorageAccess.Entry>();
+            for (StorageAccess.Entry e : allItems) {
+                if (e.name.toLowerCase().contains(query.toLowerCase())) filtered.add(e);
+            }
+            shown = filtered;
+        }
+        adapter.update(shown);
+        boolean isEmpty = shown.isEmpty();
+        empty.setVisibility(isEmpty ? View.VISIBLE : View.GONE);
+        empty.setText((query != null && !query.isEmpty()) ? "无匹配" : "（空目录）");
+        recycler.setVisibility(isEmpty ? View.GONE : View.VISIBLE);
     }
 
     // 选文件夹 = 系统文档选择器；授权范围仅该目录，权限自动申请

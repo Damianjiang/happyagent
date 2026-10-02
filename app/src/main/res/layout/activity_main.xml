@@ -46,7 +46,7 @@
         android:layout_margin="20dp"
         android:onClick="onFabClick"
         android:src="@drawable/ic_add"
-        app:backgroundTint="@color/seed_blue"
+        app:backgroundTint="?attr/colorPrimary"
         android:contentDescription="@string/new_task" />
 
     <com.google.android.material.bottomnavigation.BottomNavigationView

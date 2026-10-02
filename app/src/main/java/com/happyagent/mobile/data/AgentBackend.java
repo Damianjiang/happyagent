@@ -423,7 +423,7 @@ public final class AgentBackend {
     // 默认工具集 = 引擎真实支持的 4 组；每项开关都真正门控 agent 可用工具
     private List<Tool> defaultTools() {
         List<Tool> l = new ArrayList<Tool>();
-        l.add(new Tool("tool.file", "文件", "读 / 写 / 列目录 / 文件信息（沙箱路径校验）", true, "dev"));
+        l.add(new Tool("tool.file", "文件", "读 / 写 / 列目录 / 信息 / 存在性 / 移动 / 复制 / 压缩 / 解压（沙箱路径校验）", true, "dev"));
         l.add(new Tool("tool.search", "查找 / 搜索", "按名找文件、在文件里搜关键词", true, "dev"));
         l.add(new Tool("tool.shell", "Shell 沙箱", "/system/bin/sh 白名单命令 + 超时", false, "dev"));
         l.add(new Tool("tool.http", "HTTP 抓取", "抓取网页正文（限大小）", false, "net"));
