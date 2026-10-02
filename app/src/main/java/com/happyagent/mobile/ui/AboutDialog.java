@@ -14,19 +14,18 @@ public final class AboutDialog {
     public static void show(Context ctx) {
         AlertDialog.Builder b = new AlertDialog.Builder(ctx);
         b.setTitle("Happy Agent");
-        b.setMessage("Happy Agent 手机端 · " + version(ctx) + "\n\n"
+        b.setMessage("Happy Agent 手机端 · v" + versionOf(ctx) + "\n\n"
                 + "纯 Java 编写，兼容安卓 6（API 23）及以上。\n"
                 + "端侧 agent：可切换多模型供应商（OpenAI / Google / Anthropic），\n"
                 + "填对应 API Key 即走真接口，离线也能用本地模拟引擎。\n"
                 + "支持多步工具调用、任务暂停/继续/取消、\n"
-                + "真实文件 / Shell 沙箱、崩溃自动兜底。\n\n"
-                + "图标：黄色微笑圆点");
+                + "真实文件 / Shell 沙箱、崩溃自动兜底。");
         b.setPositiveButton("知道了", null);
         b.show();
     }
 
     // 版本号取自包元信息，跟 build.gradle 的 versionName 一致，不写死
-    private static String version(Context ctx) {
+    public static String versionOf(Context ctx) {
         try {
             PackageInfo p = ctx.getPackageManager().getPackageInfo(ctx.getPackageName(), 0);
             return p.versionName;

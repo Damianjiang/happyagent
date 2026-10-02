@@ -1,49 +1,53 @@
 package com.happyagent.mobile.ui;
 
+import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
 import android.view.View;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.app.AppCompatDelegate;
 
-import com.happyagent.mobile.R;
-import com.happyagent.mobile.data.Prefs;
+import android.widget.Button;
 import com.google.android.material.switchmaterial.SwitchMaterial;
 
-// 设置 / 个性化：深浅色主题、震动、摇一摇记日志、起始页、Web 服务开关；都持久化下次用
+import com.happyagent.mobile.R;
+import com.happyagent.mobile.data.Prefs;
+
+// 设置 / 个性化：主题三态、强调色 5 选 1、会话字号、震动/摇一摇/起始页、Web 开关、关于。
+// 外观改动当场套主题重建；其余持久化下次用。颜色全走当前主题的色资源，强调色切换后整体跟走。
 public class SettingsActivity extends AppCompatActivity {
 
     private Prefs prefs;
+    private int currentAccent;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        ThemeUtil.apply(this);
         setContentView(R.layout.activity_settings);
         prefs = new Prefs(this);
+        currentAccent = prefs.getInt(Prefs.KEY_ACCENT, Prefs.ACCENT_DEFAULT);
 
-        // 深浅色，切换当场 recreate 套新主题
-        SwitchMaterial night = findViewById(R.id.set_night);
-        night.setChecked(prefs.getInt(Prefs.KEY_NIGHT_MODE, Prefs.NIGHT_FOLLOW_SYSTEM) == Prefs.NIGHT_YES);
-        night.setOnCheckedChangeListener((b, isOn) -> {
-            int mode = isOn ? Prefs.NIGHT_YES : Prefs.NIGHT_NO;
-            prefs.putInt(Prefs.KEY_NIGHT_MODE, mode);
-            AppCompatDelegate.setDefaultNightMode(mode);
-            recreate();
-        });
+        com.google.android.material.appbar.MaterialToolbar t =
+                (com.google.android.material.appbar.MaterialToolbar) findViewById(R.id.set_toolbar);
+        t.setNavigationOnClickListener(v -> finish());
 
-        // 震动反馈：开着的点按钮才响（Haptics 只在开关开时执行）
+        bindThemeButtons();
+        bindAccentRow();
+        bindSizeButtons();
+
+        // 行为区
         SwitchMaterial haptics = findViewById(R.id.set_haptics);
         haptics.setChecked(prefs.getBoolean(Prefs.KEY_ENABLE_HAPTICS, true));
         haptics.setOnCheckedChangeListener((b, isOn) -> prefs.putBoolean(Prefs.KEY_ENABLE_HAPTICS, isOn));
 
-        // 摇一摇抓一份日志（MainActivity 挂传感器，开关决定要不要注册）
         SwitchMaterial shake = findViewById(R.id.set_shake_log);
         shake.setChecked(prefs.getBoolean(Prefs.KEY_ENABLE_SHAKE_TO_LOG, false));
         shake.setOnCheckedChangeListener((b, isOn) -> prefs.putBoolean(Prefs.KEY_ENABLE_SHAKE_TO_LOG, isOn));
 
-        // 启动停在哪个页：0 会话 / 1 工具
         SwitchMaterial startTools = findViewById(R.id.set_start_tools);
         startTools.setChecked(prefs.getInt(Prefs.KEY_START_PAGE, 0) == 1);
         startTools.setOnCheckedChangeListener((b, isOn) -> {
@@ -51,13 +55,12 @@ public class SettingsActivity extends AppCompatActivity {
             Toast.makeText(this, "起始页已更新", Toast.LENGTH_SHORT).show();
         });
 
-        findViewById(R.id.set_back).setOnClickListener(v -> finish());
-
-        // 版本卡点开关于
+        // 关于卡（版本号动态取包元信息，不写死）
+        TextView versionTv = findViewById(R.id.set_about_version);
+        versionTv.setText("Happy Agent " + AboutDialog.versionOf(this));
         findViewById(R.id.set_about_card).setOnClickListener(v -> AboutDialog.show(this));
 
-        // Web 服务开关：开即拉前台服务并记住偏好，关即停并清偏好。
-        // start/stop 是异步的，用开关本身状态为准显示/隐藏 IP，避免竞态
+        // Web 服务开关
         View webuiInfo = findViewById(R.id.webui_info);
         SwitchMaterial webui = findViewById(R.id.set_webui);
         webuiOn = com.happyagent.mobile.service.WebUiService.isRunning();
@@ -76,13 +79,147 @@ public class SettingsActivity extends AppCompatActivity {
         updateWebuiInfo(webuiInfo);
     }
 
-    // Web 服务开关的当前意图（异步 start/stop 期间以它为准）
+    // ============ 外观 ============
+
+    private int themeMode() {
+        return prefs.getInt(Prefs.KEY_THEME_MODE, Prefs.THEME_FOLLOW);
+    }
+
+    private void bindThemeButtons() {
+        int mode = themeMode();
+        segSet(findViewById(R.id.set_theme_follow), mode == Prefs.THEME_FOLLOW);
+        segSet(findViewById(R.id.set_theme_light), mode == Prefs.THEME_LIGHT);
+        segSet(findViewById(R.id.set_theme_dark), mode == Prefs.THEME_DARK);
+        findViewById(R.id.set_theme_follow).setOnClickListener(v -> setThemeMode(Prefs.THEME_FOLLOW));
+        findViewById(R.id.set_theme_light).setOnClickListener(v -> setThemeMode(Prefs.THEME_LIGHT));
+        findViewById(R.id.set_theme_dark).setOnClickListener(v -> setThemeMode(Prefs.THEME_DARK));
+    }
+    private void setThemeMode(int m) {
+        if (m == themeMode()) return;
+        prefs.putInt(Prefs.KEY_THEME_MODE, m);
+        AppCompatDelegate.setDefaultNightMode(ThemeUtil.nightModeOf(m));
+        recreate();
+    }
+
+    private void bindAccentRow() {
+        LinearLayout row = findViewById(R.id.set_accent_row);
+        row.removeAllViews();
+        int d = (int) getResources().getDisplayMetrics().density;
+        int size = 30 * d;
+        int gap = 14 * d;
+        for (int i = 0; i < 5; i++) {
+            row.addView(makeAccentDot(i, currentAccent, size, gap));
+        }
+    }
+
+    private View makeAccentDot(int index, int current, int size, int gap) {
+        int d = (int) getResources().getDisplayMetrics().density;
+        // 外层容器负责布局与点击；选中时里层再叠一个实心小圆做出"外环"效果
+        final LinearLayout dot = new LinearLayout(this);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(size, size);
+        lp.rightMargin = gap;
+        dot.setLayoutParams(lp);
+        dot.setGravity(android.view.Gravity.CENTER);
+
+        int solid = resIdOfSolid(index);
+        GradientDrawable g = new GradientDrawable();
+        g.setShape(GradientDrawable.OVAL);
+        if (index == current) {
+            // 选中：容器色做外环，中间留白，再放实心色点
+            g.setColor(getThemeColor(resIdOfContainer(index)));
+            dot.setBackground(g);
+            View inner = new View(this);
+            LinearLayout.LayoutParams ilp = new LinearLayout.LayoutParams(
+                    size - 6 * d, size - 6 * d);
+            inner.setLayoutParams(ilp);
+            GradientDrawable ig = new GradientDrawable();
+            ig.setShape(GradientDrawable.OVAL);
+            ig.setColor(getThemeColor(solid));
+            inner.setBackground(ig);
+            dot.addView(inner);
+        } else {
+            g.setColor(getThemeColor(solid));
+            dot.setBackground(g);
+        }
+        dot.setOnClickListener(v -> {
+            if (currentAccent == index) return;
+            currentAccent = index;
+            prefs.putInt(Prefs.KEY_ACCENT, index);
+            recreate();   // 套新强调色 overlay 重建
+        });
+        return dot;
+    }
+
+    private int resIdOfSolid(int i) {
+        switch (i) {
+            case Prefs.ACCENT_TEAL:  return R.color.acc_teal;
+            case Prefs.ACCENT_MOSS:  return R.color.acc_moss;
+            case Prefs.ACCENT_RUST:  return R.color.acc_rust;
+            case Prefs.ACCENT_AMBER: return R.color.acc_amber;
+            default:                 return R.color.acc_default;
+        }
+    }
+
+    private int resIdOfContainer(int i) {
+        switch (i) {
+            case Prefs.ACCENT_TEAL:  return R.color.acc_teal_c;
+            case Prefs.ACCENT_MOSS:  return R.color.acc_moss_c;
+            case Prefs.ACCENT_RUST:  return R.color.acc_rust_c;
+            case Prefs.ACCENT_AMBER: return R.color.acc_amber_c;
+            default:                 return R.color.acc_default_c;
+        }
+    }
+
+    private void bindSizeButtons() {
+        int cur = prefs.getInt(Prefs.KEY_CHAT_TEXT_SIZE, 0);
+        segSet(findViewById(R.id.set_size_s), cur == 0);
+        segSet(findViewById(R.id.set_size_m), cur == 1);
+        segSet(findViewById(R.id.set_size_l), cur == 2);
+        findViewById(R.id.set_size_s).setOnClickListener(v -> setChatSize(0));
+        findViewById(R.id.set_size_m).setOnClickListener(v -> setChatSize(1));
+        findViewById(R.id.set_size_l).setOnClickListener(v -> setChatSize(2));
+    }
+
+    private void setChatSize(int v) {
+        if (prefs.getInt(Prefs.KEY_CHAT_TEXT_SIZE, 0) == v) return;
+        prefs.putInt(Prefs.KEY_CHAT_TEXT_SIZE, v);
+        bindSizeButtons();
+        Toast.makeText(this, "会话字号已更新", Toast.LENGTH_SHORT).show();
+    }
+
+    // 分段按钮选中态：选中=强调色容器底+容器文字，未选=透明底+发丝描边+次级文字
+    // 背景 drawable 全走 theme attr，强调色切换后自动跟走，无需重建
+    private void segSet(View v, boolean selected) {
+        if (!(v instanceof Button)) return;
+        Button b = (Button) v;
+        b.setBackgroundResource(selected ? R.drawable.bg_seg_on : R.drawable.bg_seg_off);
+        b.setTextColor(selected ? getThemeColor(resIdOfOn(currentAccent))
+                : getThemeColor(R.color.on_surface_variant));
+    }
+
+    private int resIdOfOn(int i) {
+        switch (i) {
+            case Prefs.ACCENT_TEAL:  return R.color.acc_teal_c_on;
+            case Prefs.ACCENT_MOSS:  return R.color.acc_moss_c_on;
+            case Prefs.ACCENT_RUST:  return R.color.acc_rust_c_on;
+            case Prefs.ACCENT_AMBER: return R.color.acc_amber_c_on;
+            default:                 return R.color.acc_default_c_on;
+        }
+    }
+
+    // 取强调色/语义色：走 ContextCompat，自动跟随深浅色资源限定符；
+    // 强调色 overlay 切换靠 recreate() 重建，这里读到的永远是当前主题的对应值
+    private int getThemeColor(int resId) {
+        return androidx.core.content.ContextCompat.getColor(this, resId);
+    }
+
+    // ============ Web 服务（保留原逻辑） ============
+
     private boolean webuiOn;
     private int webuiPollCount;
     private final android.os.Handler webuiPoll = new android.os.Handler();
     private Runnable webuiPollRunnable;
 
-    // 按开关意图显示内网/外网 IP:端口；内网服务起来才有，外网后台 8s 取到，两者都拿到即停轮询
     private void updateWebuiInfo(View webuiInfo) {
         if (!webuiOn) {
             webuiInfo.setVisibility(View.GONE);
@@ -115,7 +252,6 @@ public class SettingsActivity extends AppCompatActivity {
                 String pub = com.happyagent.mobile.service.WebUiService.publicIpStatic();
                 lanTv.setText((lan.isEmpty() ? "（获取中）" : lan) + ":" + port);
                 pubTv.setText(pub.isEmpty() ? "（获取中）" : pub + ":" + port);
-                // 内网拿到后不再等外网；外网拿不到也别无限刷，10 次后停
                 if (lan.isEmpty() || (webuiPollCount < 10 && pub.isEmpty())) {
                     webuiPoll.postDelayed(this, 1500);
                 }
@@ -131,7 +267,6 @@ public class SettingsActivity extends AppCompatActivity {
         }
     }
 
-    // 在本机浏览器打开 Web 端；本机连接用 127.0.0.1（内网地址还没取到时）
     private void openInBrowser(String lan, int port) {
         String host = lan.isEmpty() ? "127.0.0.1" : lan;
         String url = "http://" + host + ":" + port;

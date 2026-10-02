@@ -16,10 +16,26 @@ public final class Prefs {
     public static final String KEY_FIRST_LAUNCH = "first_launch";
     public static final String KEY_STORAGE_URI = "storage_uri";
 
+    // 个性化：主题三态（0 跟随系统 / 1 浅色 / 2 暗色）
+    public static final String KEY_THEME_MODE = "theme_mode";
+    // 个性化：强调色下标（0 默认蓝 / 1 青 / 2 苔绿 / 3 砖红 / 4 琥珀）
+    public static final String KEY_ACCENT = "accent";
+    // 个性化：会话气泡字号（0 标准 / 1 大 / 2 超大）
+    public static final String KEY_CHAT_TEXT_SIZE = "chat_text_size";
+
     // 直接对齐 AppCompat 的常量，别自己造数值
     public static final int NIGHT_FOLLOW_SYSTEM = AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM;
     public static final int NIGHT_NO = AppCompatDelegate.MODE_NIGHT_NO;
     public static final int NIGHT_YES = AppCompatDelegate.MODE_NIGHT_YES;
+
+    // 主题三态取值
+    public static final int THEME_FOLLOW = 0;
+    public static final int THEME_LIGHT = 1;
+    public static final int THEME_DARK = 2;
+
+    // 强调色下标
+    public static final int ACCENT_DEFAULT = 0, ACCENT_TEAL = 1, ACCENT_MOSS = 2,
+            ACCENT_RUST = 3, ACCENT_AMBER = 4;
 
     private final SharedPreferences sp;
 
@@ -33,6 +49,10 @@ public final class Prefs {
 
     public void putInt(String key, int value) {
         sp.edit().putInt(key, value).apply();
+    }
+
+    public boolean contains(String key) {
+        return sp.contains(key);
     }
 
     public boolean getBoolean(String key, boolean def) {

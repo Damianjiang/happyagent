@@ -1,12 +1,41 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 暗色下把"基础"语义色重映射成深色值：所有引用这些名字的 drawable/布局自动跟随夜间，
-     不用逐个再写 drawable-night 覆盖。品牌色 seed_blue 与语义状态色 status_* 保持不变。 -->
+<!-- 暗色：墨色。底 #0E0E11 近乎黑（纯黑发闷），表面分层靠极细发丝线而不是阴影 -->
 <resources>
-    <color name="background">#0F172A</color>
-    <color name="surface">#1E293B</color>
-    <color name="surface_variant">#334155</color>
-    <color name="on_surface">#E2E8F0</color>
-    <color name="on_surface_variant">#94A3B8</color>
-    <color name="outline">#334155</color>
-    <color name="primary_light">#1E293B</color>
+    <!-- 暗色下强调色整体提亮一档，保证对比度 -->
+    <color name="acc_default">#8FA6FF</color>
+    <color name="acc_teal">#4FD1C5</color>
+    <color name="acc_moss">#9CC35A</color>
+    <color name="acc_rust">#F16A8B</color>
+    <color name="acc_amber">#F0A34A</color>
+    <!-- 亮强调色上的文字用墨色而不是白 -->
+    <color name="acc_on">#0E0E11</color>
+
+    <!-- 墨色基底 -->
+    <color name="background">#0E0E11</color>
+    <color name="surface">#17171C</color>
+    <color name="surface_variant">#202027</color>
+    <color name="on_surface">#EDEDEF</color>
+    <color name="on_surface_variant">#A2A2AC</color>
+    <color name="outline">#2C2C34</color>
+    <color name="hairline">#222228</color>
+
+    <!-- 状态色：暗色提亮版 -->
+    <color name="status_done">#4CC380</color>
+    <color name="status_failed">#F2545B</color>
+    <color name="status_paused">#F0A34A</color>
+    <color name="error">#F2545B</color>
+
+    <color name="on_primary">#0E0E11</color>
+
+    <!-- 强调色容器（暗色）：Tonal 按钮/选中控件的底 -->
+    <color name="acc_default_c">#1E2749</color>
+    <color name="acc_default_c_on">#B9C7FF</color>
+    <color name="acc_teal_c">#123330</color>
+    <color name="acc_teal_c_on">#9BE5DA</color>
+    <color name="acc_moss_c">#1E2A12</color>
+    <color name="acc_moss_c_on">#C3DC92</color>
+    <color name="acc_rust_c">#3A1520</color>
+    <color name="acc_rust_c_on">#F7A8BC</color>
+    <color name="acc_amber_c">#33230E</color>
+    <color name="acc_amber_c_on">#F7C98F</color>
 </resources>

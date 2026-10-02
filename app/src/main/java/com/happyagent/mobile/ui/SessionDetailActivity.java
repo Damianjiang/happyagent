@@ -64,6 +64,7 @@ public class SessionDetailActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        ThemeUtil.apply(this);
         setContentView(R.layout.activity_session_detail);
 
         sessionId = getIntent().getStringExtra(EXTRA_SESSION_ID);
@@ -346,6 +347,19 @@ public class SessionDetailActivity extends AppCompatActivity {
     // 聊天气泡 adapter：user 靠右(带附件)、assistant 靠左、tool 中间小灰字
     static class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.VH> {
         private final List<Message> items = new ArrayList<Message>();
+        private final float chatSizeSp;
+
+        ChatAdapter() {
+            com.happyagent.mobile.data.Prefs p = new com.happyagent.mobile.data.Prefs(
+                    com.happyagent.mobile.HappyAgentApplication.get());
+            int size = p.getInt(com.happyagent.mobile.data.Prefs.KEY_CHAT_TEXT_SIZE, 0);
+            this.chatSizeSp = size == 2 ? 18f : (size == 1 ? 16f : 14f);
+        }
+
+        // 按个性化字号键调整气泡文字（工具行保持小灰字不动）
+        private void applyChatSize(android.widget.TextView tv) {
+            tv.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, chatSizeSp);
+        }
 
         int count() {
             return items.size();
@@ -388,9 +402,11 @@ public class SessionDetailActivity extends AppCompatActivity {
             h.toolRow.setVisibility(isTool ? View.VISIBLE : View.GONE);
             if (isUser) {
                 h.userBubble.setText(m.text);
+                applyChatSize(h.userBubble);
                 bindUserAttachments(h, m);
             } else if (isAi) {
                 h.aiBubble.setText(m.text);
+                applyChatSize(h.aiBubble);
             } else if (isTool) {
                 h.toolLine.setText(m.text);
             }

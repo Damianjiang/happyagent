@@ -28,6 +28,7 @@ public class CrashActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        ThemeUtil.apply(this);
         setContentView(R.layout.activity_crash);
 
         String report = getIntent().getStringExtra(EXTRA_REPORT);

@@ -144,10 +144,21 @@ public class FilesFragment extends Fragment {
 
     private void setTabStyle() {
         boolean wsActive = (mode == MODE_WS);
-        int on = requireContext().getResources().getColor(R.color.seed_blue);
-        int off = requireContext().getResources().getColor(R.color.on_surface_variant);
+        // tab 选中色跟强调色走（?attr/colorPrimary，随 overlay 变），未选用次级文字色
+        int on = themeColor(com.google.android.material.R.attr.colorPrimary);
+        int off = themeColor(com.google.android.material.R.attr.colorOnSurfaceVariant);
         ((TextView) tabWs).setTextColor(wsActive ? on : off);
         ((TextView) tabSaf).setTextColor(!wsActive ? on : off);
+    }
+
+    // 解析 theme 属性对应的颜色（跟随当前深浅色与强调色 overlay）
+    private int themeColor(int attr) {
+        android.util.TypedValue tv = new android.util.TypedValue();
+        requireContext().getTheme().resolveAttribute(attr, tv, true);
+        if (tv.type >= android.util.TypedValue.TYPE_FIRST_COLOR_INT) {
+            return tv.data;
+        }
+        return android.graphics.Color.BLACK;
     }
 
     // ============ 工作区 ============

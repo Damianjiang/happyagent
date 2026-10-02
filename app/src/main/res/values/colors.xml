@@ -1,33 +1,40 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- 浅色：纸感。暖白底 + 墨色文字 + 单一强调色，卡片走发丝边框不吃阴影 -->
 <resources>
-    <!-- Enterprise palette -->
-    <color name="seed_blue">#1E40AF</color>
-    <color name="primary_light">#EFF4FF</color>
-    <color name="primary_dark">#0F172A</color>
-    <color name="on_primary">#FFFFFF</color>
-    <color name="on_primary_dark">#93C5FD</color>
-    <color name="background">#F8FAFC</color>
+    <!-- 强调色 5 选 1（values-night 给暗色用提亮版） -->
+    <color name="acc_default">#4B7BF5</color>
+    <color name="acc_teal">#0F766E</color>
+    <color name="acc_moss">#4D7C0F</color>
+    <color name="acc_rust">#BE123C</color>
+    <color name="acc_amber">#B45309</color>
+    <color name="acc_on">#FFFFFF</color>
+
+    <!-- 纸面基底 -->
+    <color name="background">#F6F5F2</color>
     <color name="surface">#FFFFFF</color>
-    <color name="surface_variant">#F1F5F9</color>
-    <color name="on_surface">#0F172A</color>
-    <color name="on_surface_variant">#475569</color>
-    <color name="outline">#CBD5E1</color>
-    <color name="error">#DC2626</color>
-    <color name="status_running">#2563EB</color>
-    <color name="status_done">#16A34A</color>
-    <color name="status_failed">#DC2626</color>
-    <color name="status_paused">#F59E0B</color>
+    <color name="surface_variant">#F0EFEB</color>
+    <color name="on_surface">#1B1B1B</color>
+    <color name="on_surface_variant">#575652</color>
+    <color name="outline">#E5E3DD</color>
+    <color name="hairline">#ECEAE4</color>
 
-    <!-- Accent presets for personalization -->
-    <color name="accent_blue">#1E40AF</color>
-    <color name="accent_teal">#0F766E</color>
-    <color name="accent_purple">#6D28D9</color>
-    <color name="accent_rose">#BE123C</color>
+    <!-- 状态色：running 跟随强调色（drawable 里写 ?attr/colorPrimary），成败用固定语义色 -->
+    <color name="status_done">#3F8135</color>
+    <color name="status_failed">#C2373B</color>
+    <color name="status_paused">#B45309</color>
+    <color name="error">#C2373B</color>
 
-    <!-- Night colors -->
-    <color name="background_night">#0F172A</color>
-    <color name="surface_night">#1E293B</color>
-    <color name="on_surface_night">#E2E8F0</color>
-    <color name="on_surface_variant_night">#94A3B8</color>
-    <color name="outline_night">#334155</color>
+    <color name="on_primary">#FFFFFF</color>
+
+    <!-- 强调色容器（浅色）：Tonal 按钮/选中控件的底 -->
+    <color name="acc_default_c">#E7EDFD</color>
+    <color name="acc_default_c_on">#14284B</color>
+    <color name="acc_teal_c">#D9EDEA</color>
+    <color name="acc_teal_c_on">#0B3B36</color>
+    <color name="acc_moss_c">#E7EFDA</color>
+    <color name="acc_moss_c_on">#2A4208</color>
+    <color name="acc_rust_c">#F9DEE3</color>
+    <color name="acc_rust_c_on">#4A0A18</color>
+    <color name="acc_amber_c">#F5E7D3</color>
+    <color name="acc_amber_c_on">#4A2B08</color>
 </resources>

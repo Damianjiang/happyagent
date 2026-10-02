@@ -19,6 +19,7 @@ public class ToolDetailActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        ThemeUtil.apply(this);
         setContentView(R.layout.activity_tool_detail);
 
         String id = getIntent().getStringExtra(EXTRA_TOOL_ID);

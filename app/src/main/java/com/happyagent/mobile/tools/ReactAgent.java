@@ -738,8 +738,11 @@ public final class ReactAgent {
 
     private String systemPrompt() {
         // 系统提示：把工具怎么用、参数怎么传、出错怎么办讲清楚，减少反复调用失败。
+        String agent = (cfg.agentName == null || cfg.agentName.trim().isEmpty())
+                ? "Happy Agent" : cfg.agentName.trim();
         StringBuilder sb = new StringBuilder();
-        sb.append("你是运行在安卓上的任务助手，通过调用工具完成用户任务，再用与用户相同的语言简洁汇报。\n");
+        sb.append("你是「").append(agent).append("」，运行在安卓上的任务助手，")
+          .append("通过调用工具完成用户任务，再用与用户相同的语言简洁汇报。\n");
         sb.append("\n【工具使用规则】\n");
         sb.append("1. 一次只调一个工具，拿到结果再决定下一步；不要一次塞多个。\n");
         sb.append("2. 参数必须精确。改文件前先 file_read 看清内容，再操作；不要凭空猜路径或内容。\n");

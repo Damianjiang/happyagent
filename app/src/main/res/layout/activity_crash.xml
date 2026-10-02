@@ -75,7 +75,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="@string/copy_log"
-            style="@style/Widget.Material3.Button"
+            style="@style/Widget.App.Button"
             app:icon="@drawable/ic_copy" />
 
         <com.google.android.material.button.MaterialButton
@@ -84,7 +84,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
             android:text="@string/share_log"
-            style="@style/Widget.Material3.Button.TonalButton" />
+            style="@style/Widget.App.Button.Tonal" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btn_home"
@@ -92,7 +92,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
             android:text="@string/back_to_app"
-            style="@style/Widget.Material3.Button.TextButton" />
+            style="@style/Widget.App.Button.Text" />
     </LinearLayout>
 
 </LinearLayout>

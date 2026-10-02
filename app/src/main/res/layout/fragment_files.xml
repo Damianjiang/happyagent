@@ -35,7 +35,7 @@
             android:paddingRight="14dp"
             android:text="工作区"
             android:textSize="13sp"
-            style="@style/Widget.Material3.Button.TonalButton" />
+            style="@style/Widget.App.Button.Tonal" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/files_tab_saf"
@@ -47,7 +47,7 @@
             android:paddingRight="14dp"
             android:text="我的目录"
             android:textSize="13sp"
-            style="@style/Widget.Material3.Button.TextButton" />
+            style="@style/Widget.App.Button.Text" />
     </LinearLayout>
 
     <!-- ============ 工作区模式 ============ -->
@@ -69,7 +69,7 @@
             android:paddingRight="10dp"
             android:text="⬆"
             android:textSize="15sp"
-            style="@style/Widget.Material3.Button.TextButton" />
+            style="@style/Widget.App.Button.Text" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/files_ws_newfile"
@@ -81,7 +81,7 @@
             android:paddingRight="10dp"
             android:text="＋ 文件"
             android:textSize="13sp"
-            style="@style/Widget.Material3.Button.TextButton" />
+            style="@style/Widget.App.Button.Text" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/files_ws_newdir"
@@ -93,7 +93,7 @@
             android:paddingRight="10dp"
             android:text="＋ 目录"
             android:textSize="13sp"
-            style="@style/Widget.Material3.Button.TextButton" />
+            style="@style/Widget.App.Button.Text" />
     </LinearLayout>
 
     <EditText
@@ -188,7 +188,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="12dp"
                 android:text="选择文件夹"
-                style="@style/Widget.Material3.Button" />
+                style="@style/Widget.App.Button" />
         </LinearLayout>
     </com.google.android.material.card.MaterialCardView>
 
@@ -219,7 +219,7 @@
                 android:paddingRight="10dp"
                 android:text="⬆ 上级"
                 android:textSize="13sp"
-                style="@style/Widget.Material3.Button.TextButton" />
+                style="@style/Widget.App.Button.Text" />
 
             <TextView
                 android:id="@+id/files_saf_folder"

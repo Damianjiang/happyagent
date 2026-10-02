@@ -19,19 +19,21 @@
         android:layout_weight="1"
         android:gravity="center"
         android:padding="40dp"
-        android:text="@string/no_sessions_hint"
+        android:lineSpacingExtra="4dp"
+        android:text="还没有会话\n点下方按钮创建第一个"
+        android:textSize="14sp"
         android:textColor="?attr/colorOnSurfaceVariant"
         android:visibility="gone" />
 
     <com.google.android.material.button.MaterialButton
         android:id="@+id/sessions_create"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_horizontal"
         android:layout_margin="16dp"
         android:text="@string/create_first_session"
         android:visibility="gone"
-        style="@style/Widget.Material3.Button" />
+        style="@style/Widget.App.Button" />
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/sessions_recycler"

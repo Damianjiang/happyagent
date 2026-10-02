@@ -30,6 +30,7 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        ThemeUtil.apply(this);
         setContentView(R.layout.activity_main);
 
         nav = findViewById(R.id.bottom_nav);

@@ -31,6 +31,7 @@ public class FileEditorActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        ThemeUtil.apply(this);
         setContentView(R.layout.activity_file_editor);
 
         docId = getIntent().getStringExtra(EXTRA_DOC_ID);

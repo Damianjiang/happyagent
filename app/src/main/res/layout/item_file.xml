@@ -63,6 +63,6 @@
             android:contentDescription="操作"
             android:text="⋮"
             android:textSize="18sp"
-            style="@style/Widget.Material3.Button.TextButton" />
+            style="@style/Widget.App.Button.Text" />
     </LinearLayout>
 </com.google.android.material.card.MaterialCardView>
