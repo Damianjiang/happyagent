@@ -430,8 +430,8 @@ public final class AgentBackend {
         l.add(new Tool("tool.file", "文件", "读 / 写 / 列目录 / 信息 / 存在性 / 移动 / 复制 / 压缩 / 解压（沙箱路径校验）", true, "dev"));
         l.add(new Tool("tool.search", "查找 / 搜索", "按名找文件、在文件里搜关键词", true, "dev"));
         l.add(new Tool("tool.shell", "Shell 沙箱", "/system/bin/sh 白名单命令 + 超时", false, "dev"));
-        l.add(new Tool("tool.http", "HTTP 抓取", "抓取网页正文（限大小）", false, "net"));
-        l.add(new Tool("tool.text", "文本 / 数据处理", "base64、URL 编解码、JSON 取字段、大小写与字数统计", true, "dev"));
+        l.add(new Tool("tool.http", "HTTP 请求", "抓取网页 / 发 POST（可带 JSON 请求体）", false, "net"));
+        l.add(new Tool("tool.text", "文本 / 数据处理", "base64、URL 编解码、JSON 取字段、大小写统计、四则运算", true, "dev"));
         l.add(new Tool("tool.system", "设备状态", "设备 / 电池 / 存储 / 网络 / 剪贴板查询（只读）", true, "dev"));
         return l;
     }

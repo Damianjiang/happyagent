@@ -753,9 +753,9 @@ public final class ReactAgent {
         sb.append("文件：file_read 读 / file_write 整写 / file_edit 局部替换(old_text→new_text) / file_append 末尾追加 / "
                 + "file_list 列目录 / file_info 信息 / file_exists 存在性 / file_move 移动改名 / file_copy 复制 / "
                 + "file_zip 压缩 / file_unzip 解压 / file_find 按名找 / file_grep 搜关键词\n");
-        sb.append("文本：text_base64_encode/decode、text_url_encode/decode、text_json_get(按点路径取字段)、text_upper/lower、text_stats\n");
+        sb.append("文本：text_base64_encode/decode、text_url_encode/decode、text_json_get(按点路径取字段)、text_upper/lower、text_stats、text_calc(四则运算 3+4*2 这种)\n");
         sb.append("设备(只读)：system_device_info / system_battery / system_storage / system_network / system_clipboard_get / system_clipboard_set\n");
-        sb.append("其它：shell_exec(白名单命令) / http_get(抓网页) / time_now(当前时间)\n");
+        sb.append("其它：shell_exec(白名单命令) / http_get(抓网页) / http_post(发POST请求可带JSON体) / time_now(当前时间)\n");
         sb.append("\n完成所有工具调用后，用两三句话总结做了什么即可，别把工具原始输出整段贴回来。");
         return sb.toString();
     }
