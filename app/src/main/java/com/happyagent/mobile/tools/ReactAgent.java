@@ -30,27 +30,29 @@ public final class ReactAgent {
     private final Config cfg;
     private final FileTools fileTools;
     private final ShellExecutor shell;
+    private final SystemTools systemTools;
     private final List<Message> trace;
     private final TaskControl control;
-    // 启用的工具分组 key（来自工具页开关，如 tool.file/tool.search/tool.shell/tool.http）。
+    // 启用的工具分组 key（来自工具页开关，如 tool.file/tool.search/tool.shell/tool.http/tool.text/tool.system）。
     // null 表示全部启用（离线/未接工具页的场景）。
     private final Set<String> enabledTools;
     private List<Attachment> currentImages;
     private int callCounter;
 
-    public ReactAgent(Config cfg, FileTools ft, ShellExecutor se, List<Message> trace) {
-        this(cfg, ft, se, trace, new TaskControl(), null);
+    public ReactAgent(Config cfg, FileTools ft, ShellExecutor se, SystemTools st, List<Message> trace) {
+        this(cfg, ft, se, st, trace, new TaskControl(), null);
     }
 
-    public ReactAgent(Config cfg, FileTools ft, ShellExecutor se, List<Message> trace, TaskControl control) {
-        this(cfg, ft, se, trace, control, null);
+    public ReactAgent(Config cfg, FileTools ft, ShellExecutor se, SystemTools st, List<Message> trace, TaskControl control) {
+        this(cfg, ft, se, st, trace, control, null);
     }
 
-    public ReactAgent(Config cfg, FileTools ft, ShellExecutor se, List<Message> trace,
-                      TaskControl control, Set<String> enabledTools) {
+    public ReactAgent(Config cfg, FileTools ft, ShellExecutor se, SystemTools st,
+                      List<Message> trace, TaskControl control, Set<String> enabledTools) {
         this.cfg = cfg;
         this.fileTools = ft;
         this.shell = se;
+        this.systemTools = st;
         this.trace = trace;
         this.control = control;
         this.enabledTools = enabledTools;
@@ -177,6 +179,24 @@ public final class ReactAgent {
         }
         if (toolOn("tool.http")) {
             arr.put(fn("http_get", "抓取网页", schema("url", true)));
+        }
+        if (toolOn("tool.text")) {
+            arr.put(fn("text_base64_encode", "文本转 base64", schema("text", true)));
+            arr.put(fn("text_base64_decode", "base64 转文本", schema("text", true)));
+            arr.put(fn("text_url_encode", "URL 编码", schema("text", true)));
+            arr.put(fn("text_url_decode", "URL 解码", schema("text", true)));
+            arr.put(fn("text_json_get", "从 JSON 按点路径取字段", schema2("json", true, "path", false)));
+            arr.put(fn("text_upper", "转大写", schema("text", true)));
+            arr.put(fn("text_lower", "转小写", schema("text", true)));
+            arr.put(fn("text_stats", "统计字符/行/词", schema("text", true)));
+        }
+        if (toolOn("tool.system")) {
+            arr.put(fn("system_device_info", "设备概要(RAM/存储/网络/时间)", schema0()));
+            arr.put(fn("system_battery", "电池电量与充电状态", schema0()));
+            arr.put(fn("system_storage", "存储剩余/总量", schema0()));
+            arr.put(fn("system_network", "网络类型与连接状态", schema0()));
+            arr.put(fn("system_clipboard_get", "读剪贴板文本", schema0()));
+            arr.put(fn("system_clipboard_set", "写剪贴板文本", schema("text", true)));
         }
         // 时间工具始终可用（无副作用）
         arr.put(fn("time_now", "获取当前日期时间", schema0()));
@@ -326,8 +346,37 @@ public final class ReactAgent {
         if (toolOn("tool.http")) {
             decls.put(decl("http_get", "抓取网页", "url", new String[]{"url"}));
         }
+        if (toolOn("tool.text")) {
+            decls.put(decl("text_base64_encode", "文本转 base64", "text", new String[]{"text"}));
+            decls.put(decl("text_base64_decode", "base64 转文本", "text", new String[]{"text"}));
+            decls.put(decl("text_url_encode", "URL 编码", "text", new String[]{"text"}));
+            decls.put(decl("text_url_decode", "URL 解码", "text", new String[]{"text"}));
+            decls.put(declJsonGet("text_json_get", "从 JSON 按点路径取字段"));
+            decls.put(decl("text_upper", "转大写", "text", new String[]{"text"}));
+            decls.put(decl("text_lower", "转小写", "text", new String[]{"text"}));
+            decls.put(decl("text_stats", "统计字符/行/词", "text", new String[]{"text"}));
+        }
+        if (toolOn("tool.system")) {
+            decls.put(decl0("system_device_info", "设备概要(RAM/存储/网络/时间)"));
+            decls.put(decl0("system_battery", "电池电量与充电状态"));
+            decls.put(decl0("system_storage", "存储剩余/总量"));
+            decls.put(decl0("system_network", "网络类型与连接状态"));
+            decls.put(decl0("system_clipboard_get", "读剪贴板文本"));
+            decls.put(decl("system_clipboard_set", "写剪贴板文本", "text", new String[]{"text"}));
+        }
         decls.put(decl0("time_now", "获取当前日期时间"));
         return new JSONArray().put(new JSONObject().put("function_declarations", decls));
+    }
+
+    // JSON 取字段：json 必填、path 可选（取整个对象时省略）
+    private JSONObject declJsonGet(String name, String desc) throws Exception {
+        JSONObject props = new JSONObject();
+        props.put("json", new JSONObject().put("type", "string").put("description", "json"));
+        props.put("path", new JSONObject().put("type", "string").put("description", "path"));
+        JSONObject o = new JSONObject().put("type", "object").put("properties", props)
+                .put("required", new JSONArray().put("json"));
+        return new JSONObject().put("name", name).put("description", desc)
+                .put("parameters", o);
     }
 
     private JSONObject decl(String name, String desc, String p, String[] req) throws Exception {
@@ -456,8 +505,37 @@ public final class ReactAgent {
         if (toolOn("tool.http")) {
             arr.put(declA("http_get", "抓取网页", "url", true));
         }
+        if (toolOn("tool.text")) {
+            arr.put(declA("text_base64_encode", "文本转 base64", "text", true));
+            arr.put(declA("text_base64_decode", "base64 转文本", "text", true));
+            arr.put(declA("text_url_encode", "URL 编码", "text", true));
+            arr.put(declA("text_url_decode", "URL 解码", "text", true));
+            arr.put(declAJsonGet("text_json_get", "从 JSON 按点路径取字段"));
+            arr.put(declA("text_upper", "转大写", "text", true));
+            arr.put(declA("text_lower", "转小写", "text", true));
+            arr.put(declA("text_stats", "统计字符/行/词", "text", true));
+        }
+        if (toolOn("tool.system")) {
+            arr.put(declA0("system_device_info", "设备概要(RAM/存储/网络/时间)"));
+            arr.put(declA0("system_battery", "电池电量与充电状态"));
+            arr.put(declA0("system_storage", "存储剩余/总量"));
+            arr.put(declA0("system_network", "网络类型与连接状态"));
+            arr.put(declA0("system_clipboard_get", "读剪贴板文本"));
+            arr.put(declA("system_clipboard_set", "写剪贴板文本", "text", true));
+        }
         arr.put(declA0("time_now", "获取当前日期时间"));
         return arr;
+    }
+
+    // JSON 取字段：json 必填、path 可选（取整个对象时省略）
+    private JSONObject declAJsonGet(String name, String desc) throws Exception {
+        JSONObject props = new JSONObject();
+        props.put("json", new JSONObject().put("type", "string").put("description", "json"));
+        props.put("path", new JSONObject().put("type", "string").put("description", "path"));
+        JSONObject o = new JSONObject().put("type", "object").put("properties", props)
+                .put("required", new JSONArray().put("json"));
+        return new JSONObject().put("name", name).put("description", desc)
+                .put("input_schema", o);
     }
 
     private JSONObject declA0(String name, String desc) throws Exception {
@@ -567,7 +645,8 @@ public final class ReactAgent {
     }
 
     private String systemPrompt() {
-        return "你是一名 Android 上的 AI 助手，可调用文件工具（读写/列目录/信息/存在性/移动/复制/压缩/解压/查找/grep）、"
+        return "你是一名 Android 上的 AI 助手，可调用文件工具（读/写/列目录/信息/存在性/移动/复制/压缩/解压/查找/grep）、"
+                + "文本与数据处理（base64、URL 编解码、JSON 取字段、大小写、字数）、设备状态（电池/存储/网络/剪贴板/设备信息）、"
                 + "Shell 白名单命令、网页抓取、时间工具完成用户任务。"
                 + "需要时用工具，取到结果后继续；可以全部完成后，用与用户相同的语言简洁回答。";
     }
@@ -705,6 +784,20 @@ public final class ReactAgent {
                 {"time_now", "time", "now", "date", "datetime", "current_time"},
                 {"shell_exec", "shell", "exec", "execute", "run", "run_shell"},
                 {"http_get", "http", "fetch", "download", "get_url", "web"},
+                {"text_base64_encode", "base64_encode", "b64encode", "to_base64"},
+                {"text_base64_decode", "base64_decode", "b64decode", "from_base64"},
+                {"text_url_encode", "url_encode", "urlencode", "encode_uri"},
+                {"text_url_decode", "url_decode", "urldecode", "decode_uri"},
+                {"text_json_get", "json_get", "json_path", "pick_json"},
+                {"text_upper", "uppercase", "upper", "to_upper"},
+                {"text_lower", "lowercase", "lower", "to_lower"},
+                {"text_stats", "text_length", "count_words", "word_count"},
+                {"system_device_info", "device_info", "device", "hardware", "get_device"},
+                {"system_battery", "battery", "battery_level", "batterylevel"},
+                {"system_storage", "storage", "storage_info", "disk"},
+                {"system_network", "network", "network_info", "connection"},
+                {"system_clipboard_get", "clipboard", "clipboard_get", "read_clipboard"},
+                {"system_clipboard_set", "clipboard_set", "set_clipboard", "copy_to_clipboard"},
         };
         for (String[] group : aliasMap) {
             for (String alias : group) {
@@ -735,6 +828,22 @@ public final class ReactAgent {
                 return "tool.shell";
             case "http_get":
                 return "tool.http";
+            case "text_base64_encode":
+            case "text_base64_decode":
+            case "text_url_encode":
+            case "text_url_decode":
+            case "text_json_get":
+            case "text_upper":
+            case "text_lower":
+            case "text_stats":
+                return "tool.text";
+            case "system_device_info":
+            case "system_battery":
+            case "system_storage":
+            case "system_network":
+            case "system_clipboard_get":
+            case "system_clipboard_set":
+                return "tool.system";
             case "time_now":
                 return "";   // 时间工具无副作用，始终可用，不受工具页开关门控
             default:
@@ -816,8 +925,49 @@ public final class ReactAgent {
                     if (u.isEmpty()) return "缺 'url'。示例 {\"url\":\"https://example.com\"}。";
                     return httpGet(u);
                 }
+                case "text_base64_encode": {
+                    String t = str(args, "text", "input", "data");
+                    if (t.isEmpty()) return "缺 'text'。";
+                    return TextTools.base64Encode(t);
+                }
+                case "text_base64_decode": {
+                    String t = str(args, "text", "input", "data");
+                    if (t.isEmpty()) return "缺 'text'（base64 串）。";
+                    return TextTools.base64Decode(t);
+                }
+                case "text_url_encode":
+                    return TextTools.urlEncode(str(args, "text", "input"));
+                case "text_url_decode":
+                    return TextTools.urlDecode(str(args, "text", "input"));
+                case "text_json_get": {
+                    String json = str(args, "json", "text", "input");
+                    if (json.isEmpty()) return "缺 'json'。";
+                    return TextTools.jsonGet(json, str(args, "path", "pointer"));
+                }
+                case "text_upper":
+                    return TextTools.toUpperCase(str(args, "text", "input"));
+                case "text_lower":
+                    return TextTools.toLowerCase(str(args, "text", "input"));
+                case "text_stats":
+                    return TextTools.textStats(str(args, "text", "input"));
+                case "system_device_info":
+                    return systemTools.deviceInfo();
+                case "system_battery":
+                    return systemTools.batteryStatus();
+                case "system_storage":
+                    return systemTools.storageInfo();
+                case "system_network":
+                    return systemTools.networkInfo();
+                case "system_clipboard_get":
+                    return systemTools.clipboardGet();
+                case "system_clipboard_set": {
+                    String t = str(args, "text", "input");
+                    return systemTools.clipboardSet(t);
+                }
                 default:
-                    return "未知工具 '" + name + "'。可用：file_read, file_write, file_list, file_info, file_exists, file_move, file_copy, file_zip, file_unzip, file_find, file_grep, shell_exec, http_get, time_now。";
+                    return "未知工具 '" + name + "'。可用：file_read, file_write, file_list, file_info, file_exists, file_move, file_copy, file_zip, file_unzip, file_find, file_grep, shell_exec, http_get, "
+                            + "text_base64_encode, text_base64_decode, text_url_encode, text_url_decode, text_json_get, text_upper, text_lower, text_stats, "
+                            + "system_device_info, system_battery, system_storage, system_network, system_clipboard_get, system_clipboard_set, time_now。";
             }
         } catch (Exception e) {
             return "工具出错: " + e.getMessage();

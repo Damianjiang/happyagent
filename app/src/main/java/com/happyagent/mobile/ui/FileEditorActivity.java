@@ -15,7 +15,7 @@ import com.happyagent.mobile.data.StorageAccess;
 import com.happyagent.mobile.tools.FileTools;
 
 // 文本编辑器：两种来源——工作区文件（绝对路径，java.io 直读直写）与 SAF 文件（docId，经 ContentResolver）。
-// 工作区文件支持"新建"（路径不存在时保存即创建），编辑器不再是打不开的入口。
+// 工作区文件支持新建：路径不存在时保存即创建。
 public class FileEditorActivity extends AppCompatActivity {
 
     public static final String EXTRA_DOC_ID = "doc_id";

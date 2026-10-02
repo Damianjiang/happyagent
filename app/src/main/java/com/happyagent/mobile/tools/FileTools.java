@@ -46,7 +46,7 @@ public final class FileTools {
         seed();
     }
 
-    // 幂等：首次给 workspace 种一个引导文件，文件页/编辑器打开即有内容，不再是空界面
+    // 首次进入时建一个 WELCOME.txt，让文件页一开始就有内容可看
     private void seed() {
         if (seeded) return;
         synchronized (FileTools.class) {
@@ -59,13 +59,13 @@ public final class FileTools {
                     w.write("Happy Agent 工作区\n"
                             + "================\n"
                             + "\n"
-                            + "这里是 app 的文件工作区，你随时可以：\n"
-                            + "  - 浏览 / 新建 / 编辑 / 复制 / 移动 / 删除 文件\n"
-                            + "  - 把整包 压缩(zip) 或 解压(unzip)\n"
-                            + "  - 在工作区里 搜索 文件\n"
-                            + "  - 把任意文件 发给智能体 让它处理\n"
+                            + "目录说明：\n"
+                            + "  - 浏览 / 新建 / 编辑 / 复制 / 移动 / 删除文件与目录\n"
+                            + "  - 压缩(zip) / 解压(unzip)\n"
+                            + "  - 按文件名搜索\n"
+                            + "  - 把文件发给智能体处理\n"
                             + "\n"
-                            + "智能体的 file_read / file_write 等工具也作用在这个目录（沙箱校验）。\n");
+                            + "智能体的 file_read / file_write 等工具作用在本目录（沙箱校验）。\n");
                     w.close();
                 } catch (Exception e) {
                     Log.e(TAG, "seed", e);
@@ -350,7 +350,7 @@ public final class FileTools {
         return f.getName() + (f.isDirectory() ? " [dir]" : " [file " + f.length() + " bytes]");
     }
 
-    // ---- 文件系统操作（参考 operit 扩展文件工具）：源/目标都做沙箱校验 ----
+    // ---- 文件操作：源和目标都先过沙箱校验 ----
 
     public String exists(String path) {
         File f = resolveSafe(path);

@@ -32,8 +32,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
-// 文件管理器：双来源——「工作区」(app 私有目录，开箱即有内容，可增删改/压缩/解压/搜索/发给智能体)
-// 与「我的目录」(SAF 授权，浏览并把你自己的文件发给智能体)。默认进工作区，不再有空界面。
+// 文件管理器：两个来源——「工作区」是 app 私有目录，可增删改/压缩/解压/搜索/发给智能体；
+// 「我的目录」走 SAF 授权，浏览并把你自己的文件发给智能体。默认停在「工作区」。
 public class FilesFragment extends Fragment {
 
     private static final int RC_PICK_FOLDER = 1;
@@ -115,7 +115,7 @@ public class FilesFragment extends Fragment {
         v.findViewById(R.id.files_choose_folder).setOnClickListener(x -> pickFolder());
         v.findViewById(R.id.files_saf_up).setOnClickListener(x -> safUp());
 
-        // 默认进工作区（恒有内容）
+        // 默认停在「工作区」
         switchTo(MODE_WS);
         return v;
     }

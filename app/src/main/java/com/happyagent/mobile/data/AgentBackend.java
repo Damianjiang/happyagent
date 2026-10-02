@@ -11,6 +11,7 @@ import com.happyagent.mobile.model.Models.Tool;
 import com.happyagent.mobile.tools.FileTools;
 import com.happyagent.mobile.tools.ReactAgent;
 import com.happyagent.mobile.tools.ShellExecutor;
+import com.happyagent.mobile.tools.SystemTools;
 import com.happyagent.mobile.tools.TaskControl;
 
 import java.io.File;
@@ -166,6 +167,7 @@ public final class AgentBackend {
                     ReactAgent agent = new ReactAgent(getConfig(),
                             new FileTools(HappyAgentApplication.get()),
                             new ShellExecutor(HappyAgentApplication.get()),
+                            new SystemTools(HappyAgentApplication.get()),
                             trace, control, getEnabledToolKeys());
                     final String summary = agent.run(prompt, history, atts);
                     // 被取消/停止时，只记用户输入 + 已发生的工具步骤 + 停止说明，不标完成
@@ -234,6 +236,7 @@ public final class AgentBackend {
             ReactAgent agent = new ReactAgent(getConfig(),
                     new FileTools(HappyAgentApplication.get()),
                     new ShellExecutor(HappyAgentApplication.get()),
+                    new SystemTools(HappyAgentApplication.get()),
                     trace, control, getEnabledToolKeys());
             String summary = agent.run(prompt, history,
                     new ArrayList<com.happyagent.mobile.model.Models.Attachment>());
@@ -409,6 +412,7 @@ public final class AgentBackend {
                 sessions = st.sessions;
                 tools = st.tools;
                 config = st.config;
+                mergeDefaultTools();   // 老存档补齐新增的工具分组
                 Log.d(TAG, "loaded state from disk");
                 return;
             } catch (Exception e) {
@@ -420,14 +424,27 @@ public final class AgentBackend {
         config = new Config();
     }
 
-    // 默认工具集 = 引擎真实支持的 4 组；每项开关都真正门控 agent 可用工具
+    // 默认工具集：每组对应引擎里一批工具，开关真正门控 agent 能调哪些
     private List<Tool> defaultTools() {
         List<Tool> l = new ArrayList<Tool>();
         l.add(new Tool("tool.file", "文件", "读 / 写 / 列目录 / 信息 / 存在性 / 移动 / 复制 / 压缩 / 解压（沙箱路径校验）", true, "dev"));
         l.add(new Tool("tool.search", "查找 / 搜索", "按名找文件、在文件里搜关键词", true, "dev"));
         l.add(new Tool("tool.shell", "Shell 沙箱", "/system/bin/sh 白名单命令 + 超时", false, "dev"));
         l.add(new Tool("tool.http", "HTTP 抓取", "抓取网页正文（限大小）", false, "net"));
+        l.add(new Tool("tool.text", "文本 / 数据处理", "base64、URL 编解码、JSON 取字段、大小写与字数统计", true, "dev"));
+        l.add(new Tool("tool.system", "设备状态", "设备 / 电池 / 存储 / 网络 / 剪贴板查询（只读）", true, "dev"));
         return l;
+    }
+
+    // 老存档只有早期几组；升级后把缺失的分组补上，开关默认开启
+    private void mergeDefaultTools() {
+        for (Tool t : defaultTools()) {
+            boolean found = false;
+            for (Tool x : tools) {
+                if (t.id.equals(x.id)) { found = true; break; }
+            }
+            if (!found) tools.add(t);
+        }
     }
 
     // 存档用的纯数据壳（类名/字段名被 R8 keep 住，计算出的 serialVersionUID 因此跨版本稳定，老存档可继续读）
