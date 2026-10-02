@@ -26,6 +26,8 @@ public final class ReactAgent {
     private static final int HISTORY_WINDOW = 12;
     private static final int CONNECT_TIMEOUT = 30000;
     private static final int READ_TIMEOUT = 120000;
+    // 单张图 base64 前原始字节上限（约 4MB 原始 → base64 后 ~5.3MB）。老机多图同发不至于把堆撑爆。
+    private static final int MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 
     private final Config cfg;
     private final FileTools fileTools;
@@ -182,6 +184,7 @@ public final class ReactAgent {
         }
         if (toolOn("tool.http")) {
             arr.put(fn("http_get", "抓取网页", schema("url", true)));
+            arr.put(fn("http_post", "向 URL 发 POST 请求（可带请求体）", schemaPost()));
         }
         if (toolOn("tool.text")) {
             arr.put(fn("text_base64_encode", "文本转 base64", schema("text", true)));
@@ -192,6 +195,7 @@ public final class ReactAgent {
             arr.put(fn("text_upper", "转大写", schema("text", true)));
             arr.put(fn("text_lower", "转小写", schema("text", true)));
             arr.put(fn("text_stats", "统计字符/行/词", schema("text", true)));
+            arr.put(fn("text_calc", "四则运算（+ - * / % 括号）", schema("text", true)));
         }
         if (toolOn("tool.system")) {
             arr.put(fn("system_device_info", "设备概要(RAM/存储/网络/时间)", schema0()));
@@ -233,6 +237,17 @@ public final class ReactAgent {
         if (r2) req.put(p2);
         JSONObject o = new JSONObject().put("type", "object").put("properties", props);
         if (req.length() > 0) o.put("required", req);
+        return o;
+    }
+
+    // http_post：url 必填，body 可选
+    private JSONObject schemaPost() throws Exception {
+        JSONObject props = new JSONObject();
+        props.put("url", new JSONObject().put("type", "string").put("description", "url"));
+        props.put("body", new JSONObject().put("type", "string")
+                .put("description", "可选请求体（按 application/json 发送）"));
+        JSONObject o = new JSONObject().put("type", "object").put("properties", props)
+                .put("required", new JSONArray().put("url"));
         return o;
     }
 
@@ -366,6 +381,7 @@ public final class ReactAgent {
         }
         if (toolOn("tool.http")) {
             decls.put(decl("http_get", "抓取网页", "url", new String[]{"url"}));
+            decls.put(declPost("http_post", "向 URL 发 POST 请求（可带请求体）"));
         }
         if (toolOn("tool.text")) {
             decls.put(decl("text_base64_encode", "文本转 base64", "text", new String[]{"text"}));
@@ -376,6 +392,7 @@ public final class ReactAgent {
             decls.put(decl("text_upper", "转大写", "text", new String[]{"text"}));
             decls.put(decl("text_lower", "转小写", "text", new String[]{"text"}));
             decls.put(decl("text_stats", "统计字符/行/词", "text", new String[]{"text"}));
+            decls.put(decl("text_calc", "四则运算（+ - * / % 括号）", "text", new String[]{"text"}));
         }
         if (toolOn("tool.system")) {
             decls.put(decl0("system_device_info", "设备概要(RAM/存储/网络/时间)"));
@@ -398,6 +415,18 @@ public final class ReactAgent {
         props.put("replace_count", new JSONObject().put("type", "number").put("description", "可选，只替换前 N 处"));
         JSONObject o = new JSONObject().put("type", "object").put("properties", props)
                 .put("required", new JSONArray().put("path").put("old_text").put("new_text"));
+        return new JSONObject().put("name", name).put("description", desc)
+                .put("parameters", o);
+    }
+
+    // http_post：url 必填，body 可选
+    private JSONObject declPost(String name, String desc) throws Exception {
+        JSONObject props = new JSONObject();
+        props.put("url", new JSONObject().put("type", "string").put("description", "url"));
+        props.put("body", new JSONObject().put("type", "string")
+                .put("description", "可选请求体（按 application/json 发送）"));
+        JSONObject o = new JSONObject().put("type", "object").put("properties", props)
+                .put("required", new JSONArray().put("url"));
         return new JSONObject().put("name", name).put("description", desc)
                 .put("parameters", o);
     }
@@ -540,6 +569,7 @@ public final class ReactAgent {
         }
         if (toolOn("tool.http")) {
             arr.put(declA("http_get", "抓取网页", "url", true));
+            arr.put(declAPost("http_post", "向 URL 发 POST 请求（可带请求体）"));
         }
         if (toolOn("tool.text")) {
             arr.put(declA("text_base64_encode", "文本转 base64", "text", true));
@@ -550,6 +580,7 @@ public final class ReactAgent {
             arr.put(declA("text_upper", "转大写", "text", true));
             arr.put(declA("text_lower", "转小写", "text", true));
             arr.put(declA("text_stats", "统计字符/行/词", "text", true));
+            arr.put(declA("text_calc", "四则运算（+ - * / % 括号）", "text", true));
         }
         if (toolOn("tool.system")) {
             arr.put(declA0("system_device_info", "设备概要(RAM/存储/网络/时间)"));
@@ -572,6 +603,18 @@ public final class ReactAgent {
         props.put("replace_count", new JSONObject().put("type", "number").put("description", "可选，只替换前 N 处"));
         JSONObject o = new JSONObject().put("type", "object").put("properties", props)
                 .put("required", new JSONArray().put("path").put("old_text").put("new_text"));
+        return new JSONObject().put("name", name).put("description", desc)
+                .put("input_schema", o);
+    }
+
+    // http_post：url 必填，body 可选
+    private JSONObject declAPost(String name, String desc) throws Exception {
+        JSONObject props = new JSONObject();
+        props.put("url", new JSONObject().put("type", "string").put("description", "url"));
+        props.put("body", new JSONObject().put("type", "string")
+                .put("description", "可选请求体（按 application/json 发送）"));
+        JSONObject o = new JSONObject().put("type", "object").put("properties", props)
+                .put("required", new JSONArray().put("url"));
         return new JSONObject().put("name", name).put("description", desc)
                 .put("input_schema", o);
     }
@@ -823,7 +866,14 @@ public final class ReactAgent {
             byte[] buf = new byte[65536];
             ByteArrayOutputStream bo = new ByteArrayOutputStream();
             int n;
-            while ((n = fis.read(buf)) != -1) bo.write(buf, 0, n);
+            // 内存上限：老机（尤其 6 台 2/3GB）多图同发时防 OOM，超上限就不带这张图
+            while ((n = fis.read(buf)) != -1) {
+                if (bo.size() > MAX_IMAGE_BYTES) {
+                    fis.close();
+                    return null;
+                }
+                bo.write(buf, 0, n);
+            }
             fis.close();
             return android.util.Base64.encodeToString(bo.toByteArray(), android.util.Base64.NO_WRAP);
         } catch (Exception e) {
@@ -851,7 +901,10 @@ public final class ReactAgent {
                 {"file_append", "append", "append_file", "add_to_file", "add_line", "write_line"},
                 {"time_now", "time", "now", "date", "datetime", "current_time"},
                 {"shell_exec", "shell", "exec", "execute", "run", "run_shell"},
+                // http_post 组必须在 http_get 前：否则 "http_post" 会被 http_get 的短别名 "http" 误判
+                {"http_post", "post", "post_request", "post_url", "api_call", "request"},
                 {"http_get", "http", "fetch", "download", "get_url", "web"},
+                {"text_calc", "calc", "calculator", "evaluate", "math", "arithmetic", "expression"},
                 {"text_base64_encode", "base64_encode", "b64encode", "to_base64"},
                 {"text_base64_decode", "base64_decode", "b64decode", "from_base64"},
                 {"text_url_encode", "url_encode", "urlencode", "encode_uri"},
@@ -897,6 +950,7 @@ public final class ReactAgent {
             case "shell_exec":
                 return "tool.shell";
             case "http_get":
+            case "http_post":
                 return "tool.http";
             case "text_base64_encode":
             case "text_base64_decode":
@@ -906,6 +960,7 @@ public final class ReactAgent {
             case "text_upper":
             case "text_lower":
             case "text_stats":
+            case "text_calc":
                 return "tool.text";
             case "system_device_info":
             case "system_battery":
@@ -1012,6 +1067,11 @@ public final class ReactAgent {
                     if (u.isEmpty()) return "缺 'url'。示例 {\"url\":\"https://example.com\"}。";
                     return httpGet(u);
                 }
+                case "http_post": {
+                    String u = str(args, "url", "path");
+                    if (u.isEmpty()) return "缺 'url'。示例 {\"url\":\"https://api.example.com\",\"body\":\"{...}\"}。";
+                    return httpPost(u, str(args, "body", "data", "payload"));
+                }
                 case "text_base64_encode": {
                     String t = str(args, "text", "input", "data");
                     if (t.isEmpty()) return "缺 'text'。";
@@ -1037,6 +1097,11 @@ public final class ReactAgent {
                     return TextTools.toLowerCase(str(args, "text", "input"));
                 case "text_stats":
                     return TextTools.textStats(str(args, "text", "input"));
+                case "text_calc": {
+                    String e = str(args, "text", "expr", "expression", "input");
+                    if (e.isEmpty()) return "缺 'text'（表达式，如 3+4*2）。";
+                    return TextTools.calc(e);
+                }
                 case "system_device_info":
                     return systemTools.deviceInfo();
                 case "system_battery":
@@ -1052,8 +1117,9 @@ public final class ReactAgent {
                     return systemTools.clipboardSet(t);
                 }
                 default:
-                    return "未知工具 '" + name + "'。可用：file_read, file_write, file_list, file_info, file_exists, file_move, file_copy, file_zip, file_unzip, file_find, file_grep, shell_exec, http_get, "
-                            + "text_base64_encode, text_base64_decode, text_url_encode, text_url_decode, text_json_get, text_upper, text_lower, text_stats, "
+                    return "未知工具 '" + name + "'。可用：file_read, file_write, file_list, file_info, file_exists, file_move, file_copy, file_zip, file_unzip, "
+                            + "file_edit, file_append, file_find, file_grep, shell_exec, http_get, http_post, "
+                            + "text_base64_encode, text_base64_decode, text_url_encode, text_url_decode, text_json_get, text_upper, text_lower, text_stats, text_calc, "
                             + "system_device_info, system_battery, system_storage, system_network, system_clipboard_get, system_clipboard_set, time_now。";
             }
         } catch (Exception e) {
@@ -1105,6 +1171,39 @@ public final class ReactAgent {
             return "HTTP " + code + ": " + body.substring(0, Math.min(4096, body.length()));
         } catch (Exception e) {
             return "http 出错: " + e.getMessage();
+        }
+    }
+
+    // POST：可带请求体（按 application/json 发送）；空 body 则不带
+    private String httpPost(String url, String body) {
+        HttpURLConnection conn = null;
+        try {
+            conn = (HttpURLConnection) new URL(url).openConnection();
+            conn.setRequestMethod("POST");
+            conn.setDoOutput(true);
+            conn.setConnectTimeout(10000);
+            conn.setReadTimeout(15000);
+            conn.setRequestProperty("Content-Type", "application/json");
+            if (body != null && body.length() > 0) {
+                OutputStream os = conn.getOutputStream();
+                os.write(body.getBytes(StandardCharsets.UTF_8));
+                os.flush();
+                os.close();
+            }
+            int code = conn.getResponseCode();
+            InputStream is = (code >= 200 && code < 400) ? conn.getInputStream() : conn.getErrorStream();
+            ByteArrayOutputStream bo = new ByteArrayOutputStream();
+            byte[] buf = new byte[8192];
+            int n;
+            while (is != null && (n = is.read(buf)) != -1 && bo.size() < 65536) bo.write(buf, 0, n);
+            if (is != null) is.close();
+            conn.disconnect();
+            String respBody = new String(bo.toByteArray(), StandardCharsets.UTF_8);
+            return "HTTP " + code + ": " + respBody.substring(0, Math.min(4096, respBody.length()));
+        } catch (Exception e) {
+            return "http 出错: " + e.getMessage();
+        } finally {
+            if (conn != null) conn.disconnect();
         }
     }
 

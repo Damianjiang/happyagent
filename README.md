@@ -22,9 +22,10 @@
 | 多步 ReAct agent | 模型驱动 think→act→observe 最多 10 步 | 需要填对应 Key |
 | 任务暂停 / 继续 / 取消 | 聊天页控制条，随时叫停 agent 正在跑的步骤 | 否（控制本身） |
 | 真实文件工具 | 读/写/列目录/找文件/grep/文件信息/存在性/移动(重命名)/复制/压缩(zip)/解压(unzip)/**局部替换 file_edit(old_text→new_text)**/**末尾追加 file_append**，相对路径自动落到工作区，带沙箱校验 | 否（工具本身） |
-| 文本 / 数据处理 | base64 编解码、URL 编解码、按点路径取 JSON 字段、转大写/小写、统计字符/行/词 | 否 |
+| 文本 / 数据处理 | base64 编解码、URL 编解码、按点路径取 JSON 字段、转大写/小写、统计字符/行/词、**四则运算求值** | 否 |
 | 设备状态（只读） | 设备概要(RAM/存储/网络/时间)、电池、存储、网络、剪贴板读/写 | 否 |
 | 时间工具 | 获取当前日期时间（无副作用，始终可用） | 否 |
+| Web 请求 | `http_get` 抓取网页 / `http_post` 发 POST（可带 JSON 请求体），带状态码 + 截断响应 | 否（工具本身）；真调接口需对应 Key |
 | Shell 沙箱 | `/system/bin/sh` 白名单命令 + 超时，proot/Termux 探测 | 否 |
 | 工具 / 插件开关 | 行内即时生效，影响任务调用哪些工具 | 否 |
 | 运行配置 | 供应商 / 模型 / 温度 / max token / 自动提交 / 工作区 / 各家 Key / Base URL | 否 |
@@ -80,7 +81,7 @@ app/src/main/java/com/happyagent/mobile/
 │  ├─ ReactAgent.java           多步 agent 循环 + 工具参数校验/补齐 + 供应商适配 + 协作式取消
 │  ├─ TaskControl.java          任务级 暂停/继续/取消 标志
 │  ├─ FileTools.java            文件工具（读/写/列/信息/存在/移动/复制/压缩/解压/局部替换 edit/追加 append；相对路径锚定工作区，沙箱校验 + zip 越界防护）
-│  ├─ TextTools.java            文本/数据处理（base64、URL 编解码、JSON 取字段、大小写、统计）
+│  ├─ TextTools.java            文本/数据处理（base64、URL 编解码、JSON 取字段、大小写、统计、四则运算）
 │  ├─ SystemTools.java          设备状态只读（设备/电池/存储/网络/剪贴板）
 │  └─ ShellExecutor.java        Shell 沙箱 + proot 探测（API23 安全）
 ├─ service/WebUiService.java    本地 HTTP Web 服务（ServerSocket，API23）+ 前台通知 + 内网/外网 IP 端口
@@ -136,7 +137,9 @@ minSdk=23（API 23），逐类核对过会撞版本的项，均已在代码/构�
 | 文件访问（SAF） | 用 `DocumentsContract` 的 API 19 方法（`buildChildDocumentsUri(authority, …)` / `buildDocumentUri(authority, …)` / `getDocumentId`），**不**用 API 26 的 `getRootDocumentId`/`buildChildDocumentsUriUsingType`/`getDisplayName`；`FLAG_DIR` 用字面量 2；`Collections.sort` 而非 `List.sort`（API 24）。授权走系统文档选择器，不碰 `READ/WRITE_EXTERNAL_STORAGE`（SAF 不依赖） |
 | 连接自愈（LLM 重试） | `ReactAgent.postRetry` 对临时错误（超时 / 429 / 5xx）自动退避重连：前 3 次各等 1s、之后每次 2s，等待用分段 `Thread.sleep`（API 1）并随时响应取消；确定性 4xx（401/400/404）不重试直接失败。无高版本 API 依赖 |
 | 文件操作工具（move/copy/zip/unzip/exists/time） | 全部走 `java.io.File`（流拷贝、递归）、`java.util.zip`（`ZipOutputStream`/`ZipInputStream`，API 1）与 `java.text.SimpleDateFormat`（API 1）；解压做了"沙箱越界"校验（`getCanonicalFile` + 前缀比对）防 zip 滑出。无 `java.nio.file`、无高版本 API |
-| 文本/设备工具（text_* / system_*） | base64 用 `android.util.Base64`（API 8）、URL 用 `java.net.URLEncoder/Decoder`、JSON 用 `org.json`、大小写/统计用 `java.lang.String`；设备查询走 `Build`/`BatteryManager`/`StatFs`/`ConnectivityManager.getActiveNetwork()`（API 23）/`ClipboardManager`，均为老 API，无 `java.nio.file` |
+| 文本/设备工具（text_* / system_*） | base64 用 `android.util.Base64`（API 8）、URL 用 `java.net.URLEncoder/Decoder`、JSON 用 `org.json`、大小写/统计用 `java.lang.String`；四则运算 `text_calc` 是纯 `java.lang` 的递归下降解析器（只接受数字/运算符/括号）；设备查询走 `Build`/`BatteryManager`/`StatFs`/`ConnectivityManager.getActiveNetwork()`（API 23）/`ClipboardManager`，均为老 API，无 `java.nio.file` |
+| Web 请求工具（http_get / http_post） | 走 `java.net.HttpURLConnection`（API 1）；`http_post` 用 `setRequestMethod("POST")` + `getOutputStream()` 写请求体，读响应时 4xx/5xx 走 `getErrorStream()`；均限 64KB 防撑爆 |
+| 性能（老机） | `ShellExecutor` 用**全应用共享的 4 线程池**（不再每条命令新建 3 线程池）；`ReactAgent.readImageBase64` 单张图超 **4MB** 原始字节即跳过，防多图同发 OOM |
 
 三家模型接口（OpenAI `/chat/completions`、Google `generateContent`、Anthropic `/v1/messages`）走 `HttpURLConnection` + `org.json`，纯 JDK/标准库，无运行时版本依赖；请求/响应格式按各家官方文档逐一核对过。
 

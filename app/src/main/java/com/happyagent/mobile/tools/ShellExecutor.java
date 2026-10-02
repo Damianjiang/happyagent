@@ -29,6 +29,9 @@ public final class ShellExecutor {
 
     private final Context ctx;
 
+    // 共享线程池：所有 ShellExecutor 实例/每次 exec 复用同一个，不为每条命令新建 3 个线程
+    private static final ExecutorService POOL = Executors.newFixedThreadPool(4);
+
     public ShellExecutor(Context context) {
         this.ctx = context.getApplicationContext();
     }
@@ -75,12 +78,11 @@ public final class ShellExecutor {
             return "exec failed: " + e.getMessage() + "\n" + detectProot();
         }
 
-        // 并发读 stdout/stderr + 并发等结束，三件事丢一个线程池
-        ExecutorService pool = Executors.newFixedThreadPool(3);
+        // 并发读 stdout/stderr + 并发等结束，丢共享池（不为每条命令新建线程）
         final Process p = proc;
-        final Future<String> fOut = pool.submit(() -> readLimited(p.getInputStream()));
-        final Future<String> fErr = pool.submit(() -> readLimited(p.getErrorStream()));
-        final Future<Boolean> fDone = pool.submit(new java.util.concurrent.Callable<Boolean>() {
+        final Future<String> fOut = POOL.submit(() -> readLimited(p.getInputStream()));
+        final Future<String> fErr = POOL.submit(() -> readLimited(p.getErrorStream()));
+        final Future<Boolean> fDone = POOL.submit(new java.util.concurrent.Callable<Boolean>() {
             @Override
             public Boolean call() {
                 try {
@@ -104,8 +106,7 @@ public final class ShellExecutor {
 
         String stdout = safeGet(fOut, 5000);
         String stderr = safeGet(fErr, 5000);
-        pool.shutdownNow();
-
+        // 池不关（共享的），只把进程收尾
         if (!done) {
             p.destroy();   // API 1，无 destroyForcibly（那是 API 26）
             return "timeout after " + timeoutMs + "ms\n" + (stdout == null ? "" : stdout);

@@ -110,4 +110,98 @@ public final class TextTools {
         if (inWord) words++;
         return "字符 " + chars + "，行 " + lines + "，词 " + words;
     }
+
+    // 算术求值：只支持数字、+ - * / % 与括号（四则+取模），不支持变量/函数，防注入。
+    // 弱模型算数不可靠，给它一个确定性计算器。
+    public static String calc(String expr) {
+        if (expr == null || expr.trim().isEmpty()) return "空表达式";
+        try {
+            double v = parseExpr(expr.trim());
+            if (v == Math.floor(v) && !Double.isInfinite(v)) {
+                long li = (long) v;
+                return String.valueOf(li);
+            }
+            return String.valueOf(v);
+        } catch (Exception e) {
+            return "无法计算: " + expr;
+        }
+    }
+
+    private static double parseExpr(String s) {
+        Parser p = new Parser(s);
+        double v = p.additive();
+        p.skip();
+        if (!p.eof()) throw new RuntimeException("多余字符: '" + p.peek() + "'");
+        return v;
+    }
+
+    // 递归下降：additive → additive (±) multiplicative；multiplicative → mul (/) unary；unary → ± unary | atom；atom → 数字 | ( additive )
+    private static final class Parser {
+        private final String s;
+        private int i;
+
+        Parser(String s) {
+            this.s = s;
+        }
+
+        boolean eof() {
+            skip();
+            return i >= s.length();
+        }
+
+        char peek() {
+            return i < s.length() ? s.charAt(i) : ' ';
+        }
+
+        void skip() {
+            while (i < s.length() && Character.isWhitespace(s.charAt(i))) i++;
+        }
+
+        boolean eat(char c) {
+            skip();
+            if (i < s.length() && s.charAt(i) == c) { i++; return true; }
+            return false;
+        }
+
+        double additive() {
+            double v = multiplicative();
+            while (true) {
+                char c = peek();
+                if (c == '+' && eat('+')) v += multiplicative();
+                else if (c == '-' && eat('-')) v -= multiplicative();
+                else return v;
+            }
+        }
+
+        double multiplicative() {
+            double v = unary();
+            while (true) {
+                char c = peek();
+                if (c == '*' && eat('*')) v *= unary();
+                else if (c == '/' && eat('/')) v /= unary();
+                else if (c == '%' && eat('%')) v %= unary();
+                else return v;
+            }
+        }
+
+        double unary() {
+            char c = peek();
+            if (c == '+' && eat('+')) return unary();
+            if (c == '-' && eat('-')) return -unary();
+            return atom();
+        }
+
+        double atom() {
+            if (eat('(')) {
+                double v = additive();
+                if (!eat(')')) throw new RuntimeException("缺少右括号");
+                return v;
+            }
+            skip();
+            int start = i;
+            while (i < s.length() && (Character.isDigit(s.charAt(i)) || s.charAt(i) == '.')) i++;
+            if (start == i) throw new RuntimeException("期望数字");
+            return Double.parseDouble(s.substring(start, i));
+        }
+    }
 }

@@ -1,0 +1,25 @@
+# Happy Agent 1.7
+
+本次为**兼容体检 + 性能修复 + 补两个端侧真工具**。
+
+## 安卓 6（API 23）兼容体检
+全仓逐项扫过会撞高版本 API 的点，结论是**当前没有会在 API 23 崩的调用**：
+- 无 `java.nio.file`、无 Stream、无 `List.of/Map.of`、无 `Optional`、无 `String.repeat`、无 `java.time`；文件/流全走 `java.io` / `java.util.zip`（API 1~23）。
+- 前台通知 `NotificationChannel`（API 26）、`startForegroundService`（API 26）、`stopForeground(int)`（API 33）、`PendingIntent.FLAG_IMMUTABLE`（API 31）都已做版本分支，低版本走旧签名。
+- 剪贴板/电池/存储/网络/设备信息（`SystemTools`）均为老 API，`getActiveNetwork()` 是 API 23。
+- 本次新增的 `http_post`、`text_calc` 只用 `HttpURLConnection` 与纯 `java.lang`，API 23 可用。
+
+## 性能修复（老机重点）
+- **Shell 沙箱不再每次新建线程池**：`ShellExecutor` 以前每条命令都 `newFixedThreadPool(3)` 用完即弃，频繁调用会不断建线程。改成**全应用共享一个 4 线程池**，命令间复用。
+- **图片 base64 加上限**：`ReactAgent.readImageBase64` 以前无上限地读整张图进内存再 base64，老机（尤其 2/3GB）一次发多张图易 OOM。现在单张超过 **4MB** 原始字节就跳过该图，不再把堆撑爆。
+
+## 补的两个真端侧工具（不虚设、无新依赖、无新权限）
+- **`http_post`**：向 URL 发 POST（可带 JSON 请求体），把 Web 工具从"只读 GET"补成能调接口。输出同样带 HTTP 状态码 + 截断响应。
+- **`text_calc`**：四则运算（`+ - * / %` 和括号）求值，确定性计算器——弱模型算数不可靠，给它一个能出精确结果的工具。用一个小的递归下降解析器实现，**只接受数字/运算符/括号**，不支持变量与函数，天然防注入。
+
+OpenAI / Google / Anthropic 三套 schema、别名、分发、工具分组全同步。端侧 agent 工具 28 → **30**。
+
+## 说明
+- 版本升级：1.6 → 1.7（versionCode 7 → 8）。
+- 别名表修正了一处顺序问题：`http_post` 组排在 `http_get` 前，避免 `"http"` 短别名把 `http_post` 误判成 `http_get`。
+- Happy Agent 为开源项目，完全免费；若你为它支付过费用，说明你被骗了。
