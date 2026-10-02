@@ -21,7 +21,7 @@
 | 多模型供应商切换 | 配置页三选一，请求/响应格式各自适配 | 需要填对应 Key |
 | 多步 ReAct agent | 模型驱动 think→act→observe 最多 10 步 | 需要填对应 Key |
 | 任务暂停 / 继续 / 取消 | 聊天页控制条，随时叫停 agent 正在跑的步骤 | 否（控制本身） |
-| 真实文件工具 | 读/写/列目录/找文件/grep/文件信息/存在性/移动(重命名)/复制/压缩(zip)/解压(unzip)，带沙箱路径校验 | 否（工具本身） |
+| 真实文件工具 | 读/写/列目录/找文件/grep/文件信息/存在性/移动(重命名)/复制/压缩(zip)/解压(unzip)/**局部替换 file_edit(old_text→new_text)**/**末尾追加 file_append**，相对路径自动落到工作区，带沙箱校验 | 否（工具本身） |
 | 文本 / 数据处理 | base64 编解码、URL 编解码、按点路径取 JSON 字段、转大写/小写、统计字符/行/词 | 否 |
 | 设备状态（只读） | 设备概要(RAM/存储/网络/时间)、电池、存储、网络、剪贴板读/写 | 否 |
 | 时间工具 | 获取当前日期时间（无副作用，始终可用） | 否 |
@@ -79,7 +79,7 @@ app/src/main/java/com/happyagent/mobile/
 ├─ tools/                       端侧能力
 │  ├─ ReactAgent.java           多步 agent 循环 + 工具参数校验/补齐 + 供应商适配 + 协作式取消
 │  ├─ TaskControl.java          任务级 暂停/继续/取消 标志
-│  ├─ FileTools.java            文件工具（读/写/列/信息/存在/移动/复制/压缩/解压 + UI 用的增删改/搜索，沙箱路径校验 + zip 越界防护）
+│  ├─ FileTools.java            文件工具（读/写/列/信息/存在/移动/复制/压缩/解压/局部替换 edit/追加 append；相对路径锚定工作区，沙箱校验 + zip 越界防护）
 │  ├─ TextTools.java            文本/数据处理（base64、URL 编解码、JSON 取字段、大小写、统计）
 │  ├─ SystemTools.java          设备状态只读（设备/电池/存储/网络/剪贴板）
 │  └─ ShellExecutor.java        Shell 沙箱 + proot 探测（API23 安全）

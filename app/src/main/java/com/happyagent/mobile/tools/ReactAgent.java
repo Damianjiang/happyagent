@@ -169,6 +169,9 @@ public final class ReactAgent {
             arr.put(fn("file_copy", "复制文件/目录", schema2("path", true, "to", true)));
             arr.put(fn("file_zip", "把文件/目录压缩成 zip", schema2("path", true, "to", true)));
             arr.put(fn("file_unzip", "把 zip 解压到目录", schema2("path", true, "to", true)));
+            arr.put(fn("file_edit", "把文件里 old_text 那段替换成 new_text（局部改，不用重发整文件；写代码/改文本用它）",
+                    schemaEdit()));
+            arr.put(fn("file_append", "在文件末尾追加内容（文件不存在则新建）", schema2("path", true, "content", true)));
             if (toolOn("tool.search")) {
                 arr.put(fn("file_find", "按名查找文件", schema2("path", false, "name", true)));
                 arr.put(fn("file_grep", "在文件里搜关键词", schema2("path", true, "keyword", true)));
@@ -230,6 +233,22 @@ public final class ReactAgent {
         if (r2) req.put(p2);
         JSONObject o = new JSONObject().put("type", "object").put("properties", props);
         if (req.length() > 0) o.put("required", req);
+        return o;
+    }
+
+    // file_edit：path/old_text/new_text 必填，replace_count 可选（数字；不传=全部）
+    private JSONObject schemaEdit() throws Exception {
+        JSONObject props = new JSONObject();
+        props.put("path", new JSONObject().put("type", "string")
+                .put("description", "文件路径（相对工作区或绝对）"));
+        props.put("old_text", new JSONObject().put("type", "string")
+                .put("description", "要替换的原文片段（须精确匹配，含缩进换行）"));
+        props.put("new_text", new JSONObject().put("type", "string")
+                .put("description", "替换成的新内容（可为空串表示删除该段）"));
+        props.put("replace_count", new JSONObject().put("type", "number")
+                .put("description", "可选：只替换前 N 处；不传=替换全部"));
+        JSONObject o = new JSONObject().put("type", "object").put("properties", props)
+                .put("required", new JSONArray().put("path").put("old_text").put("new_text"));
         return o;
     }
 
@@ -335,6 +354,8 @@ public final class ReactAgent {
             decls.put(decl2("file_copy", "复制文件/目录", "path", "to"));
             decls.put(decl2("file_zip", "把文件/目录压缩成 zip", "path", "to"));
             decls.put(decl2("file_unzip", "把 zip 解压到目录", "path", "to"));
+            decls.put(declEdit("file_edit", "把文件里 old_text 那段替换成 new_text（局部改，不用重发整文件；写代码/改文本用它）"));
+            decls.put(decl2("file_append", "在文件末尾追加内容（文件不存在则新建）", "path", "content"));
             if (toolOn("tool.search")) {
                 decls.put(decl2("file_find", "按名查找文件", "name", "path"));
                 decls.put(decl2("file_grep", "在文件里搜关键词", "path", "keyword"));
@@ -366,6 +387,19 @@ public final class ReactAgent {
         }
         decls.put(decl0("time_now", "获取当前日期时间"));
         return new JSONArray().put(new JSONObject().put("function_declarations", decls));
+    }
+
+    // file_edit：path/old_text/new_text 必填，replace_count 可选（数字；不传=全部）
+    private JSONObject declEdit(String name, String desc) throws Exception {
+        JSONObject props = new JSONObject();
+        props.put("path", new JSONObject().put("type", "string").put("description", "文件路径"));
+        props.put("old_text", new JSONObject().put("type", "string").put("description", "要替换的原文（精确匹配）"));
+        props.put("new_text", new JSONObject().put("type", "string").put("description", "替换成的新内容"));
+        props.put("replace_count", new JSONObject().put("type", "number").put("description", "可选，只替换前 N 处"));
+        JSONObject o = new JSONObject().put("type", "object").put("properties", props)
+                .put("required", new JSONArray().put("path").put("old_text").put("new_text"));
+        return new JSONObject().put("name", name).put("description", desc)
+                .put("parameters", o);
     }
 
     // JSON 取字段：json 必填、path 可选（取整个对象时省略）
@@ -494,6 +528,8 @@ public final class ReactAgent {
             arr.put(declA2("file_copy", "复制文件/目录", "path", "to"));
             arr.put(declA2("file_zip", "把文件/目录压缩成 zip", "path", "to"));
             arr.put(declA2("file_unzip", "把 zip 解压到目录", "path", "to"));
+            arr.put(declAEdit("file_edit", "把文件里 old_text 那段替换成 new_text（局部改，不用重发整文件；写代码/改文本用它）"));
+            arr.put(declA2("file_append", "在文件末尾追加内容（文件不存在则新建）", "path", "content"));
             if (toolOn("tool.search")) {
                 arr.put(declA2("file_find", "按名查找文件", "name", "path"));
                 arr.put(declA2("file_grep", "在文件里搜关键词", "path", "keyword"));
@@ -525,6 +561,19 @@ public final class ReactAgent {
         }
         arr.put(declA0("time_now", "获取当前日期时间"));
         return arr;
+    }
+
+    // file_edit：path/old_text/new_text 必填，replace_count 可选（数字）
+    private JSONObject declAEdit(String name, String desc) throws Exception {
+        JSONObject props = new JSONObject();
+        props.put("path", new JSONObject().put("type", "string").put("description", "文件路径"));
+        props.put("old_text", new JSONObject().put("type", "string").put("description", "要替换的原文（精确匹配）"));
+        props.put("new_text", new JSONObject().put("type", "string").put("description", "替换成的新内容"));
+        props.put("replace_count", new JSONObject().put("type", "number").put("description", "可选，只替换前 N 处"));
+        JSONObject o = new JSONObject().put("type", "object").put("properties", props)
+                .put("required", new JSONArray().put("path").put("old_text").put("new_text"));
+        return new JSONObject().put("name", name).put("description", desc)
+                .put("input_schema", o);
     }
 
     // JSON 取字段：json 必填、path 可选（取整个对象时省略）
@@ -645,10 +694,27 @@ public final class ReactAgent {
     }
 
     private String systemPrompt() {
-        return "你是一名 Android 上的 AI 助手，可调用文件工具（读/写/列目录/信息/存在性/移动/复制/压缩/解压/查找/grep）、"
-                + "文本与数据处理（base64、URL 编解码、JSON 取字段、大小写、字数）、设备状态（电池/存储/网络/剪贴板/设备信息）、"
-                + "Shell 白名单命令、网页抓取、时间工具完成用户任务。"
-                + "需要时用工具，取到结果后继续；可以全部完成后，用与用户相同的语言简洁回答。";
+        // 系统提示：把工具怎么用、参数怎么传、出错怎么办讲清楚，减少反复调用失败。
+        StringBuilder sb = new StringBuilder();
+        sb.append("你是运行在安卓上的任务助手，通过调用工具完成用户任务，再用与用户相同的语言简洁汇报。\n");
+        sb.append("\n【工具使用规则】\n");
+        sb.append("1. 一次只调一个工具，拿到结果再决定下一步；不要一次塞多个。\n");
+        sb.append("2. 参数必须精确。改文件前先 file_read 看清内容，再操作；不要凭空猜路径或内容。\n");
+        sb.append("3. 路径用相对名即可（如 notes.txt、src/App.java），会自动落到工作区；也可用绝对路径。\n");
+        sb.append("4. 改文件优先用 file_edit（只给 old_text 那段原文和 new_text 替换，局部改），不要整文件重发 file_write；整文件重写才用 file_write；末尾加内容用 file_append。\n");
+        sb.append("   - file_edit 的 old_text 必须和文件里那段完全一致（含缩进、换行），否则会\"没找到\"。\n");
+        sb.append("   - 工具返回\"没找到要替换的内容\"或\"缺某参数\"时，按提示修正参数重试，不要放弃。\n");
+        sb.append("5. 写代码 / 改文本 / 处理数据：先读，再用 file_edit 精确改；别把整个文件重写一遍。\n");
+        sb.append("6. 工具返回错误时，读懂错误里给出的提示（它常附上可用文件清单/示例参数），改正后重试；同一处最多重试 2 次，仍失败就如实汇报卡在哪。\n");
+        sb.append("\n【可用工具】\n");
+        sb.append("文件：file_read 读 / file_write 整写 / file_edit 局部替换(old_text→new_text) / file_append 末尾追加 / "
+                + "file_list 列目录 / file_info 信息 / file_exists 存在性 / file_move 移动改名 / file_copy 复制 / "
+                + "file_zip 压缩 / file_unzip 解压 / file_find 按名找 / file_grep 搜关键词\n");
+        sb.append("文本：text_base64_encode/decode、text_url_encode/decode、text_json_get(按点路径取字段)、text_upper/lower、text_stats\n");
+        sb.append("设备(只读)：system_device_info / system_battery / system_storage / system_network / system_clipboard_get / system_clipboard_set\n");
+        sb.append("其它：shell_exec(白名单命令) / http_get(抓网页) / time_now(当前时间)\n");
+        sb.append("\n完成所有工具调用后，用两三句话总结做了什么即可，别把工具原始输出整段贴回来。");
+        return sb.toString();
     }
 
     private HttpURLConnection connPost(String url, String body) throws Exception {
@@ -781,6 +847,8 @@ public final class ReactAgent {
                 {"file_copy", "copy", "copy_file"},
                 {"file_zip", "zip", "compress", "compress_file", "zip_file"},
                 {"file_unzip", "unzip", "extract", "extract_file", "unzip_file"},
+                {"file_edit", "edit", "edit_file", "replace", "replace_text", "patch", "sed", "find_replace"},
+                {"file_append", "append", "append_file", "add_to_file", "add_line", "write_line"},
                 {"time_now", "time", "now", "date", "datetime", "current_time"},
                 {"shell_exec", "shell", "exec", "execute", "run", "run_shell"},
                 {"http_get", "http", "fetch", "download", "get_url", "web"},
@@ -820,6 +888,8 @@ public final class ReactAgent {
             case "file_copy":
             case "file_zip":
             case "file_unzip":
+            case "file_edit":
+            case "file_append":
                 return "tool.file";
             case "file_find":
             case "file_grep":
@@ -911,6 +981,23 @@ public final class ReactAgent {
                     if (s.isEmpty() || d.isEmpty()) return "需要 'path'(zip 文件) 和 'to'(解压目标目录)。";
                     return fileTools.unzip(s, d);
                 }
+                case "file_edit": {
+                    String p = str(args, "path", "file", "file_path");
+                    String oldT = str(args, "old_text", "old", "oldText", "from", "search");
+                    String newT = str(args, "new_text", "new", "newText", "to", "replacement");
+                    int rc = safeInt(args, "replace_count", -1);
+                    if (p.isEmpty()) return "缺 'path'。当前可改的文件：\n" + fileTools.list(fileTools.getWorkspace())
+                            + "\n参数：{path, old_text(要替换的原文), new_text(新内容), replace_count(可选)}";
+                    if (oldT.isEmpty()) return "缺 'old_text'（要替换的那段原文，须精确匹配）。只想整文件写入用 file_write，只想末尾追加用 file_append。";
+                    return fileTools.edit(p, oldT, newT, rc);
+                }
+                case "file_append": {
+                    String p = str(args, "path", "file", "file_path");
+                    String c = str(args, "content", "text", "text_to_append", "line", "data");
+                    if (p.isEmpty()) return "缺 'path'。当前文件：\n" + fileTools.list(fileTools.getWorkspace());
+                    if (c.isEmpty()) return "缺 'content'（要追加的文本）。";
+                    return fileTools.append(p, c);
+                }
                 case "time_now":
                     return new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss EEEE",
                             java.util.Locale.CHINA).format(new java.util.Date());
@@ -974,7 +1061,8 @@ public final class ReactAgent {
         }
     }
 
-    // 参数键名宽容：主键缺失时按同义键顺序取值
+    // 参数键名宽容：主键缺失时按同义键顺序取值。optString 对数字/布尔也取到字符串形式，
+    // 因此参数值类型不一致（数字、布尔等）也能容下。
     private String str(JSONObject o, String key, String... alts) {
         String v = o.optString(key, "").trim();
         if (v.length() > 0) return v;
@@ -983,6 +1071,21 @@ public final class ReactAgent {
             if (v.length() > 0) return v;
         }
         return "";
+    }
+
+    // 取整型参数：缺省或非数字时用默认值
+    private int safeInt(JSONObject o, String key, int def) {
+        if (o == null || !o.has(key)) return def;
+        Object v = o.opt(key);
+        if (v instanceof Number) return ((Number) v).intValue();
+        if (v instanceof String) {
+            try {
+                return Integer.parseInt(((String) v).trim());
+            } catch (Exception e) {
+                return def;
+            }
+        }
+        return def;
     }
 
     private String httpGet(String url) {

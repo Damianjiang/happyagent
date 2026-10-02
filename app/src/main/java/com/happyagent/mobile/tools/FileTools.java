@@ -134,9 +134,20 @@ public final class FileTools {
         }
     }
 
-    // 路径校验：把传入路径解析后确认它落在沙箱内，否则拒绝
+    // 路径解析：相对路径（如 "notes.txt"、"a/b.txt"）一律锚到 workspace 根，
+    // 绝对路径照常用；最终必须落在沙箱内，否则拒绝。
     private File resolveSafe(String path) {
-        File abs = new File(path).getAbsoluteFile();
+        String p = path == null ? "" : path.trim();
+        if (p.isEmpty()) {
+            throw new SecurityException("empty path");
+        }
+        File abs;
+        if (p.startsWith("/") || p.startsWith("\\")) {
+            abs = new File(p).getAbsoluteFile();
+        } else {
+            // 相对路径：拼到 workspace 根下
+            abs = new File(sandboxRoot, p).getAbsoluteFile();
+        }
         String root = sandboxRoot.getAbsolutePath();
         String target = abs.getAbsolutePath();
         if (!target.equals(root) && !target.startsWith(root + File.separator)) {
@@ -183,6 +194,79 @@ public final class FileTools {
         } catch (IOException e) {
             Log.e(TAG, "write", e);
             return "write error: " + e.getMessage();
+        }
+    }
+
+    // 局部替换：把 oldText 换成 newText，不必重发整个文件。
+    // replaceCount=0 替换全部；>0 只替换前 N 处。找不到 oldText 时返回附近内容便于定位。
+    public String edit(String path, String oldText, String newText, int replaceCount) {
+        File f = resolveSafe(path);
+        if (!f.exists()) {
+            return "not found: " + path + "\n可用文件：\n" + list(getWorkspace());
+        }
+        if (f.isDirectory()) return "是目录，不是文件：" + f.getName();
+        String src;
+        try {
+            StringBuilder sb = new StringBuilder();
+            BufferedReader r = new BufferedReader(new InputStreamReader(
+                    new FileInputStream(f), StandardCharsets.UTF_8));
+            String line;
+            while ((line = r.readLine()) != null) sb.append(line).append('\n');
+            r.close();
+            src = sb.toString();
+        } catch (Exception e) {
+            return "read error: " + e.getMessage();
+        }
+        if (oldText == null || oldText.isEmpty()) {
+            return "缺 'old_text'。这是局部替换工具：给 old_text（要替换的原文）和 new_text（新内容）。"
+                    + "只想整文件写入请用 file_write。";
+        }
+        int total = countOccurrences(src, oldText);
+        if (total == 0) {
+            return "没找到要替换的内容 old_text。文件当前前 500 字：\n"
+                    + src.substring(0, Math.min(500, src.length()))
+                    + "\n确认 old_text 精确匹配文件里那段（含缩进、换行）后重试。";
+        }
+        int n = replaceCount > 0 ? Math.min(replaceCount, total) : total;
+        int idx = 0;
+        for (int i = 0; i < n; i++) {
+            int at = src.indexOf(oldText, idx);
+            if (at < 0) break;
+            src = src.substring(0, at) + (newText == null ? "" : newText) + src.substring(at + oldText.length());
+            idx = at + (newText == null ? 0 : newText.length());
+        }
+        try {
+            BufferedWriter w = new BufferedWriter(new OutputStreamWriter(
+                    new FileOutputStream(f), StandardCharsets.UTF_8));
+            w.write(src);
+            w.close();
+            return "在 " + f.getName() + " 替换了 " + n + " 处（共找到 " + total + " 处）。";
+        } catch (IOException e) {
+            Log.e(TAG, "edit", e);
+            return "edit error: " + e.getMessage();
+        }
+    }
+
+    private static int countOccurrences(String hay, String needle) {
+        int c = 0, i = 0;
+        while ((i = hay.indexOf(needle, i)) >= 0) { c++; i += needle.length(); }
+        return c;
+    }
+
+    // 追加到文件末尾；文件不存在则新建。
+    public String append(String path, String content) {
+        File f = resolveSafe(path);
+        if (content == null) content = "";
+        try {
+            File parent = f.getParentFile();
+            if (parent != null && !parent.exists()) parent.mkdirs();
+            FileOutputStream fos = new FileOutputStream(f, true);
+            fos.write(content.getBytes(StandardCharsets.UTF_8));
+            fos.close();
+            return "appended to " + f.getName() + " (now " + f.length() + " bytes)";
+        } catch (IOException e) {
+            Log.e(TAG, "append", e);
+            return "append error: " + e.getMessage();
         }
     }
 
