@@ -223,8 +223,8 @@ public final class FileTools {
         if (!s.exists()) return "not found: " + src;
         if (d.getParentFile() != null && !d.getParentFile().exists() && !d.getParentFile().mkdirs())
             return "cannot create target parent: " + dst;
+        // renameTo 跨设备会返回 false，此时用「拷贝 + 删除源」完成 move（标准语义）
         if (s.renameTo(d)) return "moved " + src + " -> " + dst;
-        // 跨设备 rename 失败时退化为「拷过去再删源」
         if (copyRec(s, d)) {
             deleteRec(s);
             return "moved (via copy) " + src + " -> " + dst;
