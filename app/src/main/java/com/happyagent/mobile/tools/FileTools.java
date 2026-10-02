@@ -13,8 +13,10 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
+import java.io.Serializable;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 // 真实文件工具：读/写/列目录/找文件/grep/文件信息。
@@ -33,16 +35,70 @@ public final class FileTools {
     // 附件目录：落在 workspace 内，agent 的 file_read 能直接读到用户发的文件
     private final File attachRoot;
 
+    private static volatile boolean seeded;
+
     public FileTools(Context context) {
         this.ctx = context.getApplicationContext();
         this.sandboxRoot = new File(ctx.getFilesDir(), "workspace");
         if (!sandboxRoot.exists()) sandboxRoot.mkdirs();
         this.attachRoot = new File(sandboxRoot, "attachments");
         if (!attachRoot.exists()) attachRoot.mkdirs();
+        seed();
+    }
+
+    // 幂等：首次给 workspace 种一个引导文件，文件页/编辑器打开即有内容，不再是空界面
+    private void seed() {
+        if (seeded) return;
+        synchronized (FileTools.class) {
+            if (seeded) return;
+            File welcome = new File(sandboxRoot, "WELCOME.txt");
+            if (!welcome.exists()) {
+                try {
+                    OutputStreamWriter w = new OutputStreamWriter(
+                            new FileOutputStream(welcome), StandardCharsets.UTF_8);
+                    w.write("Happy Agent 工作区\n"
+                            + "================\n"
+                            + "\n"
+                            + "这里是 app 的文件工作区，你随时可以：\n"
+                            + "  - 浏览 / 新建 / 编辑 / 复制 / 移动 / 删除 文件\n"
+                            + "  - 把整包 压缩(zip) 或 解压(unzip)\n"
+                            + "  - 在工作区里 搜索 文件\n"
+                            + "  - 把任意文件 发给智能体 让它处理\n"
+                            + "\n"
+                            + "智能体的 file_read / file_write 等工具也作用在这个目录（沙箱校验）。\n");
+                    w.close();
+                } catch (Exception e) {
+                    Log.e(TAG, "seed", e);
+                }
+            }
+            seeded = true;
+        }
     }
 
     public String getWorkspace() {
         return sandboxRoot.getAbsolutePath();
+    }
+
+    // 供文件管理器/编辑器浏览用的 workspace 绝对路径
+    public String workspacePath() {
+        return sandboxRoot.getAbsolutePath();
+    }
+
+    // 编辑器专用：读整个文件文本；文件不存在/是新文件返回 ""（而非 read() 的"not found"提示串）
+    public String readContent(String path) {
+        File f = resolveSafe(path);
+        if (!f.exists() || f.isDirectory()) return "";
+        try {
+            byte[] data = new byte[(int) f.length()];
+            FileInputStream in = new FileInputStream(f);
+            int read = in.read(data, 0, (int) f.length());
+            in.close();
+            if (read < 0) return "";
+            return new String(data, 0, read, StandardCharsets.UTF_8);
+        } catch (Exception e) {
+            Log.e(TAG, "readContent", e);
+            return "";
+        }
     }
 
     // 把外部 content URI（相册/文件）拷贝进沙箱附件目录，返回 Attachment。
@@ -144,6 +200,91 @@ public final class FileTools {
             sb.append(c.isDirectory() ? "[D] " : "[F] ").append(c.getName());
         }
         return sb.length() == 0 ? "(empty)" : sb.toString();
+    }
+
+    // ---- UI 文件管理器用的结构化方法（供界面浏览/增删改，不喂模型） ----
+
+    public static class FileEntry implements Serializable {
+        private static final long serialVersionUID = 1L;
+        public final String name;
+        public final boolean isDir;
+        public final long size;          // 目录为 0
+        public final long lastModified;
+        public final String absPath;
+
+        public FileEntry(String name, boolean isDir, long size, long lastModified, String absPath) {
+            this.name = name;
+            this.isDir = isDir;
+            this.size = size;
+            this.lastModified = lastModified;
+            this.absPath = absPath;
+        }
+
+        @Override
+        public String toString() {
+            return name + (isDir ? "/" : "");
+        }
+    }
+
+    // 结构化列目录：目录在前，其余按文件名不区分大小写排序；返回绝对路径供后续操作
+    public List<FileEntry> listEntries(String path) {
+        File dir = resolveSafe(path);
+        if (!dir.exists() || !dir.isDirectory()) return new ArrayList<FileEntry>();
+        File[] files = dir.listFiles();
+        if (files == null) return new ArrayList<FileEntry>();
+        List<FileEntry> out = new ArrayList<FileEntry>();
+        for (File f : files) {
+            out.add(new FileEntry(f.getName(), f.isDirectory(),
+                    f.isDirectory() ? 0 : f.length(), f.lastModified(), f.getAbsolutePath()));
+        }
+        Collections.sort(out, new java.util.Comparator<FileEntry>() {
+            @Override
+            public int compare(FileEntry a, FileEntry b) {
+                if (a.isDir != b.isDir) return a.isDir ? -1 : 1;
+                return a.name.compareToIgnoreCase(b.name);
+            }
+        });
+        return out;
+    }
+
+    // 删除文件/目录（沙箱内）；workspace 根不可删
+    public String delete(String path) {
+        File f = resolveSafe(path);
+        if (!f.exists()) return "not found: " + path;
+        if (f.equals(sandboxRoot)) return "cannot delete workspace root";
+        deleteRec(f);
+        return f.exists() ? "delete failed: " + path : "deleted " + f.getName();
+    }
+
+    // 新建目录（沙箱内，可多级）
+    public String mkdir(String path) {
+        File f = resolveSafe(path);
+        if (f.exists()) return "exists: " + path;
+        return f.mkdirs() ? "created dir " + f.getName() : "mkdir failed: " + path;
+    }
+
+    // 递归按文件名模糊搜索（工作区内），返回命中文件的绝对路径；限深度/数量防失控
+    public List<String> searchName(String path, String query) {
+        File start = resolveSafe(path);
+        List<String> out = new ArrayList<String>();
+        String q = query == null ? "" : query.trim().toLowerCase();
+        if (!q.isEmpty()) searchNameRec(start, q, 0, out);
+        return out;
+    }
+
+    private void searchNameRec(File dir, String q, int depth, List<String> out) {
+        if (depth > 6 || out.size() >= 200) return;
+        if (!inSandbox(dir)) return;
+        File[] files = dir.listFiles();
+        if (files == null) return;
+        for (File c : files) {
+            if (out.size() >= 200) return;
+            if (c.getName().toLowerCase().contains(q)) out.add(c.getAbsolutePath());
+        }
+        for (File c : files) {
+            if (out.size() >= 200) return;
+            if (c.isDirectory()) searchNameRec(c, q, depth + 1, out);
+        }
     }
 
     public String find(String path, String name) {

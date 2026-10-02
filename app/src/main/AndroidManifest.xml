@@ -71,6 +71,18 @@
             android:exported="false"
             android:foregroundServiceType="dataSync" />
 
+        <!-- 共享 workspace 文件给分享/系统打开（API 23+ 需 FileProvider，不能用 file://） -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="com.happyagent.mobile.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
+
     </application>
 
 </manifest>

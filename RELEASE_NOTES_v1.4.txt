@@ -1,0 +1,28 @@
+# Happy Agent 1.4
+
+本次为**文件管理器重做**：把上一版"进文件页一片空白、编辑器打不开"的纯 SAF 单源实现，换成"开箱即用、真能用"的双源实现。
+
+## 核心修复：文件管理不再是空界面
+- **默认进 app 工作区**（`files/workspace`）：不再依赖先授权 SAF 才有内容；首次进入自动种一个 `WELCOME.txt` 引导文件，文件页永远有东西可看。工作区就是 agent 的 `file_read`/`file_write` 等工具实际作用的沙箱目录，看得到、改得了、发给智能体能直接读。
+- **双来源切换**：「工作区」（默认，内部存储）+「我的目录」（SAF 授权你自己的文件夹）。两个 Tab 一键切换，SAF 那条路保留但不再唯一。
+
+## 工作区文件操作做全（对照 operit 扩展文件工具）
+每个文件/目录行右侧「⋮」菜单，按需显示这些真实动作：
+- 目录：进入、移动/重命名、压缩为 zip、删除
+- 文件：编辑、复制、移动/重命名、（.zip）解压、压缩为 zip、发给智能体、用系统打开、分享、删除
+- 顶部：新建文件（直接进编辑器、保存即创建）、新建目录、上级目录
+- 工作区**递归搜索文件名**（搜索框，限深度/数量防失控）
+- 「发给智能体」把工作区文件直接开会话喂给 agent（内部存储无需拷附件）
+- 「用系统打开 / 分享」走 **FileProvider**（API 23+ 不能用 `file://`），新增 `res/xml/file_paths.xml` + manifest 的 `androidx.core.content.FileProvider`
+
+## 编辑器修好、能真用
+- 之前编辑器只能"点中一个 SAF 文本文件"才进得去，`isText` 判断又窄。现在：工作区任意文本/代码/配置文件（.txt/.md/.json/.log/.java/.kt/.ts/.js/.py/.html/.properties/.gradle/.toml/.yaml 等）点进去就进编辑器，直接对 `java.io` 绝对路径读/写/保存；**新建文件**保存即落盘。SAF 文件仍走 ContentResolver 读写。不再是"打不开"。
+
+## 工具能力（沿用 1.3）
+端侧 agent 共 14 个可调用工具：`file_read / file_write / file_list / file_info / file_exists / file_move / file_copy / file_zip / file_unzip / file_find / file_grep / shell_exec / http_get / time_now`；OpenAI / Google / Anthropic 三套 schema 与本地分发同步。
+
+## 说明
+- 版本升级：1.3 → 1.4（versionCode 4 → 5）。
+- 全部纯 `java.io` / `java.util.zip` / `java.text`，无 `java.nio.file`；FileProvider 来自 `androidx.core`（已有依赖 1.13.1），API 23 可用。
+- `delete` 带沙箱根保护（workspace 根不可删）；`unzip` 带 zip 越界校验（解出条目必须落在目标目录内）。
+- Happy Agent 为开源项目，完全免费；若你为它支付过费用，说明你被骗了。

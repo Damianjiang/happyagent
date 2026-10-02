@@ -29,7 +29,7 @@
 | 系统诊断 | 会话数、工具启用/停用数、模型、当前供应商与 Key 状态 | 否 |
 | 崩溃兜底 | 任意线程崩溃自动进崩溃页，一键复制日志 | 否 |
 | Web 服务 | 在手机上起一个本地 HTTP 服务，电脑/手机浏览器打开即可跟智能体对话；可开关，开启时通知栏常驻并显示内网/外网地址与端口 | 否（服务端自身）；真回答需对应 Key |
-| 文件管理 | 内置文件浏览器 + 文本编辑器；SAF 选一个文件夹授权后即可浏览/编辑/把文件发给智能体；权限自动申请（系统弹窗） | 否 |
+| 文件管理（双源） | 默认进 app 工作区（开箱即有内容，可 浏览/新建/编辑/复制/移动/删除/压缩/解压/搜索/发给智能体/系统打开/分享）；「我的目录」Tab 走 SAF 授权浏览你自己的文件夹。编辑器支持工作区任意文本/代码文件（新建+编辑+保存） | 否 |
 | 首次欢迎页 | 首次打开进入全屏欢迎页：logo + 要点 + 醒目的「开源项目 · 完全免费，向用户收费即属诈骗」警示；点「开始使用」进主界面，只显示一次 | 否 |
 
 > 说明：聊天、工具、配置、诊断、崩溃兜底这些**不填 Key 也能用**；"AI 真正聪明地回答 / 驱动多步工具"这一项需要你在配置页选供应商并填对应 Key（OpenAI 或任意兼容接口 / Google / Anthropic）。
@@ -94,15 +94,14 @@ app/src/main/res/raw/web_chat.html  Web 端聊天页（单文件，深浅色 + �
 - **实现**：`service/WebUiService.java` 用 `java.net.ServerSocket`（API 23 安全）起服务，页面是 `res/raw/web_chat.html`（单文件 HTML，无外部依赖）；对外接口 `/api/ipinfo`、`/api/state`、`/api/ask`。
 - **注意**：服务监听 `0.0.0.0`，请只在**可信的局域网**里开；外网地址要真正可达还需手机有公网出口/端口映射，App 只负责把查到的地址显示出来。
 
-## 七、文件管理（内置浏览器 + 编辑器，SAF 授权）
+## 七、文件管理（双源：app 工作区 + 我的目录 SAF）
 
-「文件」页（底部导航第 4 个）内置了文件浏览器和文本编辑器，让你把真实文件交给智能体处理。
+「文件」页（底部导航第 4 个）是**两个来源**：默认进 **app 工作区**，另有「我的目录」Tab 走 SAF。
 
-- **自动申请权限**：第一次进「文件」页点"选择文件夹"，弹系统文档选择器；授权只覆盖你选的那个目录，重启后仍有效（SAF 持久授权，跨安卓 6→14 都可用）。
-- **浏览器**：浏览目录、进/翻文件夹；点文本文件进编辑器，点其它文件可直接"发给智能体"。
-- **编辑器**：编辑授权目录里的文本文件，直接写回原文件。
-- **发给智能体**：把文件安全拷进 agent 工作区附件目录（复用沙箱附件通道），开一个会话让它读；非文本文件也能这样交给 agent。
-- **实现**：`data/StorageAccess.java` 走 `DocumentsContract` 的 API 19 安全 API（`buildChildDocumentsUri(authority, …)`、`buildDocumentUri(authority, …)`，不碰 API 26 的 `getRootDocumentId`/`buildChildDocumentsUriUsingType`）；`FilesFragment` / `FileEditorActivity` 是界面。
+- **工作区（默认，开箱即用）**：app 私有目录 `files/workspace`，不依赖任何授权就有内容（首次自动种 `WELCOME.txt`）。它是 agent `file_read`/`file_write` 等工具实际作用的沙箱目录，看得到、改得了、发给智能体直接可读。可做：浏览/进目录、**新建文件**（直接进编辑器、保存即创建）、**新建目录**、**编辑**（任意文本/代码/配置文件）、**复制**、**移动/重命名**、**删除**、**压缩为 zip**、**解压 zip**（带越界校验）、**递归搜索文件名**、**发给智能体**、**用系统打开**、**分享**。
+- **我的目录（SAF 授权）**：点"选择文件夹"走系统文档选择器，授权仅覆盖你选的那个目录，重启仍有效（SAF 持久授权，跨安卓 6→14）。可浏览/进目录、把文本文件**编辑**（写回原文件）、把文件**发给智能体**（安全拷进 agent 附件目录）、**用系统打开 / 分享**。
+- **系统打开 / 分享**：API 23+ 不能用 `file://`，走 **FileProvider**（`androidx.core.content.FileProvider`，新增 `res/xml/file_paths.xml` + manifest 注册）。
+- **实现**：`tools/FileTools.java`（`java.io` 直操作工作区 + `java.util.zip` 压缩解压，全 API 23 安全）；`data/StorageAccess.java`（SAF 走 `DocumentsContract` 的 API 19 安全 API，不碰 API 26 的 `getRootDocumentId`）；`ui/FilesFragment.java`（双源界面 + 操作菜单）与 `ui/FileEditorActivity.java`（按路径可靠读写 + 新建）是界面。
 
 ## 八、构建
 

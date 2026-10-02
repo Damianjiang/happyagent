@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- FileProvider 共享 app 私有工作区里的文件给其它应用（分享/系统打开） -->
+<paths>
+    <!-- workspace 目录（files/workspace）下的所有文件 -->
+    <files-path name="workspace" path="workspace/" />
+    <!-- 缓存里的临时产物（解压/分享中转） -->
+    <cache-path name="cache" path="." />
+    <!-- 外部缓存（可选中转） -->
+    <external-path name="external" path="." />
+</paths>

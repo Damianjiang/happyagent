@@ -17,39 +17,144 @@
         android:textStyle="bold"
         android:textColor="?attr/colorOnSurface" />
 
+    <!-- 来源切换：工作区(默认,恒有内容) / 我的目录(SAF 授权) -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:paddingLeft="@dimen/list_inset"
         android:paddingRight="@dimen/list_inset"
-        android:paddingBottom="@dimen/space_s"
-        android:gravity="center_vertical">
+        android:paddingBottom="@dimen/space_s">
 
-        <TextView
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="浏览 · 编辑 · 发给智能体"
-            android:textSize="@dimen/caption_size"
-            android:textColor="?attr/colorOnSurfaceVariant" />
-
-        <TextView
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/files_tab_ws"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="SAF 授权仅覆盖所选目录"
-            android:textSize="11sp"
-            android:textColor="?attr/colorOnSurfaceVariant" />
+            android:minWidth="0dp"
+            android:paddingLeft="14dp"
+            android:paddingRight="14dp"
+            android:text="工作区"
+            android:textSize="13sp"
+            style="@style/Widget.Material3.Button.TonalButton" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/files_tab_saf"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:minWidth="0dp"
+            android:paddingLeft="14dp"
+            android:paddingRight="14dp"
+            android:text="我的目录"
+            android:textSize="13sp"
+            style="@style/Widget.Material3.Button.TextButton" />
     </LinearLayout>
 
-    <!-- 未授权：选一个文件夹授权（系统弹窗，权限自动申请） -->
-    <com.google.android.material.card.MaterialCardView
-        android:id="@+id/files_grant"
+    <!-- ============ 工作区模式 ============ -->
+    <LinearLayout
+        android:id="@+id/files_ws_toolbar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingLeft="@dimen/list_inset"
+        android:paddingRight="@dimen/list_inset">
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/files_ws_up"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:minWidth="0dp"
+            android:paddingLeft="10dp"
+            android:paddingRight="10dp"
+            android:text="⬆"
+            android:textSize="15sp"
+            style="@style/Widget.Material3.Button.TextButton" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/files_ws_newfile"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="2dp"
+            android:minWidth="0dp"
+            android:paddingLeft="10dp"
+            android:paddingRight="10dp"
+            android:text="＋ 文件"
+            android:textSize="13sp"
+            style="@style/Widget.Material3.Button.TextButton" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/files_ws_newdir"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="2dp"
+            android:minWidth="0dp"
+            android:paddingLeft="10dp"
+            android:paddingRight="10dp"
+            android:text="＋ 目录"
+            android:textSize="13sp"
+            style="@style/Widget.Material3.Button.TextButton" />
+    </LinearLayout>
+
+    <EditText
+        android:id="@+id/files_ws_search"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginLeft="@dimen/list_inset"
         android:layout_marginRight="@dimen/list_inset"
         android:layout_marginTop="@dimen/space_s"
+        android:background="@drawable/bg_input"
+        android:padding="10dp"
+        android:textSize="13sp"
+        android:textColor="?attr/colorOnSurface"
+        android:textColorHint="?attr/colorOnSurfaceVariant"
+        android:hint="搜索工作区文件名…"
+        android:inputType="text"
+        android:maxLines="1"
+        android:imeOptions="actionSearch" />
+
+    <LinearLayout
+        android:id="@+id/files_ws_crumb"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingLeft="@dimen/list_inset"
+        android:paddingRight="@dimen/list_inset"
+        android:paddingTop="@dimen/space_s"
+        android:paddingBottom="@dimen/space_s">
+
+        <TextView
+            android:id="@+id/files_ws_folder"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:textSize="13sp"
+            android:textStyle="bold"
+            android:ellipsize="middle"
+            android:singleLine="true"
+            android:textColor="?attr/colorOnSurface" />
+
+        <TextView
+            android:id="@+id/files_ws_count"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:textSize="11sp"
+            android:textColor="?attr/colorOnSurfaceVariant" />
+    </LinearLayout>
+
+    <!-- ============ 我的目录(SAF)模式 ============ -->
+
+    <!-- 未授权：选一个文件夹授权 -->
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/files_saf_grant"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginLeft="@dimen/list_inset"
+        android:layout_marginRight="@dimen/list_inset"
+        android:layout_marginTop="@dimen/space_s"
+        android:visibility="gone"
         app:cardCornerRadius="12dp"
         app:cardElevation="1dp"
         app:cardBackgroundColor="?attr/colorSurface">
@@ -63,7 +168,7 @@
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="访问你的文件"
+                android:text="访问你的目录"
                 android:textSize="15sp"
                 android:textStyle="bold"
                 android:textColor="?attr/colorOnSurface" />
@@ -72,7 +177,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
-                android:text="选择一个文件夹，智能体即可浏览、编辑里面的文件（系统授权，仅该目录，重启仍有效）。"
+                android:text="选择一个文件夹，浏览并把它里面的文件发给智能体（系统授权，仅该目录，重启仍有效）。"
                 android:textSize="12sp"
                 android:lineSpacingExtra="3dp"
                 android:textColor="?attr/colorOnSurfaceVariant" />
@@ -84,87 +189,12 @@
                 android:layout_marginTop="12dp"
                 android:text="选择文件夹"
                 style="@style/Widget.Material3.Button" />
-
-            <View
-                android:layout_width="match_parent"
-                android:layout_height="1dp"
-                android:layout_marginTop="14dp"
-                android:background="?attr/colorOutline"
-                android:alpha="0.4" />
-
-            <!-- 能力清单：把「功能有但没进 UI」的三点显性写出来 -->
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:layout_marginTop="10dp">
-
-                <LinearLayout
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:orientation="vertical"
-                    android:gravity="center">
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:textSize="18sp"
-                        android:text="📂" />
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="2dp"
-                        android:textSize="11sp"
-                        android:text="浏览目录"
-                        android:textColor="?attr/colorOnSurfaceVariant" />
-                </LinearLayout>
-
-                <LinearLayout
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:orientation="vertical"
-                    android:gravity="center">
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:textSize="18sp"
-                        android:text="✏️" />
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="2dp"
-                        android:textSize="11sp"
-                        android:text="编辑文本"
-                        android:textColor="?attr/colorOnSurfaceVariant" />
-                </LinearLayout>
-
-                <LinearLayout
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:orientation="vertical"
-                    android:gravity="center">
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:textSize="18sp"
-                        android:text="🤖" />
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="2dp"
-                        android:textSize="11sp"
-                        android:text="发给智能体"
-                        android:textColor="?attr/colorOnSurfaceVariant" />
-                </LinearLayout>
-            </LinearLayout>
         </LinearLayout>
     </com.google.android.material.card.MaterialCardView>
 
-    <!-- 已授权：当前目录 + 上翻 + 统计 + 搜索过滤 -->
+    <!-- 已授权：上翻 + 统计 + 搜索 -->
     <LinearLayout
-        android:id="@+id/files_breadcrumb"
+        android:id="@+id/files_saf_crumb"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
@@ -181,17 +211,18 @@
             android:gravity="center_vertical">
 
             <com.google.android.material.button.MaterialButton
-                android:id="@+id/files_up"
+                android:id="@+id/files_saf_up"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:minWidth="0dp"
                 android:paddingLeft="10dp"
                 android:paddingRight="10dp"
                 android:text="⬆ 上级"
+                android:textSize="13sp"
                 style="@style/Widget.Material3.Button.TextButton" />
 
             <TextView
-                android:id="@+id/files_folder_name"
+                android:id="@+id/files_saf_folder"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
@@ -203,28 +234,13 @@
                 android:textColor="?attr/colorOnSurface" />
 
             <TextView
-                android:id="@+id/files_count"
+                android:id="@+id/files_saf_count"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="8dp"
                 android:textSize="11sp"
                 android:textColor="?attr/colorOnSurfaceVariant" />
         </LinearLayout>
-
-        <EditText
-            android:id="@+id/files_search"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="6dp"
-            android:background="@drawable/bg_input"
-            android:padding="10dp"
-            android:textSize="13sp"
-            android:textColor="?attr/colorOnSurface"
-            android:textColorHint="?attr/colorOnSurfaceVariant"
-            android:hint="在当前目录内按名称过滤…"
-            android:inputType="text"
-            android:maxLines="1"
-            android:imeOptions="actionSearch" />
     </LinearLayout>
 
     <TextView
@@ -232,7 +248,8 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:gravity="center"
-        android:padding="40dp"
+        android:padding="36dp"
+        android:lineSpacingExtra="4dp"
         android:text="（空目录）"
         android:textColor="?attr/colorOnSurfaceVariant"
         android:visibility="gone" />
