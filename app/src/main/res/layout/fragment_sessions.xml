@@ -12,26 +12,57 @@
         android:layout_margin="24dp"
         android:visibility="gone" />
 
-    <TextView
+    <!-- 空会话：居中星标 + 主副文案 + 主色按钮（留白节奏，不做成"没内容"的灰字） -->
+    <LinearLayout
         android:id="@+id/sessions_empty"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
+        android:orientation="vertical"
         android:gravity="center"
         android:padding="40dp"
-        android:lineSpacingExtra="4dp"
-        android:text="还没有会话\n点下方按钮创建第一个"
-        android:textSize="14sp"
-        android:textColor="?attr/colorOnSurfaceVariant"
-        android:visibility="gone" />
+        android:visibility="gone">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:includeFontPadding="false"
+            android:text="✦"
+            android:textSize="34sp"
+            android:textColor="?attr/colorPrimary" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="还没有会话"
+            android:textSize="17sp"
+            android:textStyle="bold"
+            android:letterSpacing="0.02"
+            android:textColor="?attr/colorOnSurface" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:gravity="center"
+            android:lineSpacingExtra="3dp"
+            android:text="点下方开始第一个任务，\n或直接在底部输入框描述要做的事"
+            android:textSize="13sp"
+            android:textColor="?attr/colorOnSurfaceVariant" />
+    </LinearLayout>
 
     <com.google.android.material.button.MaterialButton
         android:id="@+id/sessions_create"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="center_horizontal"
-        android:layout_margin="16dp"
+        android:layout_marginTop="4dp"
+        android:layout_marginBottom="16dp"
+        android:paddingLeft="22dp"
+        android:paddingRight="22dp"
         android:text="@string/create_first_session"
+        android:letterSpacing="0.02"
         android:visibility="gone"
         style="@style/Widget.App.Button" />
 

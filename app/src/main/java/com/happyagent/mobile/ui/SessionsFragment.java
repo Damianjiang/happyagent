@@ -32,7 +32,8 @@ public class SessionsFragment extends Fragment {
 
     private RecyclerView recycler;
     private ProgressBar progress;
-    private TextView empty;
+    // sessions_empty 现为容器（星标+文案），只 setVisibility，View 类型即可
+    private View empty;
     private com.google.android.material.button.MaterialButton createBtn;
     private EditText searchBox;
     private SessionAdapter adapter;

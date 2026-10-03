@@ -155,8 +155,10 @@
         android:layout_marginRight="@dimen/list_inset"
         android:layout_marginTop="@dimen/space_s"
         android:visibility="gone"
-        app:cardCornerRadius="12dp"
-        app:cardElevation="1dp"
+        app:cardCornerRadius="14dp"
+        app:cardElevation="0dp"
+        app:strokeColor="?attr/colorOutlineVariant"
+        app:strokeWidth="1dp"
         app:cardBackgroundColor="?attr/colorSurface">
 
         <LinearLayout
