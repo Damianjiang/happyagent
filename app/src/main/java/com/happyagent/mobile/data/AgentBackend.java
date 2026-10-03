@@ -522,6 +522,7 @@ public final class AgentBackend {
         l.add(new Tool("tool.text", "文本 / 数据处理", "base64、URL 编解码、JSON 取字段、大小写统计、四则运算", true, "dev"));
         l.add(new Tool("tool.system", "设备状态", "设备 / 电池 / 存储 / 网络 / 剪贴板查询（只读）", true, "dev"));
         l.add(new Tool("tool.gui", "GUI 自动化", "读屏幕 / 按文本点按 / 向可输入框输入（需先开启无障碍服务）", false, "sys"));
+        l.add(new Tool("tool.proot", "容器环境 (proot)", "免 root Linux 容器跑命令：proot + Alpine，运行时下载部署（不进 APK），支持多线程/断点续传", false, "sys"));
         return l;
     }
 

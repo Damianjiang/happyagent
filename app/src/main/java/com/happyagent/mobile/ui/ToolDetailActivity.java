@@ -170,6 +170,11 @@ public class ToolDetailActivity extends AppCompatActivity {
                 add(l, "gui_click", "按文本点按钮/条目 {query}");
                 add(l, "gui_type", "向可输入框输入 {text}");
                 break;
+            case "tool.proot":
+                add(l, "shell_proot", "在免 root Linux 容器(proot+Alpine)里跑命令 {command, timeout_ms?}（需先一键部署）");
+                add(l, "proot_status", "查容器环境状态：是否部署/架构/能否执行（无参）");
+                add(l, "proot_setup", "容器未部署时返回一键部署指引（无参）");
+                break;
             default:
                 break;
         }

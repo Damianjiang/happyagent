@@ -32,7 +32,7 @@ public class ReportsFragment extends Fragment {
     private TextView keyOpenai, keyGoogle, keyAnthropic;
     private TextView themeLabel, accentLabel, chatSizeLabel;
     private TextView webStateLabel, webLanLabel;
-    private TextView guiLabel, roleLabel, ttsLabel, maxStepsLabel;
+    private TextView guiLabel, roleLabel, ttsLabel, maxStepsLabel, prootLabel;
     private ProgressBar progress;
 
     @Override
@@ -61,6 +61,7 @@ public class ReportsFragment extends Fragment {
         roleLabel = v.findViewById(R.id.reports_role);
         ttsLabel = v.findViewById(R.id.reports_tts);
         maxStepsLabel = v.findViewById(R.id.reports_max_steps);
+        prootLabel = v.findViewById(R.id.reports_proot);
         progress = v.findViewById(R.id.reports_progress);
         load();
         return v;
@@ -137,6 +138,21 @@ public class ReportsFragment extends Fragment {
                         boolean ttsOn = p.getBoolean(Prefs.KEY_TTS_ON, false);
                         ttsLabel.setText(ttsOn ? "已开启" : "已关闭");
                         maxStepsLabel.setText(String.valueOf(c.normalizedMaxSteps()));
+                        com.happyagent.mobile.data.ProotEnv prootEnv =
+                                com.happyagent.mobile.data.ProotEnv.get(requireContext().getApplicationContext());
+                        if (prootEnv.isReady()) {
+                            prootLabel.setText("已就绪（" + prootEnv.abiName() + "）");
+                            prootLabel.setTextColor(androidx.core.content.ContextCompat.getColor(
+                                    requireContext(), R.color.status_done));
+                        } else if (prootEnv.isDeploying()) {
+                            prootLabel.setText("部署中…");
+                            prootLabel.setTextColor(androidx.core.content.ContextCompat.getColor(
+                                    requireContext(), R.color.on_surface_variant));
+                        } else {
+                            prootLabel.setText("未部署（" + prootEnv.abiName() + "）");
+                            prootLabel.setTextColor(androidx.core.content.ContextCompat.getColor(
+                                    requireContext(), R.color.on_surface_variant));
+                        }
                         refreshWeb();
                     }
                 });

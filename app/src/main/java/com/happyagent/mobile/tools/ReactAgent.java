@@ -240,6 +240,11 @@ public final class ReactAgent {
             arr.put(fn("gui_click", "按文本点当前屏幕上的按钮/条目", schema("query", true)));
             arr.put(fn("gui_type", "向当前屏幕的可输入框输入文本", schema("text", true)));
         }
+        if (toolOn("tool.proot")) {
+            arr.put(fn("shell_proot", "在免 root Linux 容器(proot+Alpine)里跑一条命令 {command, timeout_ms?}", schema2("command", true, "timeout_ms", false)));
+            arr.put(fn("proot_status", "查容器环境状态：是否已部署/架构/能否执行（无参）", schema0()));
+            arr.put(fn("proot_setup", "容器环境指引：未部署时返回一键部署入口（部署本身在设置页异步进行，无参）", schema0()));
+        }
         // 时间工具始终可用（无副作用）
         arr.put(fn("time_now", "获取当前日期时间", schema0()));
         return arr;
@@ -444,6 +449,11 @@ public final class ReactAgent {
             decls.put(decl("gui_click", "按文本点屏幕按钮", "query", new String[]{"query"}));
             decls.put(decl("gui_type", "向可输入框输入文本", "text", new String[]{"text"}));
         }
+        if (toolOn("tool.proot")) {
+            decls.put(decl("shell_proot", "在免 root Linux 容器(proot+Alpine)里跑命令", "command", new String[]{"command"}));
+            decls.put(decl0("proot_status", "查容器环境状态：是否部署/架构/能否执行"));
+            decls.put(decl0("proot_setup", "容器未部署时返回一键部署指引"));
+        }
         decls.put(decl0("time_now", "获取当前日期时间"));
         return new JSONArray().put(new JSONObject().put("function_declarations", decls));
     }
@@ -639,6 +649,11 @@ public final class ReactAgent {
             arr.put(declA("gui_click", "按文本点屏幕按钮", "query", true));
             arr.put(declA("gui_type", "向可输入框输入文本", "text", true));
         }
+        if (toolOn("tool.proot")) {
+            arr.put(declA("shell_proot", "在免 root Linux 容器(proot+Alpine)里跑命令", "command", true));
+            arr.put(declA0("proot_status", "查容器环境状态：是否部署/架构/能否执行"));
+            arr.put(declA0("proot_setup", "容器未部署时返回一键部署指引"));
+        }
         arr.put(declA0("time_now", "获取当前日期时间"));
         return arr;
     }
@@ -814,6 +829,8 @@ public final class ReactAgent {
         sb.append("设备(只读)：system_device_info / system_battery / system_storage / system_network / system_clipboard_get / system_clipboard_set\n");
         sb.append("GUI(需用户先在系统里开无障碍服务)：gui_dump(读当前屏幕元素) / gui_click(按文本点按钮) / gui_type(向可输入框输入)\n");
         sb.append("  - 想做 GUI 操作前先 gui_dump 看屏幕上有什么，再按文本点/输；没开服务会返回提示，如实告诉用户即可，别硬点。\n");
+        sb.append("容器(proot 免 root Linux，需先在设置页一键部署)：shell_proot(容器里跑命令，如 apk add / python / git) / proot_status(查容器状态) / proot_setup(部署指引)\n");
+        sb.append("  - 跑 shell_proot 前先 proot_status 看是否就绪；未就绪就如实告诉用户去「设置→容器环境」一键部署，别假装能跑。容器里可装 python3/gcc 等，比白名单 shell_exec 强得多。\n");
         sb.append("其它：shell_exec(白名单命令) / http_get(抓网页) / http_post(发POST请求可带JSON体) / time_now(当前时间)\n");
         sb.append("\n完成所有工具调用后，用两三句话总结做了什么即可，别把工具原始输出整段贴回来。");
         return sb.toString();
@@ -983,6 +1000,9 @@ public final class ReactAgent {
                 {"gui_dump", "gui", "gui_screen", "ui_dump", "screen_dump"},
                 {"gui_click", "gui_tap", "gui_press"},
                 {"gui_type", "gui_input", "gui_type_text"},
+                {"shell_proot", "proot", "container", "linux_shell", "chroot_shell", "run_in_container"},
+                {"proot_status", "proot_env", "container_status", "proot_check"},
+                {"proot_setup", "proot_install", "container_setup", "proot_deploy"},
         };
         for (String[] group : aliasMap) {
             for (String alias : group) {
@@ -1041,6 +1061,10 @@ public final class ReactAgent {
             case "gui_click":
             case "gui_type":
                 return "tool.gui";
+            case "shell_proot":
+            case "proot_status":
+            case "proot_setup":
+                return "tool.proot";
             default:
                 return "";
         }
@@ -1218,12 +1242,40 @@ public final class ReactAgent {
                     if (t.isEmpty()) return "缺 'text'（要输入的内容）。";
                     return g.typeText(t);
                 }
+                case "shell_proot": {
+                    com.happyagent.mobile.data.ProotEnv env =
+                            com.happyagent.mobile.data.ProotEnv.get(
+                                    com.happyagent.mobile.HappyAgentApplication.get());
+                    String c = str(args, "command", "cmd", "shell");
+                    if (c.isEmpty()) return "缺 'command'（要在容器里跑的命令，如 'apk add python3' 或 'echo hi'）。";
+                    int timeout = safeInt(args, "timeout_ms", 30000);
+                    return env.execInContainer(c, timeout);
+                }
+                case "proot_status": {
+                    com.happyagent.mobile.data.ProotEnv env =
+                            com.happyagent.mobile.data.ProotEnv.get(
+                                    com.happyagent.mobile.HappyAgentApplication.get());
+                    StringBuilder sb = new StringBuilder();
+                    sb.append("架构 ").append(env.abiName());
+                    sb.append(env.isReady() ? " | 已就绪" : " | 未就绪");
+                    if (!env.isReady()) {
+                        sb.append(" | 探活: ").append(env.probeExec());
+                    }
+                    return sb.toString();
+                }
+                case "proot_setup": {
+                    com.happyagent.mobile.data.ProotEnv env =
+                            com.happyagent.mobile.data.ProotEnv.get(
+                                    com.happyagent.mobile.HappyAgentApplication.get());
+                    if (env.isReady()) return "容器环境已就绪，可直接用 shell_proot 跑命令。";
+                    return "容器环境未部署。请在「设置 → 容器环境」点「一键部署」：会自动多线程下载 proot + Alpine（国内镜像，支持断点续传），完成后自动探活。部署是异步的，稍后再问 proot_status。";
+                }
                 default:
                     return "未知工具 '" + name + "'。可用：file_read, file_write, file_list, file_info, file_exists, file_move, file_copy, file_zip, file_unzip, "
                             + "file_edit, file_append, file_delete, file_mkdir, file_find, file_grep, shell_exec, http_get, http_post, "
                             + "text_base64_encode, text_base64_decode, text_url_encode, text_url_decode, text_json_get, text_upper, text_lower, text_stats, text_calc, "
                             + "system_device_info, system_battery, system_storage, system_network, system_clipboard_get, system_clipboard_set, "
-                            + "gui_dump, gui_click, gui_type, time_now。";
+                            + "gui_dump, gui_click, gui_type, shell_proot, proot_status, proot_setup, time_now。";
             }
         } catch (Exception e) {
             return "工具出错: " + e.getMessage();

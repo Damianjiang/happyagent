@@ -11,8 +11,10 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.app.AppCompatDelegate;
 
 import android.widget.Button;
+import android.widget.ProgressBar;
 import com.google.android.material.switchmaterial.SwitchMaterial;
 
+import com.happyagent.mobile.HappyAgentApplication;
 import com.happyagent.mobile.R;
 import com.happyagent.mobile.data.Prefs;
 
@@ -112,6 +114,14 @@ public class SettingsActivity extends AppCompatActivity {
             prefs.putString(Prefs.KEY_ROLE_CARD, txt);
             Toast.makeText(this, txt.isEmpty() ? "已清除角色设定" : "角色设定已保存", Toast.LENGTH_SHORT).show();
         });
+
+        // 容器环境（proot）：一键部署 + 进度 + 取消
+        TextView prootState = findViewById(R.id.set_proot_state);
+        ProgressBar prootProg = findViewById(R.id.set_proot_progress);
+        TextView prootProgLabel = findViewById(R.id.set_proot_progress_label);
+        Button prootDeploy = (Button) findViewById(R.id.set_proot_deploy);
+        Button prootCancel = (Button) findViewById(R.id.set_proot_cancel);
+        bindProot(prootState, prootProg, prootProgLabel, prootDeploy, prootCancel);
 
         // Web 服务开关
         View webuiInfo = findViewById(R.id.webui_info);
@@ -336,6 +346,77 @@ public class SettingsActivity extends AppCompatActivity {
         super.onResume();
         // 用户可能刚从系统无障碍设置开完服务回来，刷新 GUI 状态
         refreshGuiState(findViewById(R.id.set_gui_state));
+        // 容器环境状态也可能因部署完成/失败而变
+        refreshProotState(findViewById(R.id.set_proot_state));
+    }
+
+    // 容器环境（proot）：一键部署（多线程 + 断点 + 国内镜像回退），进度走回调，可取消
+    private void bindProot(final TextView stateTv, final ProgressBar prog,
+                           final TextView progLabel, final Button deploy, final Button cancel) {
+        refreshProotState(stateTv);
+        deploy.setOnClickListener(v -> {
+            final com.happyagent.mobile.data.ProotEnv env =
+                    com.happyagent.mobile.data.ProotEnv.get(HappyAgentApplication.get());
+            deploy.setVisibility(View.GONE);
+            cancel.setVisibility(View.VISIBLE);
+            prog.setVisibility(View.VISIBLE);
+            progLabel.setVisibility(View.VISIBLE);
+            prog.setProgress(0);
+            progLabel.setText("准备下载…");
+            env.deploy(new com.happyagent.mobile.data.ProotEnv.Progress() {
+                @Override
+                public void on(String phase, int pct, String msg) {
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            prog.setMax(100);
+                            prog.setProgress(pct);
+                            progLabel.setText(msg);
+                        }
+                    });
+                }
+                @Override
+                public void onDone(boolean ok, String msg) {
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            deploy.setVisibility(View.VISIBLE);
+                            cancel.setVisibility(View.GONE);
+                            prog.setVisibility(View.GONE);
+                            progLabel.setVisibility(View.GONE);
+                            Toast.makeText(SettingsActivity.this,
+                                    ok ? "容器已部署就绪" : ("部署失败：" + msg),
+                                    Toast.LENGTH_LONG).show();
+                            refreshProotState(stateTv);
+                        }
+                    });
+                }
+            });
+        });
+        cancel.setOnClickListener(v -> {
+            com.happyagent.mobile.data.ProotEnv.get(HappyAgentApplication.get()).cancelDeploy();
+            deploy.setVisibility(View.VISIBLE);
+            cancel.setVisibility(View.GONE);
+            prog.setVisibility(View.GONE);
+            progLabel.setVisibility(View.GONE);
+            refreshProotState(stateTv);
+        });
+    }
+
+    // 刷新容器状态显示：已就绪(架构+探活) / 未部署 / 半成品
+    private void refreshProotState(TextView stateTv) {
+        com.happyagent.mobile.data.ProotEnv env =
+                com.happyagent.mobile.data.ProotEnv.get(HappyAgentApplication.get());
+        if (env.isReady()) {
+            stateTv.setText("已就绪（" + env.abiName() + "）");
+            stateTv.setTextColor(androidx.core.content.ContextCompat.getColor(this, R.color.status_done));
+        } else if (env.isDeploying()) {
+            stateTv.setText("部署中…");
+            stateTv.setTextColor(androidx.core.content.ContextCompat.getColor(this, R.color.on_surface_variant));
+        } else {
+            stateTv.setText("未部署（" + env.abiName() + "）");
+            stateTv.setTextColor(androidx.core.content.ContextCompat.getColor(this, R.color.on_surface_variant));
+        }
     }
 
     // GUI 自动化（无障碍服务）是否已开启
