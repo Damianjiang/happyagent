@@ -17,3 +17,23 @@ captures/
 # 发布产物不入库：APK 和更新日志只作为 GitHub Release 资产/正文，不进代码仓库
 *.apk
 RELEASE_NOTES_*.txt
+
+# AI 智能体工具缓存/配置目录，防止误入仓库（避免暴露"由 AI 构建"的痕迹）
+.agents/
+.agens/
+.claude/
+.cursor/
+.aider/
+.codex/
+.roo/
+.lingma/
+.windsurf/
+.github/copilot/
+
+# 临时发布脚本与产物（仅用于 GitHub Release 上传，不入库）
+_tok*.txt
+_publish_*.ps1
+_rel_*.json
+_rel_resp.json
+_asset*.json
+_dl*.apk
