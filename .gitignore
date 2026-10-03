@@ -33,6 +33,8 @@ RELEASE_NOTES_*.txt
 
 # 临时发布脚本与产物（仅用于 GitHub Release 上传，不入库）
 _tok*.txt
+_cred*.txt
+_crederr*.txt
 _publish_*.ps1
 _rel_*.json
 _rel_resp.json
