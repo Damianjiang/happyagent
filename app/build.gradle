@@ -14,8 +14,8 @@ android {
         applicationId "com.happyagent.mobile"
         minSdk 23
         targetSdk 34
-        versionCode 28
-        versionName "1.8.18"
+        versionCode 29
+        versionName "1.8.19"
     }
 
     // 库存在才绑定签名配置，否则 release 也能用默认签名出包

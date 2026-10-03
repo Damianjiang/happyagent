@@ -65,6 +65,8 @@ public final class Models {
         public final String text;
         public final long ts;
         public final List<Attachment> attachments;   // 老存档无该字段 → null
+        // Markdown 渲染缓存（transient：Java 序列化跳过，只在本进程 RecyclerView 复用里省一次重算）
+        public transient CharSequence md;
 
         public Message(String role, String text, long ts) {
             this(role, text, ts, null);

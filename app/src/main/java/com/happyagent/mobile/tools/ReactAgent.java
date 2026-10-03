@@ -132,12 +132,28 @@ public final class ReactAgent {
                     JSONArray results = new JSONArray();
                     JSONObject asst = new JSONObject().put("role", "assistant").put("calls", calls);
                     transcript.add(asst);
-                    for (int i = 0; i < calls.length(); i++) {
+                    int total = calls.length();
+                    for (int i = 0; i < total; i++) {
                         JSONObject c = calls.getJSONObject(i);
                         String toolName = normalizeToolName(c.optString("name", ""));
+                        // 参数容错：先校验必填，缺参/未知工具走软性提示（不执行、不给硬错误）
+                        SoftCheck pre = precheckTool(toolName, c.optJSONObject("args"));
+                        if (pre != null) {
+                            results.put(new JSONObject()
+                                    .put("id", c.optString("id", ""))
+                                    .put("name", toolName)
+                                    .put("result", pre.msg));
+                            trace.add(new Message("tool", toolName + " ⚠ " + pre.msg, System.currentTimeMillis()));
+                            continue;
+                        }
                         JSONObject args = c.optJSONObject("args");
                         if (args == null) args = new JSONObject();
                         String result = dispatchTool(toolName, args);
+                        // 软性容错：工具执行报参数/类型问题 → 包一层"请重写"提示，不硬报错
+                        if (isSoftError(result)) {
+                            result = "参数或调用有问题，未执行成功：\n" + result
+                                    + "\n（请按上面提示修正参数、重写这次调用再试；不要放弃，也不要重复同样的错误调用。）";
+                        }
                         // 长结果截断后再喂模型（trace 保留全文，界面显示不受影响）
                         results.put(new JSONObject()
                                 .put("id", c.optString("id", ""))
@@ -462,8 +478,9 @@ public final class ReactAgent {
                 JSONObject fnObj = c.optJSONObject("function");
                 String name = fnObj == null ? "" : fnObj.optString("name", "");
                 String argStr = fnObj == null ? "" : fnObj.optString("arguments", "{}");
-                JSONObject args;
-                try { args = new JSONObject(argStr); } catch (Exception e) { args = new JSONObject(); }
+                // 弱智 AI 兼容：arguments 可能是带引号/单引号/带尾巴的"飞 JSON"，用宽容解析救回；救不回给空对象（下游软校验会提示重写）
+                JSONObject args = lenientArgs(argStr);
+                if (args == null) args = new JSONObject();
                 out.put(new JSONObject().put("id", c.optString("id", ""))
                         .put("name", name).put("args", args));
             }
@@ -900,6 +917,7 @@ public final class ReactAgent {
         sb.append("   - 工具返回\"没找到要替换的内容\"或\"缺某参数\"时，按提示修正参数重试，不要放弃。\n");
         sb.append("5. 写代码 / 改文本 / 处理数据：先读，再用 file_edit 精确改；别把整个文件重写一遍。\n");
         sb.append("6. 工具返回错误时，读懂错误里给出的提示（它常附上可用文件清单/示例参数），改正后重试；同一处最多重试 2 次，仍失败就如实汇报卡在哪。\n");
+        sb.append("   - 工具结果里若出现「未执行成功 / 缺参 / 未识别 / 请重写」这类提示，说明这次调用参数有问题：把参数补齐、改成正确格式后重新发起调用即可，不用向用户道歉或放弃。\n");
         sb.append("\n【可用工具】\n");
         sb.append("文件：file_read 读 / file_write 整写 / file_edit 局部替换(old_text→new_text) / file_append 末尾追加 / "
                 + "file_delete 删除 / file_mkdir 新建目录 / "
@@ -1036,6 +1054,128 @@ public final class ReactAgent {
         } catch (Exception e) {
             return null;
         }
+    }
+
+    // ===== 弱智 AI 兼容：工具参数软性校验 + 错误提示（不硬报错、让 AI 重写） =====
+    // 已知工具必填参数表（参数名；空表 = 无必填）。缺参/未知工具只走"软提示"，不执行、不崩。
+    private static final String[][] REQUIRED_PARAMS = {
+        {"file_read", "path"},
+        {"file_write", "path", "content"},
+        {"file_list"},
+        {"file_info", "path"},
+        {"file_exists", "path"},
+        {"file_move", "path", "to"},
+        {"file_copy", "path", "to"},
+        {"file_zip", "path", "to"},
+        {"file_unzip", "path", "to"},
+        {"file_edit", "path", "old_text"},
+        {"file_append", "path", "content"},
+        {"file_delete", "path"},
+        {"file_mkdir", "path"},
+        {"file_find", "name"},
+        {"file_grep", "path", "keyword"},
+        {"shell_exec", "command"},
+        {"http_get", "url"},
+        {"http_post", "url"},
+        {"text_base64_encode", "text"},
+        {"text_base64_decode", "text"},
+        {"text_url_encode", "text"},
+        {"text_url_decode", "text"},
+        {"text_json_get", "json"},
+        {"text_upper", "text"},
+        {"text_lower", "text"},
+        {"text_stats", "text"},
+        {"text_calc", "text"},
+        {"system_clipboard_set", "text"},
+        {"gui_click", "query"},
+        {"gui_type", "text"},
+        {"shell_proot", "command"},
+    };
+
+    // 取某工具必填参数列表；未知工具返回 null（不强制校验）
+    private String[] requiredFor(String tool) {
+        for (String[] row : REQUIRED_PARAMS) {
+            if (tool.equals(row[0])) {
+                String[] out = new String[row.length - 1];
+                for (int i = 1; i < row.length; i++) out[i - 1] = row[i];
+                return out;
+            }
+        }
+        return null;
+    }
+
+    private static final class SoftCheck {
+        final String msg;
+        SoftCheck(String m) { this.msg = m; }
+    }
+
+    // 执行前软性校验：未知工具 / 缺必填参数 → 返回可行动提示（不执行、不硬报错，让 AI 重写）
+    private SoftCheck precheckTool(String tool, JSONObject args) {
+        if (tool.length() == 0 || toolGroup(tool).length() == 0) {
+            return new SoftCheck("未识别的工具名（\"" + tool + "\"）。请改用列表中的标准工具名"
+                    + "（file_read / file_write / file_edit / file_append / file_list / http_get / http_post / "
+                    + "text_calc / time_now / shell_proot 等），并带上正确参数重写调用。");
+        }
+        String[] req = requiredFor(tool);
+        if (req == null || req.length == 0) return null;
+        JSONObject a = args == null ? new JSONObject() : args;
+        StringBuilder missing = new StringBuilder();
+        for (String p : req) {
+            if (a.optString(p, "").trim().length() == 0) {
+                if (missing.length() > 0) missing.append(", ");
+                missing.append('\'').append(p).append('\'');
+            }
+        }
+        if (missing.length() > 0) {
+            return new SoftCheck("工具 " + tool + " 缺必填参数：" + missing
+                    + "。请补齐这些参数、重写这次调用再试；不要重复缺参的调用，也不要凭空猜参数值。");
+        }
+        return null;
+    }
+
+    // 判断工具结果是否为"软错误"（缺参/没找到/路径不存在/命令失败等）→ 提示 AI 重写而非硬报错
+    // 中文提示（ReactAgent 缺参/分组停用）+ 英文结果（FileTools "not found"/"error:"）都覆盖
+    private boolean isSoftError(String result) {
+        if (result == null) return false;
+        String r = result.trim();
+        if (r.length() == 0) return false;
+        String low = r.toLowerCase();
+        if (r.contains("缺 '") || r.contains("缺\"") || r.contains("未识别")
+                || r.contains("没找到") || r.contains("未找到")
+                || r.contains("不存在") || r.contains("路径越界")
+                || r.contains("工具出错") || r.contains("http 出错")
+                || r.contains("未知工具") || r.contains("无法计算")
+                || r.contains("已停用") || r.contains("命令失败")
+                || r.contains("执行失败") || r.contains("Permission denied")
+                || r.contains("未就绪") || r.contains("未部署")
+                || r.contains("需先") || r.contains("请先")
+                || r.contains("示例 {")) return true;
+        if (low.contains("not found") || low.contains("is a directory")
+                || low.contains("too large") || low.contains("error:")
+                || low.contains("failed") || low.contains("does not exist")
+                || low.contains("cannot create") || low.contains("cannot delete")
+                || low.contains("not a dir")) return true;
+        return false;
+    }
+
+    // 弱智 AI 兼容：把 AI 可能输出的"不规范 JSON 参数"（前后带引号/多余文本/单引号）清洗成可解析对象
+    private static JSONObject lenientArgs(String raw) {
+        if (raw == null) return null;
+        String s = raw.trim();
+        // 形如 "{...}" 被包在引号里：{"{...}"} 或 '{"path":"x"}'
+        if (s.startsWith("\"") && s.endsWith("\"") && s.length() > 2) {
+            s = s.substring(1, s.length() - 1);
+        }
+        try { return new JSONObject(s); } catch (Exception ignored) {}
+        // 单引号键/值 → 双引号（弱 AI 常见）
+        try { return new JSONObject(s.replace('\'', '"')); } catch (Exception ignored) {}
+        // 取第一个 { 到最后一个 } 之间的子串再试
+        int lb = s.indexOf('{');
+        int rb = s.lastIndexOf('}');
+        if (lb >= 0 && rb > lb) {
+            try { return new JSONObject(s.substring(lb, rb + 1)); } catch (Exception ignored) {}
+        }
+        return null;
     }
 
     // 工具名归一：别名/同义键映射到标准名

@@ -633,6 +633,27 @@ public class SessionDetailActivity extends AppCompatActivity {
             tv.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, chatSizeSp);
         }
 
+        // AI 回复 Markdown 渲染：像 Markdown 才走渲染，普通文本保持纯文本（不套等宽底/等宽字体）。
+        // 渲染结果缓存到 m.md（transient），RecyclerView 复用同一 Message 时不重复重算。
+        private void applyMarkdown(com.happyagent.mobile.model.Models.Message m, VH h) {
+            String text = m.text == null ? "" : m.text;
+            android.widget.TextView tv = h.aiBubble;
+            if (!com.happyagent.mobile.tools.Markdown.looksLikeMarkdown(text)) {
+                m.md = null;
+                tv.setText(text);
+                applyChatSize(tv);
+                tv.setMovementMethod(null);
+                return;
+            }
+            if (m.md == null) {
+                m.md = com.happyagent.mobile.tools.Markdown.render(h.itemView.getContext(), text);
+            }
+            tv.setText(m.md);
+            applyChatSize(tv);
+            // 链接 span 可点：走系统浏览器打开
+            tv.setMovementMethod(android.text.method.LinkMovementMethod.getInstance());
+        }
+
         int count() {
             return items.size();
         }
@@ -677,8 +698,8 @@ public class SessionDetailActivity extends AppCompatActivity {
                 applyChatSize(h.userBubble);
                 bindUserAttachments(h, m);
             } else if (isAi) {
-                h.aiBubble.setText(m.text);
-                applyChatSize(h.aiBubble);
+                // AI 回复走 Markdown 渲染（代码块/标题/列表/链接/粗体），非 Markdown 保持纯文本
+                applyMarkdown(m, h);
                 // AI 回复可一键复制（引擎能答但 UI 没露出来的那块）
                 final String aiText = m.text;
                 h.aiBubbleCopy.setOnClickListener(v -> copyToClipboard(h.itemView.getContext(), aiText));
