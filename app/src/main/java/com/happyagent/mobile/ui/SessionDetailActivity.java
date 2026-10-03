@@ -407,9 +407,23 @@ public class SessionDetailActivity extends AppCompatActivity {
             } else if (isAi) {
                 h.aiBubble.setText(m.text);
                 applyChatSize(h.aiBubble);
+                // AI 回复可一键复制（引擎能答但 UI 没露出来的那块）
+                final String aiText = m.text;
+                h.aiBubbleCopy.setOnClickListener(v -> copyToClipboard(h.itemView.getContext(), aiText));
             } else if (isTool) {
                 h.toolLine.setText(m.text);
+                final String toolText = m.text;
+                h.toolLineCopy.setOnClickListener(v -> copyToClipboard(h.itemView.getContext(), toolText));
             }
+        }
+
+        // 复制 AI 回复 / 工具输出到剪贴板
+        private void copyToClipboard(android.content.Context ctx, String text) {
+            android.content.ClipboardManager cm =
+                    (android.content.ClipboardManager) ctx.getSystemService(android.content.Context.CLIPBOARD_SERVICE);
+            if (cm == null || text == null) return;
+            cm.setPrimaryClip(android.content.ClipData.newPlainText("happy-agent", text));
+            Toast.makeText(ctx, "已复制", Toast.LENGTH_SHORT).show();
         }
 
         // 用户气泡上方渲染附件：图片缩略图 + 文件 chip
@@ -466,12 +480,15 @@ public class SessionDetailActivity extends AppCompatActivity {
             final TextView userBubble, aiBubble, toolLine;
             final View userRow, aiRow, toolRow;
             final LinearLayout userAttach;
+            final android.widget.ImageView aiBubbleCopy, toolLineCopy;
 
             VH(View v) {
                 super(v);
                 userBubble = v.findViewById(R.id.bubble_user);
                 aiBubble = v.findViewById(R.id.bubble_ai);
                 toolLine = v.findViewById(R.id.bubble_tool);
+                aiBubbleCopy = v.findViewById(R.id.bubble_ai_copy);
+                toolLineCopy = v.findViewById(R.id.bubble_tool_copy);
                 userRow = v.findViewById(R.id.row_user);
                 aiRow = v.findViewById(R.id.row_ai);
                 toolRow = v.findViewById(R.id.row_tool);

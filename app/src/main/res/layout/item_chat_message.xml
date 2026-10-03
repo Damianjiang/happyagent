@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:paddingLeft="12dp"
@@ -71,11 +72,24 @@
             android:layout_weight="1"
             android:layout_marginStart="10dp"
             android:layout_marginLeft="10dp"
-            android:maxWidth="300dp"
             android:paddingTop="2dp"
+            android:paddingRight="8dp"
+            android:layout_marginEnd="8dp"
             android:textSize="14sp"
             android:lineSpacingExtra="3dp"
             android:textColor="?attr/colorOnSurface" />
+
+        <ImageView
+            android:id="@+id/bubble_ai_copy"
+            android:layout_width="28dp"
+            android:layout_height="28dp"
+            android:layout_gravity="top"
+            android:layout_marginTop="2dp"
+            android:padding="3dp"
+            android:src="@drawable/ic_copy"
+            android:contentDescription="复制回复"
+            app:tint="?attr/colorOnSurfaceVariant"
+            android:background="?android:attr/selectableItemBackgroundBorderless" />
     </LinearLayout>
 
     <!-- 工具调用：居中小灰等宽字 -->
@@ -89,18 +103,39 @@
         android:paddingRight="32dp"
         android:visibility="gone">
 
-        <TextView
-            android:id="@+id/bubble_tool"
+        <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:background="@drawable/bg_bubble_tool"
-            android:fontFamily="monospace"
-            android:paddingLeft="10dp"
-            android:paddingRight="10dp"
-            android:paddingTop="6dp"
-            android:paddingBottom="6dp"
-            android:textSize="11sp"
-            android:textColor="?attr/colorOnSurfaceVariant" />
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/bubble_tool"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_bubble_tool"
+                android:fontFamily="monospace"
+                android:paddingLeft="10dp"
+                android:paddingRight="6dp"
+                android:paddingTop="6dp"
+                android:paddingBottom="6dp"
+                android:textSize="11sp"
+                android:maxWidth="260dp"
+                android:ellipsize="end"
+                android:singleLine="true"
+                android:textColor="?attr/colorOnSurfaceVariant" />
+
+            <ImageView
+                android:id="@+id/bubble_tool_copy"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:padding="2dp"
+                android:layout_marginStart="4dp"
+                android:src="@drawable/ic_copy"
+                android:contentDescription="复制工具输出"
+                app:tint="?attr/colorOnSurfaceVariant"
+                android:background="?android:attr/selectableItemBackgroundBorderless" />
+        </LinearLayout>
     </LinearLayout>
 
 </FrameLayout>
