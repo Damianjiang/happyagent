@@ -179,6 +179,16 @@ public class SessionsFragment extends Fragment {
             h.title.setText(s.title);
             h.date.setText(fmt.format(new Date(s.updatedAt)));
             h.status.setText(s.statusLabel());
+            // 状态醒目：运行中=琥珀、完成=绿、失败=红，一眼可辨（原来是统一灰字）
+            int stColor;
+            if (s.status == 0) stColor = R.color.status_paused;
+            else if (s.status == 2) stColor = R.color.status_done;
+            else if (s.status == 3) stColor = R.color.status_failed;
+            else stColor = R.color.on_surface_variant;
+            h.status.setTextColor(androidx.core.content.ContextCompat.getColor(
+                    h.itemView.getContext(), stColor));
+            h.status.setTypeface(h.status.getTypeface(),
+                    s.status == 0 ? android.graphics.Typeface.BOLD : android.graphics.Typeface.NORMAL);
             // 消息数（数据层 Session.messages 早能查，界面补露出；0 条时不显示）
             int msgCount = s.messages.size();
             if (msgCount > 0) {

@@ -408,24 +408,24 @@ public class SettingsActivity extends AppCompatActivity {
         com.happyagent.mobile.data.ProotEnv env =
                 com.happyagent.mobile.data.ProotEnv.get(HappyAgentApplication.get());
         if (env.isReady()) {
-            stateTv.setText("已就绪（" + env.abiName() + "）");
+            stateTv.setText("● 已就绪（" + env.abiName() + "）");
             stateTv.setTextColor(androidx.core.content.ContextCompat.getColor(this, R.color.status_done));
         } else if (env.isDeploying()) {
-            stateTv.setText("部署中…");
-            stateTv.setTextColor(androidx.core.content.ContextCompat.getColor(this, R.color.on_surface_variant));
+            stateTv.setText("◌ 部署中…");
+            stateTv.setTextColor(androidx.core.content.ContextCompat.getColor(this, R.color.acc_amber));
         } else {
-            stateTv.setText("未部署（" + env.abiName() + "）");
-            stateTv.setTextColor(androidx.core.content.ContextCompat.getColor(this, R.color.on_surface_variant));
+            stateTv.setText("○ 未部署（" + env.abiName() + "）");
+            stateTv.setTextColor(androidx.core.content.ContextCompat.getColor(this, R.color.status_failed));
         }
     }
 
     // GUI 自动化（无障碍服务）是否已开启
     private void refreshGuiState(TextView stateTv) {
         boolean on = com.happyagent.mobile.service.GuardService.isRunning();
-        stateTv.setText(on ? "无障碍服务已开启（gui_* 工具可用）" : "无障碍服务未开启");
+        stateTv.setText(on ? "● 无障碍服务已开启" : "○ 无障碍服务未开启");
         stateTv.setTextColor(on
                 ? androidx.core.content.ContextCompat.getColor(this, R.color.status_done)
-                : getThemeColor(R.color.on_surface_variant));
+                : androidx.core.content.ContextCompat.getColor(this, R.color.status_failed));
     }
 
     @Override

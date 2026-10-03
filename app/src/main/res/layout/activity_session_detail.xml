@@ -69,18 +69,53 @@
             android:textColor="?attr/colorOnSurfaceVariant" />
     </LinearLayout>
 
-    <!-- 任务控制条：暂停 / 继续 / 取消，任务运行时才出现 -->
+    <!-- 任务控制条：醒目运行状态行 + 暂停 / 继续 / 取消，任务运行时才出现 -->
     <LinearLayout
         android:id="@+id/detail_controls"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
+        android:orientation="vertical"
         android:visibility="gone"
         android:paddingLeft="16dp"
         android:paddingRight="16dp"
-        android:paddingTop="6dp"
+        android:paddingTop="8dp"
         android:paddingBottom="6dp"
         android:background="?attr/colorSurface">
+
+        <!-- 运行状态行：彩色点 + 加粗状态文字，让「正在跑/已暂停」一眼可见 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingBottom="8dp">
+
+            <TextView
+                android:id="@+id/detail_run_dot"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:includeFontPadding="false"
+                android:text="●"
+                android:textSize="11sp"
+                android:textColor="@color/status_done" />
+
+            <TextView
+                android:id="@+id/detail_run_status"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="6dp"
+                android:layout_marginLeft="6dp"
+                android:text="运行中"
+                android:textSize="13sp"
+                android:textStyle="bold"
+                android:textColor="?attr/colorOnSurface" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/detail_pause"
@@ -114,6 +149,7 @@
             android:layout_marginStart="6dp"
             android:text="取消"
             style="@style/Widget.App.Button.Outline" />
+        </LinearLayout>
     </LinearLayout>
 
     <!-- 待发送附件预览行：选了图片/文件后显示，点 × 移除 -->

@@ -593,9 +593,12 @@
                                 android:id="@+id/set_gui_state"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
+                                android:layout_marginTop="4dp"
+                                android:background="@drawable/bg_status_pill"
                                 android:text="无障碍服务未开启"
                                 android:textSize="12sp"
-                                android:textColor="?attr/colorOnSurfaceVariant" />
+                                android:textStyle="bold"
+                                android:textColor="@color/status_failed" />
                         </LinearLayout>
                         <com.google.android.material.button.MaterialButton
                             android:id="@+id/set_gui_open"
@@ -689,12 +692,14 @@
 
                     <TextView
                         android:id="@+id/set_proot_state"
-                        android:layout_width="match_parent"
+                        android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="10dp"
+                        android:background="@drawable/bg_status_pill"
                         android:text="未部署"
                         android:textSize="13sp"
-                        android:textColor="?attr/colorOnSurfaceVariant" />
+                        android:textStyle="bold"
+                        android:textColor="@color/status_failed" />
 
                     <ProgressBar
                         android:id="@+id/set_proot_progress"

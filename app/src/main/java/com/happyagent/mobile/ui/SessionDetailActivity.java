@@ -52,6 +52,8 @@ public class SessionDetailActivity extends AppCompatActivity {
 
     private View controlsRow, attachStrip;
     private MaterialButton pauseBtn, resumeBtn, cancelBtn;
+    private TextView runStatus;
+    private android.widget.TextView runDot;
     private LinearLayout attachItems;
     private String model;
 
@@ -92,6 +94,8 @@ public class SessionDetailActivity extends AppCompatActivity {
         pauseBtn = findViewById(R.id.detail_pause);
         resumeBtn = findViewById(R.id.detail_resume);
         cancelBtn = findViewById(R.id.detail_cancel);
+        runStatus = findViewById(R.id.detail_run_status);
+        runDot = findViewById(R.id.detail_run_dot);
 
         pauseBtn.setOnClickListener(v -> { Haptics.tap(v); AgentBackend.get().pauseTask(); });
         resumeBtn.setOnClickListener(v -> { Haptics.tap(v); AgentBackend.get().resumeTask(); });
@@ -463,6 +467,15 @@ public class SessionDetailActivity extends AppCompatActivity {
             boolean paused = backend.isTaskPaused();
             pauseBtn.setVisibility(paused ? View.GONE : View.VISIBLE);
             resumeBtn.setVisibility(paused ? View.VISIBLE : View.GONE);
+            // 醒目状态行：点色 + 加粗文字 + 实时步数
+            if (paused) {
+                runDot.setTextColor(androidx.core.content.ContextCompat.getColor(this, R.color.status_paused));
+                runStatus.setText("已暂停");
+            } else {
+                int steps = backend.peekRunningToolSteps().size();
+                runDot.setTextColor(androidx.core.content.ContextCompat.getColor(this, R.color.status_done));
+                runStatus.setText(steps > 0 ? "运行中 · 已调 " + steps + " 个工具" : "运行中…");
+            }
         }
     }
 

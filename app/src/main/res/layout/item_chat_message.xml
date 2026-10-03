@@ -116,10 +116,19 @@
             android:orientation="horizontal"
             android:gravity="center_vertical">
 
+            <ImageView
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:src="@drawable/ic_gear"
+                android:contentDescription="工具调用"
+                android:scaleType="center" />
+
             <TextView
                 android:id="@+id/bubble_tool"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:layout_marginStart="4dp"
+                android:layout_marginLeft="4dp"
                 android:background="@drawable/bg_bubble_tool"
                 android:fontFamily="monospace"
                 android:paddingLeft="10dp"
