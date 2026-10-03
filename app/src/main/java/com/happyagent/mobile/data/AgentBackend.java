@@ -186,6 +186,7 @@ public final class AgentBackend {
                             trace, control, getEnabledToolKeys());
                     agent.setRoleCard(currentRoleCard());
                     agent.setCustomSystemPrompt(currentSystemPrompt());
+                    agent.setPromptTags(currentPromptTags());
                     agent.setMaxSteps(currentMaxSteps());
                     final String summary = agent.run(prompt, history, atts);
                     // 被取消/停止时，只记用户输入 + 已发生的工具步骤 + 停止说明，不标完成
@@ -258,6 +259,7 @@ public final class AgentBackend {
                     trace, control, getEnabledToolKeys());
             agent.setRoleCard(currentRoleCard());
             agent.setCustomSystemPrompt(currentSystemPrompt());
+            agent.setPromptTags(currentPromptTags());
             agent.setMaxSteps(currentMaxSteps());
             String summary = agent.run(prompt, history,
                     new ArrayList<com.happyagent.mobile.model.Models.Attachment>());
@@ -321,6 +323,28 @@ public final class AgentBackend {
     private String currentSystemPrompt() {
         Prefs p = new Prefs(HappyAgentApplication.get());
         return p.getString(Prefs.KEY_SYSTEM_PROMPT, "").trim();
+    }
+
+    // 标签 / 提示词片段：读 JSON，把启用段拼成正文注入系统提示词（全停用=空串）
+    private String currentPromptTags() {
+        Prefs p = new Prefs(HappyAgentApplication.get());
+        java.util.List<PromptTags.Tag> tags = PromptTags.load(p.getString(Prefs.KEY_PROMPT_TAGS, ""));
+        return PromptTags.enabledText(tags);
+    }
+
+    // 单轮 LLM 生成（无工具）：给"AI 生成角色卡"等一次性生成用。同步网络，调用方负责放后台线程。
+    // 没 Key / 失败都如实返回说明串，不抛异常给 UI 层。
+    public String llmGenerate(String prompt) {
+        ReactAgent agent = new ReactAgent(getConfig(),
+                new FileTools(HappyAgentApplication.get()),
+                new ShellExecutor(HappyAgentApplication.get()),
+                new SystemTools(HappyAgentApplication.get()),
+                new ArrayList<Message>());
+        try {
+            return agent.oneShot(prompt);
+        } catch (Exception e) {
+            return "生成失败：" + (e.getMessage() == null ? e.toString() : e.getMessage());
+        }
     }
 
     // 会话操作：重命名 / 删除 / 清空（数据层早就能，只是界面没入口）

@@ -28,6 +28,9 @@ public final class Prefs {
     public static final String KEY_ROLE_NAME = "role_name";
     // 个性化：自定义系统提示词（追加在内置工具规则之前，真注入引擎；空=只用内置默认）
     public static final String KEY_SYSTEM_PROMPT = "system_prompt";
+    // 个性化：标签 / 提示词片段（JSON 数组 [{name, content, enabled}]，启用段一并注入系统提示词；
+    // 对应 Operit 的"标签"多提示词，可同时挂多个）
+    public static final String KEY_PROMPT_TAGS = "prompt_tags";
     // 语音：任务完成后自动朗读 AI 回复（TextToSpeech）；麦克风输入是聊天页按钮，不需要开关
     public static final String KEY_TTS_ON = "tts_on";
     // 引擎：ReAct 最大步数（老存档兼容：走 Prefs 不进序列化 State）

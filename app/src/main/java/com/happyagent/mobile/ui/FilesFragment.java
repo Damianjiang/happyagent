@@ -372,7 +372,8 @@ public class FilesFragment extends Fragment {
     private void onActions(Row r) {
         List<String> items = new ArrayList<String>();
         if (r.fromSaf) {
-            if (isSafText(r)) items.add("编辑");
+            if (isSafText(r)) items.add("预览");
+            items.add("编辑");
             items.add("发给智能体");
             items.add("用系统打开");
             items.add("分享");
@@ -382,6 +383,7 @@ public class FilesFragment extends Fragment {
                 items.add("压缩为 zip");
                 items.add("删除");
             } else {
+                items.add("预览");
                 items.add("编辑");
                 items.add("复制");
                 items.add("移动 / 重命名");
@@ -408,7 +410,8 @@ public class FilesFragment extends Fragment {
 
     private void doAction(Row r, String a) {
         if (r.fromSaf) {
-            if (a.equals("编辑")) openEditorSaf(r);
+            if (a.equals("预览")) openPreviewSaf(r);
+            else if (a.equals("编辑")) openEditorSaf(r);
             else if (a.equals("发给智能体")) sendSafToAgent(r);
             else if (a.equals("用系统打开")) openSafInSystem(r);
             else if (a.equals("分享")) shareSaf(r);
@@ -416,6 +419,9 @@ public class FilesFragment extends Fragment {
         }
         String parentDir = new File(r.absPath).getParent();
         switch (a) {
+            case "预览":
+                openPreview(r.absPath);
+                break;
             case "编辑":
                 openEditor(r.absPath);
                 break;
@@ -485,6 +491,23 @@ public class FilesFragment extends Fragment {
         Intent i = new Intent(requireContext(), FileEditorActivity.class);
         i.putExtra(FileEditorActivity.EXTRA_PATH, absPath);
         i.putExtra(FileEditorActivity.EXTRA_NAME, new File(absPath).getName());
+        startActivity(i);
+    }
+
+    // 文件预览：不进编辑器，快速查看（文本/图片内嵌，其它给系统打开）
+    private void openPreview(String absPath) {
+        Intent i = new Intent(requireContext(), FilePreviewActivity.class);
+        i.putExtra(FilePreviewActivity.EXTRA_PATH, absPath);
+        i.putExtra(FilePreviewActivity.EXTRA_NAME, new File(absPath).getName());
+        i.putExtra(FilePreviewActivity.EXTRA_MIME, guessMime(new File(absPath).getName()));
+        startActivity(i);
+    }
+
+    private void openPreviewSaf(Row r) {
+        Intent i = new Intent(requireContext(), FilePreviewActivity.class);
+        i.putExtra(FilePreviewActivity.EXTRA_DOC_ID, r.docId);
+        i.putExtra(FilePreviewActivity.EXTRA_NAME, r.name);
+        i.putExtra(FilePreviewActivity.EXTRA_MIME, r.mime);
         startActivity(i);
     }
 

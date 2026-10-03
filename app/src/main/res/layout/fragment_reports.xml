@@ -152,7 +152,12 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="运行时"
+                    android:id="@+id/reports_hdr_runtime"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:background="?android:attr/selectableItemBackground"
+                    android:padding="6dp"
+                    android:text="运行时（点我去改 →）"
                     style="@style/SectionHeader" />
 
                 <LinearLayout
@@ -300,7 +305,12 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="模型接入"
+                    android:id="@+id/reports_hdr_provider"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:background="?android:attr/selectableItemBackground"
+                    android:padding="6dp"
+                    android:text="模型接入（点我去改 →）"
                     style="@style/SectionHeader" />
 
                 <LinearLayout
@@ -430,7 +440,12 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="个性化"
+                    android:id="@+id/reports_hdr_personal"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:background="?android:attr/selectableItemBackground"
+                    android:padding="6dp"
+                    android:text="个性化（点我去改 →）"
                     style="@style/SectionHeader" />
 
                 <LinearLayout
@@ -515,7 +530,12 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Web 服务"
+                    android:id="@+id/reports_hdr_web"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:background="?android:attr/selectableItemBackground"
+                    android:padding="6dp"
+                    android:text="Web 服务（点我去改 →）"
                     style="@style/SectionHeader" />
 
                 <LinearLayout
@@ -580,7 +600,12 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="能力状态"
+                    android:id="@+id/reports_hdr_capability"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:background="?android:attr/selectableItemBackground"
+                    android:padding="6dp"
+                    android:text="能力状态（点我去开 →）"
                     style="@style/SectionHeader" />
 
                 <LinearLayout

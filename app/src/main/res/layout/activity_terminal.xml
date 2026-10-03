@@ -1,0 +1,169 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 容器终端：proot 部署后可手动在 Alpine 里跑命令（对应 Operit 的 Ubuntu 终端）；未部署则诚实引导一键部署 -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="?android:colorBackground">
+
+    <com.google.android.material.appbar.MaterialToolbar
+        android:id="@+id/term_toolbar"
+        android:layout_width="match_parent"
+        android:layout_height="?attr/actionBarSize"
+        android:background="?attr/colorSurface"
+        app:titleTextColor="?attr/colorOnSurface"
+        app:title="容器终端"
+        app:navigationIcon="@drawable/ic_back" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:padding="12dp">
+
+        <TextView
+            android:id="@+id/term_state"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/bg_status_pill"
+            android:text="● 已就绪"
+            android:textSize="13sp"
+            android:textStyle="bold"
+            android:textColor="@color/status_done" />
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="end"
+            android:textSize="11sp"
+            android:textColor="?attr/colorOnSurfaceVariant"
+            android:text="免 root Alpine 容器" />
+    </LinearLayout>
+
+    <!-- 未部署时的引导 + 一键部署（复用 ProotEnv.deploy，与设置页同套进度） -->
+    <LinearLayout
+        android:id="@+id/term_deploy_box"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="12dp"
+        android:paddingBottom="0dp"
+        android:visibility="gone">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="容器未部署，无法运行命令。点下方一键部署，会自动下载 proot + Alpine 并探活（多线程 + 断点续传 + 国内镜像，不进 APK）。"
+            android:textSize="13sp"
+            android:lineSpacingExtra="2dp"
+            android:textColor="?attr/colorOnSurfaceVariant" />
+
+        <ProgressBar
+            android:id="@+id/term_deploy_progress"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:visibility="gone"
+            style="?android:attr/progressBarStyleHorizontal" />
+
+        <TextView
+            android:id="@+id/term_deploy_label"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:visibility="gone"
+            android:textSize="11sp"
+            android:textColor="?attr/colorOnSurfaceVariant" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/term_deploy"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:text="一键部署容器"
+            style="@style/Widget.App.Button" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/term_deploy_cancel"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:visibility="gone"
+            android:text="取消部署"
+            style="@style/Widget.App.Button.Outline" />
+    </LinearLayout>
+
+    <!-- 输出区：monospace 终端样式 -->
+    <ScrollView
+        android:id="@+id/term_output_scroll"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:fillViewport="true"
+        android:background="#0E0E11"
+        android:scrollbars="vertical">
+
+        <TextView
+            android:id="@+id/term_output"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:fontFamily="monospace"
+            android:padding="12dp"
+            android:textIsSelectable="true"
+            android:textSize="13sp"
+            android:textColor="#D8D8D8"
+            android:lineSpacingExtra="2dp"
+            android:text="（等待命令…）" />
+    </ScrollView>
+
+    <!-- 常用命令快捷 chip（仅就绪时显示） -->
+    <HorizontalScrollView
+        android:id="@+id/term_chips_scroll"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_margin="8dp"
+        android:scrollbars="none">
+
+        <LinearLayout
+            android:id="@+id/term_chips"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal" />
+    </HorizontalScrollView>
+
+    <!-- 输入行 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:padding="8dp">
+
+        <EditText
+            android:id="@+id/term_input"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:background="@drawable/bg_input"
+            android:fontFamily="monospace"
+            android:hint="apk add python3  …"
+            android:inputType="text"
+            android:maxLines="1"
+            android:padding="12dp"
+            android:textSize="13sp"
+            android:textColor="?attr/colorOnSurface"
+            android:textColorHint="?attr/colorOnSurfaceVariant" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/term_run"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:text="运行"
+            style="@style/Widget.App.Button" />
+    </LinearLayout>
+
+</LinearLayout>

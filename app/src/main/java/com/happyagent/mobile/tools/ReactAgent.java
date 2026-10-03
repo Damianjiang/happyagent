@@ -46,6 +46,8 @@ public final class ReactAgent {
     private String roleCard = "";
     // 自定义系统提示词：用户在设置页编辑的追加指令，真注入引擎（留空=只用内置默认）
     private String customSystemPrompt = "";
+    // 标签 / 提示词片段：启用段拼接后的正文，真注入引擎（留空=无）
+    private String promptTags = "";
     // 任务最大步数：默认 10，AgentBackend 按 Prefs 覆写（老存档兼容，不进序列化）
     private int maxSteps = DEFAULT_MAX_STEPS;
 
@@ -81,6 +83,11 @@ public final class ReactAgent {
     // 自定义系统提示词：设置页编辑的追加指令，注入到角色设定之后、工具规则之前
     public void setCustomSystemPrompt(String s) {
         this.customSystemPrompt = s == null ? "" : s.trim();
+    }
+
+    // 标签 / 提示词片段：启用段拼接后的正文，注入到自定义指令之后、工具规则之前
+    public void setPromptTags(String s) {
+        this.promptTags = s == null ? "" : s.trim();
     }
 
     // 任务最大步数（AgentBackend 按 Prefs 设，允许 4~20；越界回默认）
@@ -191,6 +198,67 @@ public final class ReactAgent {
         if (Config.PROVIDER_GOOGLE.equals(provider)) return callGoogle(transcript);
         if (Config.PROVIDER_ANTHROPIC.equals(provider)) return callAnthropic(transcript);
         return callOpenAI(transcript);
+    }
+
+    // 单轮纯文本生成（无工具、无本地降级）：给"AI 生成角色卡/文案"等一次性生成用。
+    // 诚实：没 Key 直接说明、失败照实返回错误串，绝不编造内容。三家直连。
+    public String oneShot(String userText) throws Exception {
+        if (!cfg.hasKey()) {
+            return "没有配置 API Key，无法在线生成（本机未内置模型）。";
+        }
+        String agent = cfg.agentName == null || cfg.agentName.trim().isEmpty()
+                ? "Happy Agent" : cfg.agentName.trim();
+        String provider = cfg.getProvider();
+        if (Config.PROVIDER_GOOGLE.equals(provider)) {
+            JSONObject body = new JSONObject();
+            body.put("contents", new JSONArray().put(new JSONObject()
+                    .put("role", "user")
+                    .put("parts", new JSONArray().put(new JSONObject().put("text", userText)))));
+            body.put("generationConfig", new JSONObject()
+                    .put("temperature", clampTemp(cfg.temperature / 100.0, 2.0))
+                    .put("maxOutputTokens", 4096));
+            String url = "https://generativelanguage.googleapis.com/v1beta/models/"
+                    + cfg.model + ":generateContent";
+            String resp = postRetry(url, body.toString(), new String[][]{
+                    {"x-goog-api-key", cfg.apiKey().trim()}});
+            JSONObject jo = new JSONObject(resp);
+            JSONArray cand = jo.optJSONArray("candidates");
+            if (cand == null || cand.length() == 0) return "上游无返回（" + cfg.model + "）";
+            JSONArray parts = cand.getJSONObject(0).getJSONObject("content").getJSONArray("parts");
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < parts.length(); i++) sb.append(parts.getJSONObject(i).optString("text", ""));
+            return sb.toString();
+        }
+        if (Config.PROVIDER_ANTHROPIC.equals(provider)) {
+            JSONObject body = new JSONObject();
+            body.put("model", cfg.model);
+            body.put("max_tokens", 4096);
+            body.put("system", "你是「" + agent + "」的内容生成助手，按用户要求简洁输出。");
+            body.put("messages", new JSONArray().put(new JSONObject()
+                    .put("role", "user").put("content", userText)));
+            String resp = postRetry("https://api.anthropic.com/v1/messages", body.toString(), new String[][]{
+                    {"x-api-key", cfg.apiKey().trim()}, {"anthropic-version", "2023-06-01"}});
+            JSONObject jo = new JSONObject(resp);
+            JSONArray content = jo.optJSONArray("content");
+            StringBuilder sb = new StringBuilder();
+            if (content != null) for (int i = 0; i < content.length(); i++) sb.append(content.getJSONObject(i).optString("text", ""));
+            return sb.toString();
+        }
+        // OpenAI 兼容
+        JSONObject body = new JSONObject();
+        body.put("model", cfg.model);
+        body.put("temperature", clampTemp(cfg.temperature / 100.0, 2.0));
+        body.put("max_tokens", 4096);
+        body.put("messages", new JSONArray()
+                .put(new JSONObject().put("role", "system")
+                        .put("content", "你是「" + agent + "」的内容生成助手，按用户要求简洁输出。"))
+                .put(new JSONObject().put("role", "user").put("content", userText)));
+        String base = cfg.openaiBaseUrl.trim();
+        while (base.endsWith("/")) base = base.substring(0, base.length() - 1);
+        String resp = postRetry(base + "/chat/completions", body.toString(), new String[][]{
+                {"Authorization", "Bearer " + cfg.apiKey().trim()}});
+        JSONObject jo = new JSONObject(resp);
+        return jo.getJSONArray("choices").getJSONObject(0).getJSONObject("message").optString("content", "");
     }
 
     // OpenAI 工具 schema；只放工具页开关打开的分组
@@ -819,6 +887,9 @@ public final class ReactAgent {
         }
         if (customSystemPrompt.length() > 0) {
             sb.append("\n【用户自定义指令（务必遵守）】\n").append(customSystemPrompt).append("\n");
+        }
+        if (promptTags.length() > 0) {
+            sb.append("\n【启用标签 / 提示词片段（务必遵守）】\n").append(promptTags).append("\n");
         }
         sb.append("\n【工具使用规则】\n");
         sb.append("1. 一次只调一个工具，拿到结果再决定下一步；不要一次塞多个。\n");

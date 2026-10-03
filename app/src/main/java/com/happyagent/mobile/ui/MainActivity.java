@@ -16,6 +16,9 @@ import com.google.android.material.bottomnavigation.BottomNavigationView;
 // 主界面：顶部应用栏 + 底部四个功能页，Fragment 首次点开才建，之后切来切去很轻
 public class MainActivity extends AppCompatActivity {
 
+    // 外部 intent 指定先显示哪个 tab（诊断页"能改的行"点一下跳去配置页等）
+    public static final String EXTRA_GOTO_TAB = "goto_tab";
+
     private BottomNavigationView nav;
     private ShakeLog shakeLog;
     private SessionsFragment sessionsFragment;
@@ -48,12 +51,29 @@ public class MainActivity extends AppCompatActivity {
             openTab(startId);
         }
 
+        // 外部指定先显示某 tab（诊断页"能改的行"点一下跳去配置/诊断页）
+        int gotoTab = getIntent().getIntExtra(EXTRA_GOTO_TAB, -1);
+        if (gotoTab != -1) {
+            nav.setSelectedItemId(gotoTab);
+            openTab(gotoTab);
+        }
+
         if (firstLaunch) {
             startActivity(new Intent(this, WelcomeActivity.class));
         }
 
         // 摇一摇记日志：开关开着才挂传感器；离开界面即摘掉，省电也避免后台误触发
         shakeLog = new ShakeLog(this);
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        int gotoTab = intent == null ? -1 : intent.getIntExtra(EXTRA_GOTO_TAB, -1);
+        if (gotoTab != -1) {
+            nav.setSelectedItemId(gotoTab);
+            openTab(gotoTab);
+        }
     }
 
     @Override

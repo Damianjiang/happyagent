@@ -1,22 +1,28 @@
 package com.happyagent.mobile.ui;
 
 import android.graphics.drawable.GradientDrawable;
+import android.content.Intent;
 import android.os.Bundle;
 import android.view.View;
+import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.app.AppCompatDelegate;
 
 import android.widget.Button;
 import android.widget.ProgressBar;
+import com.google.android.material.button.MaterialButton;
 import com.google.android.material.switchmaterial.SwitchMaterial;
 
 import com.happyagent.mobile.HappyAgentApplication;
 import com.happyagent.mobile.R;
+import com.happyagent.mobile.data.AgentBackend;
 import com.happyagent.mobile.data.Prefs;
+import com.happyagent.mobile.data.PromptTags;
 
 // 设置 / 个性化：主题三态、强调色 5 选 1、会话字号、震动/摇一摇/起始页、Web 开关、关于。
 // 外观改动当场套主题重建；其余持久化下次用。颜色全走当前主题的色资源，强调色切换后整体跟走。
@@ -122,6 +128,45 @@ public class SettingsActivity extends AppCompatActivity {
         // 预设风格：点一下把「角色名 + 角色设定」一起填进上面两项，可再改
         LinearLayout presetRow = findViewById(R.id.set_role_presets);
         fillRolePresets(presetRow, roleBoxName, roleBox);
+        // AI 生成角色卡：填一句"想要什么样的人设"→ 后台调 LLM 生成角色设定填进上面（无 Key 诚实提示）
+        final MaterialButton roleAiBtn = findViewById(R.id.set_role_ai);
+        final EditText roleAiName = roleBoxName;
+        final EditText roleAiCard = roleBox;
+        roleAiBtn.setOnClickListener(vv -> {
+            final EditText q = new EditText(this);
+            q.setHint("想生成什么角色？如：严谨的代码审查助手 / 耐心的编程老师…");
+            new AlertDialog.Builder(this)
+                    .setTitle("AI 生成角色卡")
+                    .setMessage("填一句你想生成的人设方向，AI 会写成可直接用的角色设定（需已配置模型 Key）。")
+                    .setView(q)
+                    .setPositiveButton("生成", (d, w) -> {
+                        final String want = q.getText().toString().trim();
+                        if (want.isEmpty()) {
+                            Toast.makeText(this, "先写一句想要的人设方向", Toast.LENGTH_SHORT).show();
+                            return;
+                        }
+                        roleAiBtn.setEnabled(false);
+                        roleAiBtn.setText("生成中…");
+                        new Thread(() -> {
+                            String out = AgentBackend.get().llmGenerate(
+                                    "请为端侧 Android 助手写一段角色设定（系统提示词），要求：围绕「"
+                                    + want + "」，包含称呼、性格、说话风格、行为边界。"
+                                    + "直接输出设定正文，不要解释，120~240 字。");
+                            runOnUiThread(() -> {
+                                roleAiBtn.setEnabled(true);
+                                roleAiBtn.setText("AI 生成角色卡");
+                                if (out == null || out.startsWith("生成失败") || out.contains("没有配置 API Key")) {
+                                    Toast.makeText(this, out == null ? "生成失败" : out, Toast.LENGTH_LONG).show();
+                                } else {
+                                    roleAiCard.setText(out.trim());
+                                    Toast.makeText(this, "已生成并填入角色设定（可再改后保存）", Toast.LENGTH_LONG).show();
+                                }
+                            });
+                        }, "role-ai").start();
+                    })
+                    .setNegativeButton("取消", null)
+                    .show();
+        });
 
         // 提示词编辑：自定义系统提示词，真注入引擎；加载已存值 + 状态 + 保存
         android.widget.EditText sysPromptBox = findViewById(R.id.set_system_prompt);
@@ -143,6 +188,9 @@ public class SettingsActivity extends AppCompatActivity {
                     Toast.LENGTH_SHORT).show();
         });
 
+        // 标签 / 提示词片段：加载已存 JSON，渲染列表+预设+新建；开关/删除/新建即存
+        bindPromptTags();
+
         // 容器环境（proot）：一键部署 + 进度 + 取消
         TextView prootState = findViewById(R.id.set_proot_state);
         ProgressBar prootProg = findViewById(R.id.set_proot_progress);
@@ -150,6 +198,10 @@ public class SettingsActivity extends AppCompatActivity {
         Button prootDeploy = (Button) findViewById(R.id.set_proot_deploy);
         Button prootCancel = (Button) findViewById(R.id.set_proot_cancel);
         bindProot(prootState, prootProg, prootProgLabel, prootDeploy, prootCancel);
+        // 容器终端入口：proot 部署后可手动进 Alpine 跑命令（未部署则页内诚实引导部署）
+        ((com.google.android.material.button.MaterialButton) findViewById(R.id.set_proot_terminal))
+                .setOnClickListener(vv ->
+                        startActivity(new Intent(this, TerminalActivity.class)));
 
         // Web 服务开关
         View webuiInfo = findViewById(R.id.webui_info);
@@ -329,6 +381,145 @@ public class SettingsActivity extends AppCompatActivity {
             chip.setLayoutParams(lp);
             row.addView(chip);
         }
+    }
+
+    // 标签 / 提示词片段：加载已存 JSON，渲染「已建」列表（名称+开关+删除）+ 预设 chip + 新建。
+    // 任何开关/删除/新建即存 Prefs；启用段由引擎 currentPromptTags() 拼进系统提示词。
+    private void bindPromptTags() {
+        LinearLayout list = findViewById(R.id.set_tag_list);
+        TextView empty = findViewById(R.id.set_tag_empty);
+        LinearLayout presets = findViewById(R.id.set_tag_presets);
+
+        java.util.List<PromptTags.Tag> tags =
+                PromptTags.load(prefs.getString(Prefs.KEY_PROMPT_TAGS, ""));
+        renderTagList(list, empty, tags);
+        buildTagPresetChips(presets, tags);
+
+        // 新建标签：弹框填名称+内容，加入列表并默认启用、即存
+        findViewById(R.id.set_tag_add).setOnClickListener(v -> promptNewTag(tags));
+    }
+
+    // 渲染「已建」标签列表；每项：名称 + 启用开关 + 删除
+    private void renderTagList(LinearLayout list, TextView empty, java.util.List<PromptTags.Tag> tags) {
+        list.removeAllViews();
+        int d = (int) getResources().getDisplayMetrics().density;
+        empty.setVisibility(tags.isEmpty() ? View.VISIBLE : View.GONE);
+        for (final PromptTags.Tag t : tags) {
+            LinearLayout row = new LinearLayout(this);
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            row.setGravity(android.view.Gravity.CENTER_VERTICAL);
+            int pad = 8 * d;
+            row.setPadding(0, pad, 0, pad);
+
+            TextView name = new TextView(this);
+            name.setText(t.name.isEmpty() ? "标签" : t.name);
+            name.setTextSize(14);
+            name.setTextColor(getThemeColor(R.color.on_surface));
+            LinearLayout.LayoutParams nlp = new LinearLayout.LayoutParams(0,
+                    LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
+            row.addView(name, nlp);
+
+            final SwitchMaterial sw = new SwitchMaterial(this);
+            sw.setChecked(t.enabled);
+            sw.setOnCheckedChangeListener((b, on) -> {
+                t.enabled = on;
+                saveTags(tags);
+                Toast.makeText(this, "标签「" + (t.name.isEmpty() ? "未命名" : t.name)
+                        + "」" + (on ? "已启用" : "已停用"), Toast.LENGTH_SHORT).show();
+            });
+            row.addView(sw);
+
+            TextView del = new TextView(this);
+            del.setText("删除");
+            del.setTextSize(13);
+            del.setTextColor(getThemeColor(R.color.status_failed));
+            del.setPadding(16 * d, 0, 0, 0);
+            del.setOnClickListener(vv -> {
+                tags.remove(t);
+                saveTags(tags);
+                renderTagList(list, empty, tags);
+                buildTagPresetChips(findViewById(R.id.set_tag_presets), tags);
+            });
+            row.addView(del);
+
+            list.addView(row);
+        }
+    }
+
+    // 预设 chip：点一下把该预设加入已建（默认启用），已存在的跳过
+    private void buildTagPresetChips(LinearLayout row, java.util.List<PromptTags.Tag> tags) {
+        row.removeAllViews();
+        int d = (int) getResources().getDisplayMetrics().density;
+        java.util.List<PromptTags.Tag> presets = PromptTags.presets();
+        for (final PromptTags.Tag p : presets) {
+            boolean exists = false;
+            for (PromptTags.Tag t : tags) if (p.name.equals(t.name)) exists = true;
+            if (exists) continue;
+            TextView chip = new TextView(this);
+            chip.setText(p.name);
+            chip.setTextSize(13);
+            int pad = 14 * d;
+            int gap = 6 * d;
+            chip.setPadding(pad, gap, pad, gap);
+            chip.setBackgroundResource(R.drawable.bg_chip);
+            chip.setTextColor(getThemeColor(R.color.on_surface_variant));
+            chip.setOnClickListener(vv -> {
+                tags.add(new PromptTags.Tag(p.name, p.content, true));
+                saveTags(tags);
+                renderTagList(findViewById(R.id.set_tag_list), findViewById(R.id.set_tag_empty), tags);
+                buildTagPresetChips(row, tags);
+                Toast.makeText(this, "已加入标签「" + p.name + "」（默认启用）", Toast.LENGTH_SHORT).show();
+            });
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+            lp.rightMargin = gap;
+            row.addView(chip, lp);
+        }
+        if (row.getChildCount() == 0) {
+            TextView note = new TextView(this);
+            note.setText("预设已全部加入");
+            note.setTextSize(12);
+            note.setTextColor(getThemeColor(R.color.on_surface_variant));
+            row.addView(note);
+        }
+    }
+
+    // 新建标签：弹框填名称 + 内容
+    private void promptNewTag(final java.util.List<PromptTags.Tag> tags) {
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        int d = (int) getResources().getDisplayMetrics().density;
+        final EditText nm = new EditText(this);
+        nm.setHint("标签名（给自己看）");
+        final EditText ct = new EditText(this);
+        ct.setHint("提示词内容（发给 AI）");
+        ct.setLines(3);
+        box.addView(nm);
+        box.addView(ct, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+        new AlertDialog.Builder(this)
+                .setTitle("新建标签")
+                .setView(box)
+                .setPositiveButton("保存", (dlg, w) -> {
+                    String n = nm.getText().toString().trim();
+                    String c = ct.getText().toString().trim();
+                    if (c.isEmpty()) {
+                        Toast.makeText(this, "提示词内容不能为空", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    tags.add(new PromptTags.Tag(n, c, true));
+                    saveTags(tags);
+                    renderTagList(findViewById(R.id.set_tag_list), findViewById(R.id.set_tag_empty), tags);
+                    buildTagPresetChips(findViewById(R.id.set_tag_presets), tags);
+                    Toast.makeText(this, "已新建标签" + (n.isEmpty() ? "" : "「" + n + "」"),
+                            Toast.LENGTH_SHORT).show();
+                })
+                .setNegativeButton("取消", null)
+                .show();
+    }
+
+    private void saveTags(java.util.List<PromptTags.Tag> tags) {
+        prefs.putString(Prefs.KEY_PROMPT_TAGS, PromptTags.save(tags));
     }
 
     // 取强调色/语义色：走 ContextCompat，自动跟随深浅色资源限定符；

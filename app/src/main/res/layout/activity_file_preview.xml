@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 文件预览：不进编辑器，快速查看——文本/代码 monospace 内嵌，图片内嵌，其它给"用系统打开" -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="?android:colorBackground">
+
+    <com.google.android.material.appbar.MaterialToolbar
+        android:id="@+id/prev_toolbar"
+        android:layout_width="match_parent"
+        android:layout_height="?attr/actionBarSize"
+        android:background="?attr/colorSurface"
+        app:titleTextColor="?attr/colorOnSurface"
+        app:title="预览"
+        app:navigationIcon="@drawable/ic_back" />
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <!-- 文本 / 代码 -->
+        <ScrollView
+            android:id="@+id/prev_text_scroll"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:visibility="gone"
+            android:padding="16dp">
+
+            <TextView
+                android:id="@+id/prev_text"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:fontFamily="monospace"
+                android:textIsSelectable="true"
+                android:textSize="13sp"
+                android:lineSpacingExtra="2dp"
+                android:textColor="?attr/colorOnSurface" />
+        </ScrollView>
+
+        <!-- 图片 -->
+        <ImageView
+            android:id="@+id/prev_image"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:visibility="gone"
+            android:scaleType="fitCenter"
+            android:contentDescription="图片预览"
+            android:background="@color/hairline" />
+
+        <!-- 占位：非预览类型 -->
+        <LinearLayout
+            android:id="@+id/prev_placeholder"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:padding="24dp"
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/prev_placeholder_title"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="此类型不支持内嵌预览"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:textColor="?attr/colorOnSurface" />
+
+            <TextView
+                android:id="@+id/prev_placeholder_meta"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:textSize="13sp"
+                android:textColor="?attr/colorOnSurfaceVariant"
+                android:gravity="center" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/prev_open_system"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:text="用系统应用打开"
+                style="@style/Widget.App.Button" />
+        </LinearLayout>
+    </FrameLayout>
+
+    <!-- 文本元信息（行数 / 大小 / 截断提示） -->
+    <TextView
+        android:id="@+id/prev_meta"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:padding="8dp"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:textSize="11sp"
+        android:gravity="end"
+        android:textColor="?attr/colorOnSurfaceVariant" />
+
+</LinearLayout>

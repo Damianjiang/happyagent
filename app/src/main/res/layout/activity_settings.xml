@@ -703,6 +703,14 @@
                         android:layout_marginTop="10dp"
                         android:text="保存角色卡"
                         style="@style/Widget.App.Button" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/set_role_ai"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:text="AI 生成角色卡"
+                        style="@style/Widget.App.Button.Tonal" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
@@ -779,6 +787,94 @@
                         android:layout_marginTop="8dp"
                         android:text="保存提示词"
                         style="@style/Widget.App.Button" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- 标签 / 提示词片段：可挂多段，启用的一并注入系统提示词（对应 Operit 的"标签"多提示词） -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="24dp"
+                android:text="标签 / 提示词片段"
+                style="@style/SectionHeader" />
+
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                app:cardCornerRadius="14dp"
+                app:cardElevation="0dp"
+                app:strokeColor="?attr/colorOutlineVariant"
+                app:strokeWidth="1dp"
+                app:cardBackgroundColor="?attr/colorSurface">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="已建标签"
+                        android:textSize="13sp"
+                        android:textStyle="bold"
+                        android:textColor="?attr/colorOnSurface" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:text="每段是独立提示词，打开开关即注入系统提示词（可多个同时生效）"
+                        android:textSize="11sp"
+                        android:textColor="?attr/colorOnSurfaceVariant" />
+
+                    <LinearLayout
+                        android:id="@+id/set_tag_list"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:layout_marginTop="8dp" />
+
+                    <TextView
+                        android:id="@+id/set_tag_empty"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="还没有标签，点下面预设或直接新建"
+                        android:textSize="12sp"
+                        android:textColor="?attr/colorOnSurfaceVariant" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="16dp"
+                        android:text="预设标签（点一下加入「已建」，默认启用）"
+                        android:textSize="13sp"
+                        android:textStyle="bold"
+                        android:textColor="?attr/colorOnSurface" />
+
+                    <HorizontalScrollView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:scrollbars="none">
+
+                        <LinearLayout
+                            android:id="@+id/set_tag_presets"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal" />
+                    </HorizontalScrollView>
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/set_tag_add"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="10dp"
+                        android:text="＋ 新建标签"
+                        style="@style/Widget.App.Button.Outline" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
@@ -874,6 +970,14 @@
                         android:textSize="11sp"
                         android:lineSpacingExtra="2dp"
                         android:textColor="?attr/colorOnSurfaceVariant" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/set_proot_terminal"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="10dp"
+                        android:text="进入容器终端"
+                        style="@style/Widget.App.Button.Outline" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
