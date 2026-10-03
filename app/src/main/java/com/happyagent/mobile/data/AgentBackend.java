@@ -298,10 +298,15 @@ public final class AgentBackend {
         runningTrace = null;
     }
 
-    // 角色卡 / 世界书：从 Prefs 读（每次任务前取，改了立即生效）
+    // 角色卡 / 世界书：从 Prefs 读（每次任务前取，改了立即生效）。
+    // 角色名非空时拼成「我是【角色名】：」引导句 + 设定正文，让称呼也真注入；否则只注入设定
     private String currentRoleCard() {
         Prefs p = new Prefs(HappyAgentApplication.get());
-        return p.getString(Prefs.KEY_ROLE_CARD, "");
+        String name = p.getString(Prefs.KEY_ROLE_NAME, "").trim();
+        String card = p.getString(Prefs.KEY_ROLE_CARD, "").trim();
+        if (card.isEmpty() && name.isEmpty()) return "";
+        if (name.isEmpty()) return card;
+        return "你的角色名是「" + name + "」，以下设定务必遵守。\n" + card;
     }
 
     // 任务最大步数：优先 Config.maxSteps（配置页可设），越界归一

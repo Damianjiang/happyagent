@@ -56,13 +56,41 @@
                     android:hint="如 gpt-4o-mini / gemini-2.5-flash / claude-haiku-4-5"
                     android:textColor="?attr/colorOnSurface" />
 
-                <TextView
-                    android:layout_width="wrap_content"
+                <LinearLayout
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
-                    android:text="快速选模型"
-                    android:textSize="12sp"
-                    android:textColor="?attr/colorOnSurfaceVariant" />
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="快速选模型"
+                        android:textSize="12sp"
+                        android:textColor="?attr/colorOnSurfaceVariant" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/config_fetch_models"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="拉取模型列表"
+                        android:textSize="12sp"
+                        android:insetTop="0dp"
+                        android:insetBottom="0dp"
+                        style="@style/Widget.App.Button.Outline" />
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/config_models_hint"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="点 chip 填入模型框；也可手动输入自定义模型名"
+                    android:textSize="11sp"
+                    android:textColor="?attr/colorOnSurfaceVariant"
+                    android:visibility="gone" />
 
                 <HorizontalScrollView
                     android:layout_width="match_parent"

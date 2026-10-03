@@ -109,11 +109,19 @@ public class SettingsActivity extends AppCompatActivity {
 
         android.widget.EditText roleBox = findViewById(R.id.set_role_card);
         roleBox.setText(prefs.getString(Prefs.KEY_ROLE_CARD, ""));
+        android.widget.EditText roleBoxName = findViewById(R.id.set_role_name);
+        roleBoxName.setText(prefs.getString(Prefs.KEY_ROLE_NAME, ""));
         findViewById(R.id.set_role_save).setOnClickListener(v -> {
             String txt = roleBox.getText().toString().trim();
+            String nm = roleBoxName.getText().toString().trim();
             prefs.putString(Prefs.KEY_ROLE_CARD, txt);
-            Toast.makeText(this, txt.isEmpty() ? "已清除角色设定" : "角色设定已保存", Toast.LENGTH_SHORT).show();
+            prefs.putString(Prefs.KEY_ROLE_NAME, nm);
+            boolean any = !txt.isEmpty() || !nm.isEmpty();
+            Toast.makeText(this, any ? "角色卡已保存" : "已清除角色卡", Toast.LENGTH_SHORT).show();
         });
+        // 预设风格：点一下把「角色名 + 角色设定」一起填进上面两项，可再改
+        LinearLayout presetRow = findViewById(R.id.set_role_presets);
+        fillRolePresets(presetRow, roleBoxName, roleBox);
 
         // 容器环境（proot）：一键部署 + 进度 + 取消
         TextView prootState = findViewById(R.id.set_proot_state);
@@ -267,6 +275,39 @@ public class SettingsActivity extends AppCompatActivity {
             case Prefs.ACCENT_RUST:  return R.color.acc_rust_c_on;
             case Prefs.ACCENT_AMBER: return R.color.acc_amber_c_on;
             default:                 return R.color.acc_default_c_on;
+        }
+    }
+
+    // 角色卡预设风格：点一下把「角色名 + 角色设定」填进上面两项，可再改后保存
+    private void fillRolePresets(LinearLayout row, final android.widget.EditText nameBox,
+                                 final android.widget.EditText cardBox) {
+        row.removeAllViews();
+        int d = (int) getResources().getDisplayMetrics().density;
+        String[][] presets = {
+            {"小助", "说话简短直接，先结论后细节；技术话题给可运行代码；默认中文。"},
+            {"严谨工手", "先结论后推理；不确定就明说、不臆造；代码必须可运行且带边界处理。"},
+            {"阿教", "像耐心的老师，一步步讲原理，给例子与类比；先讲清再动手。"},
+            {"脑洞", "头脑风暴模式，给多个方案并说取舍；语言轻松但关键处准确。"},
+            {"快答", "尽可能简短、要点式回答；不废话，除非要求展开。"},
+        };
+        for (String[] p : presets) {
+            TextView chip = new TextView(this);
+            chip.setText(p[0]);
+            chip.setTextSize(13);
+            int pad = 14 * d;
+            int gap = 6 * d;
+            chip.setPadding(pad, gap, pad, gap);
+            chip.setBackgroundResource(R.drawable.bg_chip);
+            chip.setTextColor(androidx.core.content.ContextCompat.getColor(this, R.color.on_surface_variant));
+            chip.setOnClickListener(vv -> {
+                nameBox.setText(p[0]);
+                cardBox.setText(p[1]);
+            });
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+            lp.rightMargin = gap;
+            chip.setLayoutParams(lp);
+            row.addView(chip);
         }
     }
 

@@ -30,6 +30,7 @@ public class ConfigFragment extends Fragment {
     private SeekBar tempBar;
     private TextView tempLabel;
     private EditText maxStepsBox;
+    private java.util.List<String> fetchedModels = new java.util.ArrayList<String>();
 
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle s) {
@@ -72,6 +73,37 @@ public class ConfigFragment extends Fragment {
             }
             @Override public void onStartTrackingTouch(SeekBar seekBar) {}
             @Override public void onStopTrackingTouch(SeekBar seekBar) {}
+        });
+
+        // 拉取上游真实模型列表：真调供应商 /models，铺成可点 chip；失败诚实提示，不编造
+        TextView modelsHint = v.findViewById(R.id.config_models_hint);
+        final Button fetchBtn = v.findViewById(R.id.config_fetch_models);
+        fetchBtn.setOnClickListener(vv -> {
+            final String provider = currentProvider();
+            String base = openaiUrlBox.getText().toString().trim();
+            if (base.isEmpty()) base = "https://api.openai.com/v1";
+            String key = openaiKeyBox.getText().toString().trim();
+            if (Config.PROVIDER_GOOGLE.equals(provider)) key = googleKeyBox.getText().toString().trim();
+            if (Config.PROVIDER_ANTHROPIC.equals(provider)) key = anthropicKeyBox.getText().toString().trim();
+            fetchBtn.setEnabled(false);
+            fetchBtn.setText("拉取中…");
+            modelsHint.setVisibility(View.VISIBLE);
+            modelsHint.setText("正在从供应商拉取模型列表…");
+            com.happyagent.mobile.data.ModelCatalog.fetch(requireContext(), provider, base, key,
+                    new com.happyagent.mobile.data.ModelCatalog.Callback() {
+                        @Override
+                        public void onResult(boolean ok, String errMsg, java.util.List<String> models) {
+                            fetchBtn.setEnabled(true);
+                            fetchBtn.setText("拉取模型列表");
+                            if (ok && models != null && !models.isEmpty()) {
+                                fillFetchedChips(v, models);
+                                modelsHint.setText("已拉取 " + models.size() + " 个上游模型，点 chip 填入");
+                                fillModelChips(v, provider);   // 保留常用 + 追加上游
+                            } else {
+                                modelsHint.setText(ok ? "上游暂无可用模型" : "拉取失败：" + errMsg);
+                            }
+                        }
+                    });
         });
 
         // 三家 Radio 单选，点了就显对应凭据分组、同步模型默认值 + 刷新模型快捷列表
@@ -130,21 +162,39 @@ public class ConfigFragment extends Fragment {
         chips.removeAllViews();
         String[] models = modelsFor(provider);
         for (String m : models) {
-            TextView chip = new TextView(root.getContext());
-            chip.setText(m);
-            chip.setTextSize(13);
-            int pad = (int) (14 * root.getContext().getResources().getDisplayMetrics().density);
-            int gap = (int) (6 * root.getContext().getResources().getDisplayMetrics().density);
-            chip.setPadding(pad, gap, pad, gap);
-            chip.setBackgroundResource(R.drawable.bg_chip);
-            chip.setTextColor(root.getContext().getResources().getColor(R.color.on_surface_variant));
-            chip.setOnClickListener(vv -> modelBox.setText(m));
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-            lp.rightMargin = gap;
-            chip.setLayoutParams(lp);
-            chips.addView(chip);
+            chips.addView(makeChip(root, m));
         }
+        // 追加拉取到的上游模型（去重），让真实列表也可点
+        java.util.LinkedHashSet<String> seen = new java.util.LinkedHashSet<String>();
+        for (String m : models) seen.add(m);
+        if (fetchedModels != null) {
+            for (String m : fetchedModels) {
+                if (seen.add(m)) chips.addView(makeChip(root, m));
+            }
+        }
+    }
+
+    // 上游拉取成功：整批存进 fetchedModels，并把常用 + 上游一起铺出来
+    private void fillFetchedChips(View root, java.util.List<String> models) {
+        fetchedModels = new java.util.ArrayList<String>(models);
+        fillModelChips(root, currentProvider());
+    }
+
+    private TextView makeChip(View root, String model) {
+        TextView chip = new TextView(root.getContext());
+        chip.setText(model);
+        chip.setTextSize(13);
+        int pad = (int) (14 * root.getContext().getResources().getDisplayMetrics().density);
+        int gap = (int) (6 * root.getContext().getResources().getDisplayMetrics().density);
+        chip.setPadding(pad, gap, pad, gap);
+        chip.setBackgroundResource(R.drawable.bg_chip);
+        chip.setTextColor(root.getContext().getResources().getColor(R.color.on_surface_variant));
+        chip.setOnClickListener(vv -> modelBox.setText(model));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        lp.rightMargin = gap;
+        chip.setLayoutParams(lp);
+        return chip;
     }
 
     private String[] modelsFor(String provider) {
