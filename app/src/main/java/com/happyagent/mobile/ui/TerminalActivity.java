@@ -28,6 +28,9 @@ public class TerminalActivity extends AppCompatActivity {
     private ProgressBar deployProgress;
     private ScrollView outScroll;
     private LinearLayout deployBox;
+    // probe / 跑命令都走这单线程池，避免主线程阻塞 + 每次 new Thread 累积
+    private final java.util.concurrent.ExecutorService execPool =
+            java.util.concurrent.Executors.newSingleThreadExecutor();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -110,7 +113,6 @@ public class TerminalActivity extends AppCompatActivity {
             runBtn.setEnabled(false);
             input.setEnabled(false);
         } else {
-            String probe = env.probeExec();
             stateTv.setText("○ 未就绪");
             stateTv.setTextColor(failColor);
             deployBox.setVisibility(View.VISIBLE);
@@ -118,9 +120,21 @@ public class TerminalActivity extends AppCompatActivity {
             deployCancel.setVisibility(View.GONE);
             deployProgress.setVisibility(View.GONE);
             deployLabel.setVisibility(View.VISIBLE);
-            deployLabel.setText("探活：" + probe);
+            deployLabel.setText("探活中…");
             runBtn.setEnabled(false);
             input.setEnabled(false);
+            // 探活是同步 exec 容器进程，放后台避免卡主线程（半成品态）
+            execPool.execute(() -> {
+                final String probe = env.probeExec();
+                runOnUiThread(() -> {
+                    deployLabel.setText("探活：" + probe);
+                    // 探活耗时可能已完成部署/失败，再刷一次状态对齐
+                    if (!env.isReady() && !env.isDeploying()) {
+                        runBtn.setEnabled(false);
+                        input.setEnabled(false);
+                    }
+                });
+            });
         }
     }
 
@@ -175,7 +189,7 @@ public class TerminalActivity extends AppCompatActivity {
         out.append("$ " + cmd + "\n");
         scrollBottom();
         final long t0 = System.currentTimeMillis();
-        new Thread(new Runnable() {
+        execPool.execute(new Runnable() {
             @Override
             public void run() {
                 final String[] holder = new String[1];
@@ -196,7 +210,13 @@ public class TerminalActivity extends AppCompatActivity {
                     }
                 });
             }
-        }, "proot-term").start();
+        });
+    }
+
+    @Override
+    protected void onDestroy() {
+        execPool.shutdownNow();
+        super.onDestroy();
     }
 
     private void scrollBottom() {

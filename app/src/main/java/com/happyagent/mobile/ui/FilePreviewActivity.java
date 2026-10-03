@@ -60,58 +60,67 @@ public class FilePreviewActivity extends AppCompatActivity {
         View placeholder = findViewById(R.id.prev_placeholder);
         MaterialButton openBtn = findViewById(R.id.prev_open_system);
 
+        // 文本/图片读盘与解码都放后台线程，避免主线程阻塞（低配安卓 6 防卡/ANR）
+        final ScrollView sScroll = scroll;
+        final android.widget.TextView sText = textTv;
+        final android.widget.ImageView sImg = img;
+        final View sPh = placeholder;
         if (image) {
-            scroll.setVisibility(View.GONE);
-            img.setVisibility(View.VISIBLE);
-            placeholder.setVisibility(View.GONE);
-            loadImage(img);
+            sScroll.setVisibility(View.GONE);
+            sImg.setVisibility(View.VISIBLE);
+            sPh.setVisibility(View.GONE);
+            findViewById(R.id.prev_meta).setVisibility(View.GONE);
+            new Thread(() -> {
+                final Bitmap b = (path != null) ? decodeFile(path)
+                        : decodeUri(StorageAccess.docUri(getApplicationContext(), docId));
+                runOnUiThread(() -> {
+                    if (b == null) {
+                        sImg.setVisibility(View.GONE);
+                        sPh.setVisibility(View.VISIBLE);
+                        ((android.widget.TextView) findViewById(R.id.prev_placeholder_title)).setText("图片解码失败");
+                    } else {
+                        sImg.setImageBitmap(b);
+                    }
+                });
+            }, "prev-img").start();
         } else if (isText) {
-            scroll.setVisibility(View.VISIBLE);
-            img.setVisibility(View.GONE);
-            placeholder.setVisibility(View.GONE);
-            loadText(textTv);
+            sScroll.setVisibility(View.VISIBLE);
+            sImg.setVisibility(View.GONE);
+            sPh.setVisibility(View.GONE);
+            findViewById(R.id.prev_meta).setVisibility(View.VISIBLE);
+            ((android.widget.TextView) findViewById(R.id.prev_meta)).setText("加载中…");
+            new Thread(() -> {
+                String content;
+                try {
+                    content = (path != null)
+                            ? new FileTools(getApplicationContext()).readContent(path)
+                            : StorageAccess.readText(getApplicationContext(), docId);
+                    if (content == null) content = "（读取失败）";
+                } catch (Exception e) {
+                    content = "读取失败：" + e.getMessage();
+                }
+                int lines = 0;
+                int len = content.length();
+                for (int i = 0; i < len; i++) if (content.charAt(i) == '\n') lines++;
+                boolean truncated = len > MAX_PREVIEW_CHARS;
+                if (truncated) content = content.substring(0, MAX_PREVIEW_CHARS);
+                final String show = content;
+                final int linesF = lines;
+                final int lenF = len;
+                final boolean truncF = truncated;
+                runOnUiThread(() -> {
+                    sText.setText(show);
+                    ((android.widget.TextView) findViewById(R.id.prev_meta))
+                            .setText(linesF + " 行 · " + fmtChars(lenF) + (truncF ? " · 已截断" : ""));
+                });
+            }, "prev-txt").start();
         } else {
-            scroll.setVisibility(View.GONE);
-            img.setVisibility(View.GONE);
-            placeholder.setVisibility(View.VISIBLE);
+            sScroll.setVisibility(View.GONE);
+            sImg.setVisibility(View.GONE);
+            sPh.setVisibility(View.VISIBLE);
             ((android.widget.TextView) findViewById(R.id.prev_placeholder_meta))
                     .setText(mime == null ? "类型未知" : mime);
             openBtn.setOnClickListener(v -> openInSystem());
-        }
-        findViewById(R.id.prev_meta).setVisibility(image ? View.GONE : View.VISIBLE);
-    }
-
-    private void loadText(android.widget.TextView tv) {
-        try {
-            String content = (path != null)
-                    ? new FileTools(getApplicationContext()).readContent(path)
-                    : StorageAccess.readText(getApplicationContext(), docId);
-            if (content == null) content = "（读取失败）";
-            int lines = 0;
-            int len = content.length();
-            for (int i = 0; i < len; i++) if (content.charAt(i) == '\n') lines++;
-            boolean truncated = len > MAX_PREVIEW_CHARS;
-            if (truncated) content = content.substring(0, MAX_PREVIEW_CHARS);
-            tv.setText(content);
-            ((android.widget.TextView) findViewById(R.id.prev_meta))
-                    .setText(lines + " 行 · " + fmtChars(len) + (truncated ? " · 已截断" : ""));
-        } catch (Exception e) {
-            tv.setText("读取失败：" + e.getMessage());
-        }
-    }
-
-    private void loadImage(android.widget.ImageView iv) {
-        try {
-            Bitmap b = (path != null) ? decodeFile(path) : decodeUri(StorageAccess.docUri(getApplicationContext(), docId));
-            if (b == null) {
-                iv.setVisibility(View.GONE);
-                ((android.widget.TextView) findViewById(R.id.prev_placeholder_title)).setVisibility(View.VISIBLE);
-                ((android.widget.TextView) findViewById(R.id.prev_placeholder_title)).setText("图片解码失败");
-            } else {
-                iv.setImageBitmap(b);
-            }
-        } catch (Exception e) {
-            ((android.widget.TextView) findViewById(R.id.prev_placeholder_title)).setText("图片加载失败");
         }
     }
 
