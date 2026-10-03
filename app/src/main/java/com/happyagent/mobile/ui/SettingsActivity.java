@@ -60,6 +60,27 @@ public class SettingsActivity extends AppCompatActivity {
         versionTv.setText("Happy Agent " + AboutDialog.versionOf(this));
         findViewById(R.id.set_about_card).setOnClickListener(v -> AboutDialog.show(this));
 
+        // 数据卡：显示授权目录、撤销授权、清除会话（数据层早能，界面补入口）
+        TextView dataDir = findViewById(R.id.set_data_dir);
+        String root = com.happyagent.mobile.data.StorageAccess.rootDisplayName(this);
+        dataDir.setText(com.happyagent.mobile.data.StorageAccess.isGranted(this) ? root : "未授权");
+        findViewById(R.id.set_data_revoke).setOnClickListener(v -> {
+            new Prefs(this).putStringStorage("");
+            dataDir.setText("未授权");
+            Toast.makeText(this, "已撤销授权目录", Toast.LENGTH_SHORT).show();
+        });
+        findViewById(R.id.set_data_clear_sessions).setOnClickListener(v -> {
+            new androidx.appcompat.app.AlertDialog.Builder(this)
+                    .setTitle("清除全部会话？")
+                    .setMessage("所有会话与消息将被删除，不可恢复。")
+                    .setPositiveButton("清除", (d, w) -> {
+                        com.happyagent.mobile.data.AgentBackend.get().clearSessions();
+                        Toast.makeText(this, "已清除全部会话", Toast.LENGTH_SHORT).show();
+                    })
+                    .setNegativeButton("取消", null)
+                    .show();
+        });
+
         // Web 服务开关
         View webuiInfo = findViewById(R.id.webui_info);
         SwitchMaterial webui = findViewById(R.id.set_webui);

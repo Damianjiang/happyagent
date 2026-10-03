@@ -278,6 +278,50 @@ public final class AgentBackend {
         runningSessionId = null;
     }
 
+    // 会话操作：重命名 / 删除 / 清空（数据层早就能，只是界面没入口）
+    public boolean renameSession(String id, String title) {
+        ensureLoaded();
+        synchronized (lock) {
+            for (int i = 0; i < sessions.size(); i++) {
+                Session s = sessions.get(i);
+                if (s.id.equals(id)) {
+                    String clean = title == null ? "" : title.trim();
+                    String newTitle = clean.isEmpty() ? "会话" : clean;
+                    Session updated = new Session(s.id, newTitle, s.agent, s.status,
+                            System.currentTimeMillis(), s.messages);
+                    sessions.set(i, updated);
+                    persist();
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    public boolean deleteSession(String id) {
+        ensureLoaded();
+        synchronized (lock) {
+            boolean found = false;
+            for (int i = 0; i < sessions.size(); i++) {
+                if (sessions.get(i).id.equals(id)) {
+                    sessions.remove(i);
+                    found = true;
+                    break;
+                }
+            }
+            if (found) persist();
+            return found;
+        }
+    }
+
+    public void clearSessions() {
+        ensureLoaded();
+        synchronized (lock) {
+            sessions.clear();
+            persist();
+        }
+    }
+
     // ---- 任务控制：暂停 / 继续 / 取消 ----
 
     public boolean isTaskRunning() {

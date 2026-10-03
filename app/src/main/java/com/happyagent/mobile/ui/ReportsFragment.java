@@ -31,6 +31,7 @@ public class ReportsFragment extends Fragment {
     private TextView temperatureLabel, maxTokensLabel, agentNameLabel, runningLabel;
     private TextView keyOpenai, keyGoogle, keyAnthropic;
     private TextView themeLabel, accentLabel, chatSizeLabel;
+    private TextView webStateLabel, webLanLabel;
     private ProgressBar progress;
 
     @Override
@@ -53,6 +54,8 @@ public class ReportsFragment extends Fragment {
         themeLabel = v.findViewById(R.id.reports_theme);
         accentLabel = v.findViewById(R.id.reports_accent);
         chatSizeLabel = v.findViewById(R.id.reports_chat_size);
+        webStateLabel = v.findViewById(R.id.reports_web_state);
+        webLanLabel = v.findViewById(R.id.reports_web_lan);
         progress = v.findViewById(R.id.reports_progress);
         load();
         return v;
@@ -116,10 +119,22 @@ public class ReportsFragment extends Fragment {
                         themeLabel.setText(ThemeUtil.modeLabel(themeMode));
                         accentLabel.setText(ThemeUtil.accentLabels()[accent]);
                         chatSizeLabel.setText(chatSize == 2 ? "特大" : (chatSize == 1 ? "大" : "标准"));
+                        refreshWeb();
                     }
                 });
             }
         }).start();
+    }
+
+    // Web 服务状态（数据层 WebUiService 早就能查，界面补一行露出）
+    private void refreshWeb() {
+        boolean running = com.happyagent.mobile.service.WebUiService.isRunning();
+        webStateLabel.setText(running ? "运行中" : "已停止");
+        String lan = com.happyagent.mobile.service.WebUiService.lanIpStatic();
+        int port = com.happyagent.mobile.service.WebUiService.port();
+        webLanLabel.setText(running
+                ? ((lan.isEmpty() ? "（获取中）" : lan) + ":" + port)
+                : "—");
     }
 
     // 诊断页"接口"行按供应商显示请求去向，OpenAI 才谈 Base URL

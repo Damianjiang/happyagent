@@ -5,6 +5,7 @@ import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.EditText;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 
@@ -55,6 +56,43 @@ public class SessionsFragment extends Fragment {
         startActivity(i);
     }
 
+    // 会话 ⋮ 菜单：重命名 / 删除（数据层早能，界面补上入口）
+    private void showSessionMenu(Session s) {
+        new androidx.appcompat.app.AlertDialog.Builder(requireContext())
+                .setTitle(s.title)
+                .setItems(new String[]{"重命名", "删除"},
+                        (d, which) -> {
+                            if (which == 0) promptRename(s);
+                            else confirmDelete(s);
+                        })
+                .show();
+    }
+
+    private void promptRename(Session s) {
+        final EditText et = new EditText(requireContext());
+        et.setText(s.title);
+        new androidx.appcompat.app.AlertDialog.Builder(requireContext())
+                .setTitle("重命名会话")
+                .setView(et)
+                .setPositiveButton("保存", (d, w) -> {
+                    if (AgentBackend.get().renameSession(s.id, et.getText().toString())) load();
+                })
+                .setNegativeButton("取消", null)
+                .show();
+    }
+
+    private void confirmDelete(Session s) {
+        new androidx.appcompat.app.AlertDialog.Builder(requireContext())
+                .setTitle("删除「" + s.title + "」？")
+                .setMessage("该会话及全部消息将被删除，不可恢复。")
+                .setPositiveButton("删除", (d, w) -> {
+                    AgentBackend.get().deleteSession(s.id);
+                    load();
+                })
+                .setNegativeButton("取消", null)
+                .show();
+    }
+
     // 后台读一遍再回界面，列表数据量小的话其实也够快，但不想卡主线程
     void load() {
         progress.setVisibility(View.VISIBLE);
@@ -78,7 +116,7 @@ public class SessionsFragment extends Fragment {
         }).start();
     }
 
-    static class SessionAdapter extends RecyclerView.Adapter<SessionAdapter.VH> {
+    class SessionAdapter extends RecyclerView.Adapter<SessionAdapter.VH> {
         private final List<Session> items;
         private final SimpleDateFormat fmt = new SimpleDateFormat("MM-dd HH:mm", Locale.getDefault());
 
@@ -119,6 +157,12 @@ public class SessionsFragment extends Fragment {
                     view.getContext().startActivity(i);
                 }
             });
+            h.more.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View view) {
+                    showSessionMenu(s);
+                }
+            });
         }
 
         @Override
@@ -128,12 +172,14 @@ public class SessionsFragment extends Fragment {
 
         static class VH extends RecyclerView.ViewHolder {
             final TextView title, status, date;
+            final com.google.android.material.button.MaterialButton more;
 
             VH(View v) {
                 super(v);
                 title = v.findViewById(R.id.session_title);
                 status = v.findViewById(R.id.session_status);
                 date = v.findViewById(R.id.session_date);
+                more = v.findViewById(R.id.session_more);
             }
         }
     }
