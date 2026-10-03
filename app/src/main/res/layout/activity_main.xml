@@ -22,7 +22,6 @@
             app:titleTextAppearance="@style/TextAppearance.Material3.TitleLarge"
             app:titleTextColor="?attr/colorOnSurface"
             app:subtitleTextColor="?attr/colorOnSurfaceVariant"
-            app:menu="@menu/menu_main"
             app:subtitle="端侧智能体" />
     </com.google.android.material.appbar.AppBarLayout>
 
@@ -42,12 +41,14 @@
         android:id="@+id/fab_new_task"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_gravity="end|bottom"
-        android:layout_margin="20dp"
         android:onClick="onFabClick"
         android:src="@drawable/ic_add"
         app:backgroundTint="?attr/colorPrimary"
-        android:contentDescription="@string/new_task" />
+        android:contentDescription="@string/new_task"
+        app:layout_anchor="@id/bottom_nav"
+        app:layout_anchorGravity="top|end"
+        android:layout_marginTop="16dp"
+        android:layout_marginEnd="16dp" />
 
     <com.google.android.material.bottomnavigation.BottomNavigationView
         android:id="@+id/bottom_nav"

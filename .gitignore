@@ -16,6 +16,7 @@ captures/
 
 # 发布产物不入库：APK 和更新日志只作为 GitHub Release 资产/正文，不进代码仓库
 *.apk
+*.idsig
 RELEASE_NOTES_*.txt
 
 # AI 智能体工具缓存/配置目录，防止误入仓库（避免暴露"由 AI 构建"的痕迹）

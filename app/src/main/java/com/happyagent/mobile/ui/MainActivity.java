@@ -2,11 +2,8 @@ package com.happyagent.mobile.ui;
 
 import android.content.Intent;
 import android.os.Bundle;
-import android.view.Menu;
-import android.view.MenuItem;
 import android.view.View;
 
-import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentTransaction;
@@ -121,25 +118,5 @@ public class MainActivity extends AppCompatActivity {
         Intent i = new Intent(this, SessionDetailActivity.class);
         i.putExtra(SessionDetailActivity.EXTRA_SESSION_ID, id);
         startActivity(i);
-    }
-
-    @Override
-    public boolean onCreateOptionsMenu(Menu menu) {
-        getMenuInflater().inflate(R.menu.menu_main, menu);
-        return true;
-    }
-
-    @Override
-    public boolean onOptionsItemSelected(@NonNull MenuItem item) {
-        int id = item.getItemId();
-        if (id == R.id.action_settings) {
-            startActivity(new Intent(this, SettingsActivity.class));
-            return true;
-        }
-        if (id == R.id.action_about) {
-            AboutDialog.show(this);
-            return true;
-        }
-        return super.onOptionsItemSelected(item);
     }
 }
