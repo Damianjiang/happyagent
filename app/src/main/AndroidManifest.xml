@@ -57,6 +57,17 @@
             android:parentActivityName=".ui.MainActivity" />
 
         <activity
+            android:name=".ui.ModelConfigActivity"
+            android:exported="false"
+            android:parentActivityName=".ui.MainActivity"
+            android:windowSoftInputMode="adjustResize" />
+
+        <activity
+            android:name=".ui.DiagnosticsActivity"
+            android:exported="false"
+            android:parentActivityName=".ui.MainActivity" />
+
+        <activity
             android:name=".ui.SessionDetailActivity"
             android:exported="false"
             android:parentActivityName=".ui.MainActivity" />

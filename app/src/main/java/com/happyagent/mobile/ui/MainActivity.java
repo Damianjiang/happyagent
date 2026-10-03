@@ -23,9 +23,8 @@ public class MainActivity extends AppCompatActivity {
     private ShakeLog shakeLog;
     private SessionsFragment sessionsFragment;
     private ToolsFragment toolsFragment;
-    private ConfigFragment configFragment;
-    private ReportsFragment reportsFragment;
     private FilesFragment filesFragment;
+    private SettingsListFragment settingsListFragment;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -92,12 +91,10 @@ public class MainActivity extends AppCompatActivity {
         Fragment target;
         if (id == R.id.nav_tools) {
             target = lazyTools();
-        } else if (id == R.id.nav_config) {
-            target = lazyConfig();
         } else if (id == R.id.nav_files) {
             target = lazyFiles();
-        } else if (id == R.id.nav_reports) {
-            target = lazyReports();
+        } else if (id == R.id.nav_settings) {
+            target = lazySettings();
         } else {
             target = lazySessions();
         }
@@ -117,19 +114,14 @@ public class MainActivity extends AppCompatActivity {
         return toolsFragment;
     }
 
-    private Fragment lazyConfig() {
-        if (configFragment == null) configFragment = new ConfigFragment();
-        return configFragment;
-    }
-
-    private Fragment lazyReports() {
-        if (reportsFragment == null) reportsFragment = new ReportsFragment();
-        return reportsFragment;
-    }
-
     private Fragment lazyFiles() {
         if (filesFragment == null) filesFragment = new FilesFragment();
         return filesFragment;
+    }
+
+    private Fragment lazySettings() {
+        if (settingsListFragment == null) settingsListFragment = new SettingsListFragment();
+        return settingsListFragment;
     }
 
     // 右下角加号：随手开个新会话就去跑任务

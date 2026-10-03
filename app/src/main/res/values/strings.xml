@@ -5,6 +5,7 @@
     <string name="tab_tools">工具</string>
     <string name="tab_config">配置</string>
     <string name="tab_files">文件</string>
+    <string name="tab_settings">设置</string>
     <string name="tab_reports">诊断</string>
     <string name="new_task">新建任务</string>
     <string name="settings">设置</string>

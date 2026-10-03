@@ -69,27 +69,19 @@ public class ReportsFragment extends Fragment {
         return v;
     }
 
-    // 诊断页"能改的行"点一下直接跳去能改的页（运行时/模型接入→配置 tab；个性化/Web/能力状态→设置页）
+    // 诊断页"能改的行"点一下直接跳去能改的页（运行时/模型接入→模型接入页；个性化/Web/能力状态→设置页）
     private void bindHeaderClicks(View v) {
         android.content.Context ctx = requireContext();
         v.findViewById(R.id.reports_hdr_runtime).setOnClickListener(vv ->
-                jumpToTab(ctx, R.id.nav_config));
+                startActivity(new Intent(ctx, ModelConfigActivity.class)));
         v.findViewById(R.id.reports_hdr_provider).setOnClickListener(vv ->
-                jumpToTab(ctx, R.id.nav_config));
+                startActivity(new Intent(ctx, ModelConfigActivity.class)));
         v.findViewById(R.id.reports_hdr_personal).setOnClickListener(vv ->
                 startActivity(new Intent(ctx, SettingsActivity.class)));
         v.findViewById(R.id.reports_hdr_web).setOnClickListener(vv ->
                 startActivity(new Intent(ctx, SettingsActivity.class)));
         v.findViewById(R.id.reports_hdr_capability).setOnClickListener(vv ->
                 startActivity(new Intent(ctx, SettingsActivity.class)));
-    }
-
-    private void jumpToTab(android.content.Context ctx, int tabId) {
-        Intent i = new Intent(ctx, MainActivity.class);
-        i.setAction(Intent.ACTION_VIEW);
-        i.putExtra(MainActivity.EXTRA_GOTO_TAB, tabId);
-        i.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
-        ctx.startActivity(i);
     }
 
     void load() {

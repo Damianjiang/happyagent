@@ -9,15 +9,11 @@
         android:icon="@drawable/ic_nav_tools"
         android:title="@string/tab_tools" />
     <item
-        android:id="@+id/nav_config"
-        android:icon="@drawable/ic_nav_config"
-        android:title="@string/tab_config" />
-    <item
         android:id="@+id/nav_files"
         android:icon="@drawable/ic_nav_files"
         android:title="@string/tab_files" />
     <item
-        android:id="@+id/nav_reports"
-        android:icon="@drawable/ic_nav_reports"
-        android:title="@string/tab_reports" />
+        android:id="@+id/nav_settings"
+        android:icon="@drawable/ic_nav_settings"
+        android:title="@string/tab_settings" />
 </menu>
