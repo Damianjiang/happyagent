@@ -21,6 +21,7 @@
 
     <!-- 状态色：暗色提亮版 -->
     <color name="status_done">#4CC380</color>
+    <color name="status_done_bg">#1E3A24</color>
     <color name="status_failed">#F2545B</color>
     <color name="status_paused">#F0A34A</color>
     <color name="error">#F2545B</color>

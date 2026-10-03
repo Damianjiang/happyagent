@@ -20,6 +20,7 @@
 
     <!-- 状态色：running 跟随强调色（drawable 里写 ?attr/colorPrimary），成败用固定语义色 -->
     <color name="status_done">#3F8135</color>
+    <color name="status_done_bg">#E3F1E0</color>
     <color name="status_failed">#C2373B</color>
     <color name="status_paused">#B45309</color>
     <color name="error">#C2373B</color>

@@ -179,14 +179,22 @@ public class SessionsFragment extends Fragment {
             h.title.setText(s.title);
             h.date.setText(fmt.format(new Date(s.updatedAt)));
             h.status.setText(s.statusLabel());
-            // 状态醒目：运行中=琥珀、完成=绿、失败=红，一眼可辨（原来是统一灰字）
+            // 状态色竖条（和状态文字同色）：0 运行中=琥珀 / 2 完成=绿 / 3 失败=红 / 其他=发丝线
             int stColor;
             if (s.status == 0) stColor = R.color.status_paused;
             else if (s.status == 2) stColor = R.color.status_done;
             else if (s.status == 3) stColor = R.color.status_failed;
-            else stColor = R.color.on_surface_variant;
-            h.status.setTextColor(androidx.core.content.ContextCompat.getColor(
+            else stColor = R.color.hairline;
+            h.statusBar.setBackgroundColor(androidx.core.content.ContextCompat.getColor(
                     h.itemView.getContext(), stColor));
+            // 状态文字醒目：运行中/完成/失败 彩色加粗，未开始保持灰色
+            int textColor;
+            if (s.status == 0) textColor = R.color.status_paused;
+            else if (s.status == 2) textColor = R.color.status_done;
+            else if (s.status == 3) textColor = R.color.status_failed;
+            else textColor = R.color.on_surface_variant;
+            h.status.setTextColor(androidx.core.content.ContextCompat.getColor(
+                    h.itemView.getContext(), textColor));
             h.status.setTypeface(h.status.getTypeface(),
                     s.status == 0 ? android.graphics.Typeface.BOLD : android.graphics.Typeface.NORMAL);
             // 消息数（数据层 Session.messages 早能查，界面补露出；0 条时不显示）
@@ -227,6 +235,7 @@ public class SessionsFragment extends Fragment {
         static class VH extends RecyclerView.ViewHolder {
             final TextView title, status, date, msgs;
             final com.google.android.material.button.MaterialButton more;
+            final View statusBar;
 
             VH(View v) {
                 super(v);
@@ -235,6 +244,7 @@ public class SessionsFragment extends Fragment {
                 date = v.findViewById(R.id.session_date);
                 msgs = v.findViewById(R.id.session_msgs);
                 more = v.findViewById(R.id.session_more);
+                statusBar = v.findViewById(R.id.session_status_bar);
             }
         }
     }
