@@ -125,6 +125,8 @@ public class ToolDetailActivity extends AppCompatActivity {
                 add(l, "file_write", "整文件写入，{path, content}");
                 add(l, "file_edit", "局部替换 {path, old_text, new_text, replace_count}");
                 add(l, "file_append", "末尾追加 {path, content}");
+                add(l, "file_delete", "删除文件/目录（不可恢复，用户明确要求才用） {path}");
+                add(l, "file_mkdir", "新建目录（可多级） {path}");
                 add(l, "file_list", "列目录 {path?}");
                 add(l, "file_info", "文件/目录信息 {path}");
                 add(l, "file_exists", "存在性 {path}");

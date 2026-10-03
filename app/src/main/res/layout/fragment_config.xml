@@ -121,6 +121,33 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:text="最大步数"
+            style="@style/SectionHeader" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:text="一次任务最多跑几轮工具调用（4~20，复杂任务调大）"
+            android:textSize="12sp"
+            android:textColor="?attr/colorOnSurfaceVariant" />
+
+        <EditText
+            android:id="@+id/config_max_steps"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:background="@drawable/bg_input"
+            android:padding="14dp"
+            android:textSize="14sp"
+            android:inputType="number"
+            android:hint="10"
+            android:textColor="?attr/colorOnSurface" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
             android:layout_marginTop="18dp"
             android:text="模型供应商"
             style="@style/SectionHeader" />

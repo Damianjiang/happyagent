@@ -22,10 +22,12 @@ import java.util.Set;
 // 有 Key 走原生 function calling，没 Key 走本地引擎；工具参数按别名宽容取值。
 public final class ReactAgent {
 
-    private static final int MAX_STEPS = 10;
+    private static final int DEFAULT_MAX_STEPS = 10;
     private static final int HISTORY_WINDOW = 12;
     private static final int CONNECT_TIMEOUT = 30000;
     private static final int READ_TIMEOUT = 120000;
+    // 喂给模型的工具结果上限（保留头尾），防长输出把上下文塞爆导致模型乱走
+    private static final int MAX_TOOL_RESULT = 8000;
     // 单张图 base64 前原始字节上限（约 4MB 原始 → base64 后 ~5.3MB）。老机多图同发不至于把堆撑爆。
     private static final int MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 
@@ -42,6 +44,8 @@ public final class ReactAgent {
     private int callCounter;
     // 角色卡 / 世界书：一段设定文本，注入系统提示词（AgentBackend 从 Prefs 读入）
     private String roleCard = "";
+    // 任务最大步数：默认 10，AgentBackend 按 Prefs 覆写（老存档兼容，不进序列化）
+    private int maxSteps = DEFAULT_MAX_STEPS;
 
     public ReactAgent(Config cfg, FileTools ft, ShellExecutor se, SystemTools st, List<Message> trace) {
         this(cfg, ft, se, st, trace, new TaskControl(), null);
@@ -72,6 +76,11 @@ public final class ReactAgent {
         this.roleCard = roleCard == null ? "" : roleCard.trim();
     }
 
+    // 任务最大步数（AgentBackend 按 Prefs 设，允许 4~20；越界回默认）
+    public void setMaxSteps(int n) {
+        this.maxSteps = (n < 4 || n > 20) ? DEFAULT_MAX_STEPS : n;
+    }
+
     public String run(String task, List<Message> history, List<Attachment> attachments) throws Exception {
         this.currentImages = attachments == null ? new ArrayList<Attachment>() : attachments;
         trace.add(new Message("system", "PLAN: " + task, System.currentTimeMillis()));
@@ -89,12 +98,12 @@ public final class ReactAgent {
         userStep.put("images", imagePayloads());
         transcript.add(userStep);
 
-        for (int step = 1; step <= MAX_STEPS; step++) {
+        for (int step = 1; step <= maxSteps; step++) {
             if (control.shouldStop()) return cancelled();
             control.waitForResume();
             if (control.shouldStop()) return cancelled();
 
-            trace.add(new Message("system", "STEP " + step + " / " + MAX_STEPS, System.currentTimeMillis()));
+            trace.add(new Message("system", "STEP " + step + " / " + maxSteps, System.currentTimeMillis()));
             try {
                 JSONObject r = callLlm(transcript);
                 JSONArray calls = r.optJSONArray("calls");
@@ -115,10 +124,11 @@ public final class ReactAgent {
                         JSONObject args = c.optJSONObject("args");
                         if (args == null) args = new JSONObject();
                         String result = dispatchTool(toolName, args);
+                        // 长结果截断后再喂模型（trace 保留全文，界面显示不受影响）
                         results.put(new JSONObject()
                                 .put("id", c.optString("id", ""))
                                 .put("name", toolName)
-                                .put("result", result));
+                                .put("result", truncateForLlm(result)));
                         trace.add(new Message("tool", toolName + " -> " + result, System.currentTimeMillis()));
                     }
                     transcript.add(new JSONObject().put("role", "tool").put("results", results));
@@ -138,12 +148,23 @@ public final class ReactAgent {
                 throw new Exception("Step " + step + " failed: " + e.getMessage(), e);
             }
         }
-        return "Reached max steps (" + MAX_STEPS + ").";
+        return "Reached max steps (" + maxSteps + ").";
     }
 
     private String cancelled() {
         trace.add(new Message("system", "Agent stopped by user", System.currentTimeMillis()));
         return "任务已停止";
+    }
+
+    // 工具结果进模型前截断：超长保留头 70% + 尾 30%，中间标省略；界面 trace 仍是全文
+    private static String truncateForLlm(String s) {
+        if (s == null) return "";
+        if (s.length() <= MAX_TOOL_RESULT) return s;
+        int head = (int) (MAX_TOOL_RESULT * 0.7);
+        int tail = MAX_TOOL_RESULT - head;
+        return s.substring(0, head)
+                + "\n…(中间 " + (s.length() - head - tail) + " 字符已省略，文件/网页全文用 file_read 分页读)…\n"
+                + s.substring(s.length() - tail);
     }
 
     private JSONArray imagePayloads() throws Exception {
@@ -181,6 +202,8 @@ public final class ReactAgent {
             arr.put(fn("file_edit", "把文件里 old_text 那段替换成 new_text（局部改，不用重发整文件；写代码/改文本用它）",
                     schemaEdit()));
             arr.put(fn("file_append", "在文件末尾追加内容（文件不存在则新建）", schema2("path", true, "content", true)));
+            arr.put(fn("file_delete", "删除文件/目录（工作区内，不可恢复，操作前确认）", schema("path", true)));
+            arr.put(fn("file_mkdir", "新建目录（可多级）", schema("path", true)));
             if (toolOn("tool.search")) {
                 arr.put(fn("file_find", "按名查找文件", schema2("path", false, "name", true)));
                 arr.put(fn("file_grep", "在文件里搜关键词", schema2("path", true, "keyword", true)));
@@ -337,7 +360,7 @@ public final class ReactAgent {
 
         JSONObject body = new JSONObject();
         body.put("model", cfg.model);
-        body.put("temperature", cfg.temperature / 100.0);
+        body.put("temperature", clampTemp(cfg.temperature / 100.0, 2.0));
         body.put("max_tokens", cfg.maxTokens);
         body.put("messages", msgs);
         body.put("tools", openAITools());
@@ -383,6 +406,8 @@ public final class ReactAgent {
             decls.put(decl2("file_unzip", "把 zip 解压到目录", "path", "to"));
             decls.put(declEdit("file_edit", "把文件里 old_text 那段替换成 new_text（局部改，不用重发整文件；写代码/改文本用它）"));
             decls.put(decl2("file_append", "在文件末尾追加内容（文件不存在则新建）", "path", "content"));
+            decls.put(decl("file_delete", "删除文件/目录（工作区内，不可恢复）", "path", new String[]{"path"}));
+            decls.put(decl("file_mkdir", "新建目录（可多级）", "path", new String[]{"path"}));
             if (toolOn("tool.search")) {
                 decls.put(decl2("file_find", "按名查找文件", "name", "path"));
                 decls.put(decl2("file_grep", "在文件里搜关键词", "path", "keyword"));
@@ -526,7 +551,7 @@ public final class ReactAgent {
         body.put("contents", contents);
         // 采样参数放 generationConfig，顶层不生效
         JSONObject gen = new JSONObject()
-                .put("temperature", cfg.temperature / 100.0)
+                .put("temperature", clampTemp(cfg.temperature / 100.0, 2.0))
                 .put("maxOutputTokens", cfg.maxTokens);
         body.put("generationConfig", gen);
         body.put("tools", googleTools());
@@ -576,6 +601,8 @@ public final class ReactAgent {
             arr.put(declA2("file_unzip", "把 zip 解压到目录", "path", "to"));
             arr.put(declAEdit("file_edit", "把文件里 old_text 那段替换成 new_text（局部改，不用重发整文件；写代码/改文本用它）"));
             arr.put(declA2("file_append", "在文件末尾追加内容（文件不存在则新建）", "path", "content"));
+            arr.put(declA("file_delete", "删除文件/目录（工作区内，不可恢复）", "path", true));
+            arr.put(declA("file_mkdir", "新建目录（可多级）", "path", true));
             if (toolOn("tool.search")) {
                 arr.put(declA2("file_find", "按名查找文件", "name", "path"));
                 arr.put(declA2("file_grep", "在文件里搜关键词", "path", "keyword"));
@@ -779,8 +806,10 @@ public final class ReactAgent {
         sb.append("6. 工具返回错误时，读懂错误里给出的提示（它常附上可用文件清单/示例参数），改正后重试；同一处最多重试 2 次，仍失败就如实汇报卡在哪。\n");
         sb.append("\n【可用工具】\n");
         sb.append("文件：file_read 读 / file_write 整写 / file_edit 局部替换(old_text→new_text) / file_append 末尾追加 / "
+                + "file_delete 删除 / file_mkdir 新建目录 / "
                 + "file_list 列目录 / file_info 信息 / file_exists 存在性 / file_move 移动改名 / file_copy 复制 / "
-                + "file_zip 压缩 / file_unzip 解压 / file_find 按名找 / file_grep 搜关键词\n");
+                + "file_zip 压缩 / file_unzip 解压 / file_find 按名找 / file_grep 搜关键词\n"
+                + "  - 删除是不可恢复的操作，只有用户明确要求删时才调 file_delete，删前可先 file_info 确认。\n");
         sb.append("文本：text_base64_encode/decode、text_url_encode/decode、text_json_get(按点路径取字段)、text_upper/lower、text_stats、text_calc(四则运算 3+4*2 这种)\n");
         sb.append("设备(只读)：system_device_info / system_battery / system_storage / system_network / system_clipboard_get / system_clipboard_set\n");
         sb.append("GUI(需用户先在系统里开无障碍服务)：gui_dump(读当前屏幕元素) / gui_click(按文本点按钮) / gui_type(向可输入框输入)\n");
@@ -929,6 +958,8 @@ public final class ReactAgent {
                 {"file_unzip", "unzip", "extract", "extract_file", "unzip_file"},
                 {"file_edit", "edit", "edit_file", "replace", "replace_text", "patch", "sed", "find_replace"},
                 {"file_append", "append", "append_file", "add_to_file", "add_line", "write_line"},
+                {"file_delete", "delete_file", "rm", "remove_file", "delete"},
+                {"file_mkdir", "mkdir_file", "make_dir", "create_dir", "mkdir"},
                 {"time_now", "time", "now", "date", "datetime", "current_time"},
                 {"shell_exec", "shell", "exec", "execute", "run", "run_shell"},
                 // http_post 组必须在 http_get 前：否则 "http_post" 会被 http_get 的短别名 "http" 误判
@@ -976,6 +1007,8 @@ public final class ReactAgent {
             case "file_unzip":
             case "file_edit":
             case "file_append":
+            case "file_delete":
+            case "file_mkdir":
                 return "tool.file";
             case "file_find":
             case "file_grep":
@@ -1090,6 +1123,16 @@ public final class ReactAgent {
                     if (c.isEmpty()) return "缺 'content'（要追加的文本）。";
                     return fileTools.append(p, c);
                 }
+                case "file_delete": {
+                    String p = str(args, "path", "file", "file_path", "name");
+                    if (p.isEmpty()) return "缺 'path'（要删除的文件/目录名）。删除不可恢复，请确认。";
+                    return fileTools.delete(p);
+                }
+                case "file_mkdir": {
+                    String p = str(args, "path", "dir", "directory");
+                    if (p.isEmpty()) return "缺 'path'（要新建的目录名）。";
+                    return fileTools.mkdir(p);
+                }
                 case "time_now":
                     return new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss EEEE",
                             java.util.Locale.CHINA).format(new java.util.Date());
@@ -1177,9 +1220,10 @@ public final class ReactAgent {
                 }
                 default:
                     return "未知工具 '" + name + "'。可用：file_read, file_write, file_list, file_info, file_exists, file_move, file_copy, file_zip, file_unzip, "
-                            + "file_edit, file_append, file_find, file_grep, shell_exec, http_get, http_post, "
+                            + "file_edit, file_append, file_delete, file_mkdir, file_find, file_grep, shell_exec, http_get, http_post, "
                             + "text_base64_encode, text_base64_decode, text_url_encode, text_url_decode, text_json_get, text_upper, text_lower, text_stats, text_calc, "
-                            + "system_device_info, system_battery, system_storage, system_network, system_clipboard_get, system_clipboard_set, time_now。";
+                            + "system_device_info, system_battery, system_storage, system_network, system_clipboard_get, system_clipboard_set, "
+                            + "gui_dump, gui_click, gui_type, time_now。";
             }
         } catch (Exception e) {
             return "工具出错: " + e.getMessage();
@@ -1227,7 +1271,11 @@ public final class ReactAgent {
             is.close();
             conn.disconnect();
             String body = new String(bo.toByteArray(), StandardCharsets.UTF_8);
-            return "HTTP " + code + ": " + body.substring(0, Math.min(4096, body.length()));
+            if (body.length() > 4096) {
+                return "HTTP " + code + ": " + body.substring(0, 4096)
+                        + "\n…(响应体已截断到 4096 字符；要全文可 http_get 指定具体子页或分段)";
+            }
+            return "HTTP " + code + ": " + body;
         } catch (Exception e) {
             return "http 出错: " + e.getMessage();
         }
@@ -1271,17 +1319,73 @@ public final class ReactAgent {
         return all.subList(all.size() - n, all.size());
     }
 
+    // 温度越界收口：OpenAI/Gemini 只收 0~2.0，滑条走到 2000 也不会 400
+    private static double clampTemp(double t, double cap) {
+        return t < 0 ? 0 : (t > cap ? cap : t);
+    }
+
+    // 离线本地引擎：没 Key 不装懂语言，但内置的确定性小能力真实可用（计算/时间/设备/存储/文件清单）
     private String localFallback(String task, List<Message> history, List<Attachment> images) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("收到「").append(task).append("」。\n");
-        if (images != null && !images.isEmpty()) {
-            sb.append("已收到 ").append(images.size()).append(" 个附件：");
-            for (Attachment a : images) sb.append(a.fileName).append(' ');
-            sb.append("（已存入工作区 ").append(fileTools.getWorkspace()).append("）\n");
+        String t = task == null ? "" : task.trim();
+        String calc = tryCalc(t);
+        if (calc != null) {
+            return "本地引擎计算：\n" + calc
+                    + "\n（离线模式：未配置 " + providerLabel() + " Key，只跑了内置确定性计算。）";
         }
-        sb.append("当前是离线本地模式（未配置 API Key），未能真正理解任务。");
-        sb.append("在配置页填 ").append(providerLabel()).append(" 的 API Key 后我可真正理解并调用工具完成它。");
+        String low = t.toLowerCase();
+        if (low.contains("时间") || low.contains("日期") || low.contains("几点") || low.contains("now")) {
+            return "当前时间：" + timeNowLocal();
+        }
+        if (low.contains("存储") || low.contains("空间")) {
+            return "存储情况：\n" + systemTools.storageInfo();
+        }
+        if (low.contains("电池") || low.contains("电量")) {
+            return "电池状态：\n" + systemTools.batteryStatus();
+        }
+        if (low.contains("设备") || low.contains("型号") || low.contains("内存")) {
+            return "设备信息：\n" + systemTools.deviceInfo();
+        }
+        if (low.contains("列") || low.contains("文件") || low.contains("目录")) {
+            return "工作区文件：\n" + fileTools.list(fileTools.getWorkspace());
+        }
+        StringBuilder sb = new StringBuilder();
+        sb.append("当前是离线本地模式（未配置 ").append(providerLabel()).append(" Key），没有语言理解能力。");
+        sb.append("不过内置的确定性小能力现在就能用：\n");
+        sb.append("① 算数：直接发表达式，如 128*37+9\n");
+        sb.append("② 查时间：「现在几点了」\n");
+        sb.append("③ 查设备/存储/电池：「查看存储」\n");
+        sb.append("④ 列文件：「列出文件」\n");
+        sb.append("更复杂的任务请先在「配置」页填 ").append(providerLabel())
+                .append(" 的 API Key，我才能真正理解并调用工具完成。");
+        if (images != null && !images.isEmpty()) {
+            sb.append("\n（已收到 ").append(images.size()).append(" 个附件：");
+            for (Attachment a : images) sb.append(a.fileName).append(' ');
+            sb.append("，已存入工作区，配好 Key 后可直接处理。）");
+        }
         return sb.toString();
+    }
+
+    // 文本整体是算术表达式（只含数字/运算符/括号/空白）才本地算；否则返回 null 不误判
+    private String tryCalc(String t) {
+        String s = t.trim().replace("?", "").replace("？", "");
+        if (s.length() < 2 || s.length() > 60) return null;
+        boolean hasOp = false, ok = true;
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (Character.isDigit(c) || c == '.' || c == '(' || c == ')') continue;
+            if (c == '+' || c == '-' || c == '*' || c == '/' || c == '%' || c == ' ') { hasOp = true; continue; }
+            ok = false;
+            break;
+        }
+        if (!ok || !hasOp) return null;
+        String r = TextTools.calc(s);
+        if (r.startsWith("无法计算")) return null;
+        return s + " = " + r;
+    }
+
+    private String timeNowLocal() {
+        return new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss EEEE",
+                java.util.Locale.CHINA).format(new java.util.Date());
     }
 
     private String providerLabel() {

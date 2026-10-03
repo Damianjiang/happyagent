@@ -25,6 +25,7 @@ import com.google.android.material.button.MaterialButton;
 import com.happyagent.mobile.CrashHandler;
 import com.happyagent.mobile.R;
 import com.happyagent.mobile.data.AgentBackend;
+import com.happyagent.mobile.data.TtsEngine;
 import com.happyagent.mobile.model.Models.Attachment;
 import com.happyagent.mobile.model.Models.Message;
 import com.happyagent.mobile.model.Models.Session;
@@ -41,9 +42,10 @@ public class SessionDetailActivity extends AppCompatActivity {
     private static final int PICK_IMAGE = 101;
     private static final int PICK_FILE = 102;
 
-    private TextView empty;
+    private View empty;
     private EditText promptBox;
     private ImageButton sendBtn, pickImage, pickFile;
+    private ImageButton micBtn;
     private RecyclerView recycler;
     private LinearLayoutManager layoutMgr;
     private MaterialToolbar toolbar;
@@ -58,6 +60,9 @@ public class SessionDetailActivity extends AppCompatActivity {
     private final List<Attachment> pending = new ArrayList<Attachment>();
     // 运行中已实时增量显示过的工具步骤数（任务结束时随 dump 全量重置）
     private int liveToolCount = 0;
+    // 麦克风听写：SpeechRecognizer 填进输入框（RECORD_AUDIO 运行时权限）
+    private android.speech.SpeechRecognizer micRecognizer;
+    private boolean micRecording;
 
     private android.os.Handler mainHandler;
     private Runnable pollTask;
@@ -78,8 +83,9 @@ public class SessionDetailActivity extends AppCompatActivity {
         sendBtn = findViewById(R.id.detail_send);
         pickImage = findViewById(R.id.detail_pick_image);
         pickFile = findViewById(R.id.detail_pick_file);
+        micBtn = findViewById(R.id.detail_mic);
         recycler = findViewById(R.id.chat_recycler);
-        empty = findViewById(R.id.chat_empty);
+        empty = findViewById(R.id.chat_empty_wrap);
         controlsRow = findViewById(R.id.detail_controls);
         attachStrip = findViewById(R.id.detail_attach_strip);
         attachItems = findViewById(R.id.attach_strip_items);
@@ -92,6 +98,7 @@ public class SessionDetailActivity extends AppCompatActivity {
         cancelBtn.setOnClickListener(v -> { Haptics.tap(v); AgentBackend.get().cancelTask(); });
         pickImage.setOnClickListener(v -> pick(PICK_IMAGE));
         pickFile.setOnClickListener(v -> pick(PICK_FILE));
+        if (micBtn != null) micBtn.setOnClickListener(v -> toggleMic());
 
         AgentBackend backend = AgentBackend.get();
         model = backend.getConfig().model;
@@ -150,6 +157,104 @@ public class SessionDetailActivity extends AppCompatActivity {
         }
         pending.add(a);
         renderPending();
+    }
+
+    // ---- 麦克风听写：点按开始/停止，识别结果自动追加进输入框 ----
+
+    private void toggleMic() {
+        if (micRecording) {
+            stopMic();
+            return;
+        }
+        if (androidx.core.content.ContextCompat.checkSelfPermission(this,
+                android.Manifest.permission.RECORD_AUDIO)
+                != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{android.Manifest.permission.RECORD_AUDIO}, 103);
+            return;
+        }
+        startMic();
+    }
+
+    private void startMic() {
+        final android.speech.SpeechRecognizer rec =
+                android.speech.SpeechRecognizer.createSpeechRecognizer(this);
+        if (rec == null) {
+            Toast.makeText(this, "这台设备没有可用的语音识别，请用键盘输入",
+                    Toast.LENGTH_LONG).show();
+            return;
+        }
+        final android.content.Intent i = new android.content.Intent(
+                android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+        i.putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+                android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
+        i.putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE,
+                java.util.Locale.getDefault().toString());
+        i.putExtra(android.speech.RecognizerIntent.EXTRA_MAX_RESULTS, 1);
+        rec.setRecognitionListener(new android.speech.RecognitionListener() {
+            @Override public void onReadyForSpeech(android.os.Bundle p) {}
+            @Override public void onBeginningOfSpeech() {}
+            @Override public void onRmsChanged(float rmsdB) {}
+            @Override public void onBufferReceived(byte[] buf) {}
+            @Override public void onEndOfSpeech() {}
+            @Override public void onError(int code) {
+                Toast.makeText(SessionDetailActivity.this,
+                        "没听清（错误 " + code + "），再说一次或用键盘", Toast.LENGTH_LONG).show();
+                stopMic();
+            }
+            @Override public void onResults(android.os.Bundle b) {
+                java.util.ArrayList<String> res =
+                        b.getStringArrayList(android.speech.RecognizerIntent.EXTRA_RESULTS);
+                if (res != null && !res.isEmpty()) {
+                    promptBox.append(res.get(0));
+                    promptBox.setSelection(promptBox.getText().length());
+                }
+                stopMic();
+            }
+            @Override public void onPartialResults(android.os.Bundle b) {}
+            @Override public void onEvent(int eventType, android.os.Bundle b) {}
+        });
+        try {
+            rec.startListening(i);
+            micRecognizer = rec;
+            micRecording = true;
+            if (micBtn != null) {
+                micBtn.setColorFilter(androidx.core.content.ContextCompat.getColor(
+                        this, R.color.acc_default));
+            }
+            Toast.makeText(this, "正在听，说完自动填入…", Toast.LENGTH_SHORT).show();
+        } catch (Exception e) {
+            try { rec.destroy(); } catch (Exception ignored) {}
+            Toast.makeText(this, "启动语音识别失败：" + e.getMessage(),
+                    Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void stopMic() {
+        if (micRecognizer != null) {
+            try {
+                micRecognizer.stopListening();
+                micRecognizer.destroy();
+            } catch (Exception ignored) {}
+            micRecognizer = null;
+        }
+        micRecording = false;
+        if (micBtn != null) {
+            micBtn.setColorFilter(androidx.core.content.ContextCompat.getColor(
+                    this, R.color.on_surface_variant));
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == 103) {
+            if (grantResults.length > 0
+                    && grantResults[0] == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                startMic();
+            } else {
+                Toast.makeText(this, "没有麦克风权限，无法语音输入", Toast.LENGTH_LONG).show();
+            }
+        }
     }
 
     private String displayName(Uri uri) {
@@ -301,7 +406,11 @@ public class SessionDetailActivity extends AppCompatActivity {
             liveToolCount = 0;
             updateEmpty();
             scrollBottom();
-            if (s.status == 3) {
+            if (s.status == 2) {
+                // 任务成功：开关开着就自动朗读 AI 最后一条回复（设置页 TTS 开关）
+                String last = lastAssistantText(s);
+                if (last != null) TtsEngine.get().speak(last);
+            } else if (s.status == 3) {
                 Toast.makeText(this, "任务失败：" + lastSystem(s), Toast.LENGTH_LONG).show();
             }
         }
@@ -324,6 +433,14 @@ public class SessionDetailActivity extends AppCompatActivity {
             if (m.role.equals("system")) return m.text;
         }
         return "未知错误";
+    }
+
+    // 取最后一条 assistant 回复（TTS 朗读用）
+    private String lastAssistantText(Session s) {
+        for (int i = s.messages.size() - 1; i >= 0; i--) {
+            if (s.messages.get(i).role.equals("assistant")) return s.messages.get(i).text;
+        }
+        return null;
     }
 
     private void updateEmpty() {
@@ -355,6 +472,8 @@ public class SessionDetailActivity extends AppCompatActivity {
             mainHandler.removeCallbacks(pollTask);
             pollTask = null;
         }
+        stopMic();
+        TtsEngine.get().stop();
         super.onDestroy();
     }
 
@@ -425,8 +544,30 @@ public class SessionDetailActivity extends AppCompatActivity {
                 final String aiText = m.text;
                 h.aiBubbleCopy.setOnClickListener(v -> copyToClipboard(h.itemView.getContext(), aiText));
             } else if (isTool) {
-                h.toolLine.setText(m.text);
-                final String toolText = m.text;
+                String full = m.text;
+                // 默认单行省略；点按行可展开看全文（工具输出长时不再"有功能没界面看"）
+                if (h.expanded) {
+                    h.toolLine.setSingleLine(false);
+                    h.toolLine.setEllipsize(null);
+                } else {
+                    h.toolLine.setSingleLine(true);
+                    h.toolLine.setEllipsize(android.text.TextUtils.TruncateAt.END);
+                }
+                h.toolLine.setText(full);
+                h.toolExpand.setRotation(h.expanded ? 180f : 0f);
+                h.itemView.setOnClickListener(v -> {
+                    h.expanded = !h.expanded;
+                    if (h.expanded) {
+                        h.toolLine.setSingleLine(false);
+                        h.toolLine.setEllipsize(null);
+                    } else {
+                        h.toolLine.setSingleLine(true);
+                        h.toolLine.setEllipsize(android.text.TextUtils.TruncateAt.END);
+                    }
+                    h.toolLine.setText(full);
+                    h.toolExpand.setRotation(h.expanded ? 180f : 0f);
+                });
+                final String toolText = full;
                 h.toolLineCopy.setOnClickListener(v -> copyToClipboard(h.itemView.getContext(), toolText));
             }
         }
@@ -494,7 +635,9 @@ public class SessionDetailActivity extends AppCompatActivity {
             final TextView userBubble, aiBubble, toolLine;
             final View userRow, aiRow, toolRow;
             final LinearLayout userAttach;
-            final android.widget.ImageView aiBubbleCopy, toolLineCopy;
+            final android.widget.ImageView aiBubbleCopy, toolLineCopy, toolExpand;
+            // 工具行是否展开（ViewHolder 级；绑新行时重置为收起）
+            boolean expanded;
 
             VH(View v) {
                 super(v);
@@ -503,10 +646,13 @@ public class SessionDetailActivity extends AppCompatActivity {
                 toolLine = v.findViewById(R.id.bubble_tool);
                 aiBubbleCopy = v.findViewById(R.id.bubble_ai_copy);
                 toolLineCopy = v.findViewById(R.id.bubble_tool_copy);
+                toolExpand = v.findViewById(R.id.bubble_tool_expand);
                 userRow = v.findViewById(R.id.row_user);
                 aiRow = v.findViewById(R.id.row_ai);
                 toolRow = v.findViewById(R.id.row_tool);
                 userAttach = v.findViewById(R.id.user_attachments);
+                // 绑定新行（可能是复用 ViewHolder）时重置为收起态
+                expanded = false;
             }
         }
     }

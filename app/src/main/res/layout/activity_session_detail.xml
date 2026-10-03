@@ -28,18 +28,46 @@
         android:paddingBottom="6dp"
         android:background="?android:colorBackground" />
 
-    <!-- 空对话提示 -->
-    <TextView
-        android:id="@+id/chat_empty"
+    <!-- 空对话提示：居中一行主标题 + 一行次级说明，克制不堆砌 -->
+    <LinearLayout
+        android:id="@+id/chat_empty_wrap"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
+        android:orientation="vertical"
         android:gravity="center"
         android:padding="32dp"
-        android:textSize="14sp"
-        android:lineSpacingExtra="4dp"
-        android:textColor="?attr/colorOnSurfaceVariant"
-        android:text="开始和我对话吧\n选张图片或文件，写点内容，点发送。" />
+        android:visibility="gone">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="✦"
+            android:textSize="28sp"
+            android:includeFontPadding="false"
+            android:gravity="center"
+            android:textColor="?attr/colorPrimary" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:gravity="center"
+            android:text="有什么要我做的？"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:textColor="?attr/colorOnSurface" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:gravity="center"
+            android:lineSpacingExtra="3dp"
+            android:text="描述任务，或点下方 图片 / 文件 / 麦克风 附上材料"
+            android:textSize="13sp"
+            android:textColor="?attr/colorOnSurfaceVariant" />
+    </LinearLayout>
 
     <!-- 任务控制条：暂停 / 继续 / 取消，任务运行时才出现 -->
     <LinearLayout
@@ -132,7 +160,7 @@
                 android:layout_width="40dp"
                 android:layout_height="40dp"
                 android:background="@android:color/transparent"
-                android:src="@android:drawable/ic_menu_gallery"
+                android:src="@drawable/ic_image"
                 android:contentDescription="选择图片"
                 android:scaleType="center"
                 app:tint="?attr/colorOnSurfaceVariant" />
@@ -144,8 +172,20 @@
                 android:layout_marginLeft="2dp"
                 android:layout_marginStart="2dp"
                 android:background="@android:color/transparent"
-                android:src="@android:drawable/ic_menu_save"
+                android:src="@drawable/ic_file"
                 android:contentDescription="选择文件"
+                android:scaleType="center"
+                app:tint="?attr/colorOnSurfaceVariant" />
+
+            <ImageButton
+                android:id="@+id/detail_mic"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:layout_marginLeft="2dp"
+                android:layout_marginStart="2dp"
+                android:background="@android:color/transparent"
+                android:src="@drawable/ic_mic"
+                android:contentDescription="语音输入"
                 android:scaleType="center"
                 app:tint="?attr/colorOnSurfaceVariant" />
 

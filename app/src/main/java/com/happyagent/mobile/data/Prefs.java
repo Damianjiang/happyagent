@@ -24,6 +24,10 @@ public final class Prefs {
     public static final String KEY_CHAT_TEXT_SIZE = "chat_text_size";
     // 个性化：角色卡 / 世界书（一段文字设定，注入系统提示词；空=无）
     public static final String KEY_ROLE_CARD = "role_card";
+    // 语音：任务完成后自动朗读 AI 回复（TextToSpeech）；麦克风输入是聊天页按钮，不需要开关
+    public static final String KEY_TTS_ON = "tts_on";
+    // 引擎：ReAct 最大步数（老存档兼容：走 Prefs 不进序列化 State）
+    public static final String KEY_MAX_STEPS = "max_steps";
 
     // 直接对齐 AppCompat 的常量，别自己造数值
     public static final int NIGHT_FOLLOW_SYSTEM = AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM;

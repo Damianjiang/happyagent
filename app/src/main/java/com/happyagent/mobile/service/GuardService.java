@@ -88,16 +88,22 @@ public final class GuardService extends AccessibilityService {
     }
 
     // —— 供 gui_* 工具经 runOnMainTimed 调用的具体实现 ——
-
+    // dumpScreen 也必须走主线程桥接：getRootInActiveWindow 只在主线程安全，
+    // 工具在工作线程分发，直接调会在部分机型挂起/抛异常（历史卡死点）。
     public String dumpScreen() {
-        AccessibilityNodeInfo root = getRootInActiveWindow();
-        if (root == null) {
-            return "（无前台窗口：无障碍服务未启用，或当前无可见界面）";
-        }
-        StringBuilder sb = new StringBuilder();
-        int[] cnt = new int[]{0};
-        walk(root, 0, sb, cnt);
-        return sb.length() == 0 ? "（当前屏幕无可交互节点）" : sb.toString();
+        return runOnMainTimed(new MainJob() {
+            @Override
+            public String doIt() {
+                AccessibilityNodeInfo root = getRootInActiveWindow();
+                if (root == null) {
+                    return "（无前台窗口：无障碍服务未启用，或当前无可见界面）";
+                }
+                StringBuilder sb = new StringBuilder();
+                int[] cnt = new int[]{0};
+                walk(root, 0, sb, cnt);
+                return sb.length() == 0 ? "（当前屏幕无可交互节点）" : sb.toString();
+            }
+        }, 8000);
     }
 
     private void walk(AccessibilityNodeInfo n, int depth, StringBuilder out, int[] cnt) {

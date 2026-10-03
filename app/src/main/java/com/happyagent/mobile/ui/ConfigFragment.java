@@ -28,6 +28,7 @@ public class ConfigFragment extends Fragment {
     private View openaiGroup, googleGroup, anthropicGroup;
     private SeekBar tempBar;
     private TextView tempLabel;
+    private EditText maxStepsBox;
 
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle s) {
@@ -39,6 +40,7 @@ public class ConfigFragment extends Fragment {
         openaiUrlBox = v.findViewById(R.id.config_openai_url);
         googleKeyBox = v.findViewById(R.id.config_google_key);
         anthropicKeyBox = v.findViewById(R.id.config_anthropic_key);
+        maxStepsBox = v.findViewById(R.id.config_max_steps);
         providerOpenai = v.findViewById(R.id.config_provider_openai);
         providerGoogle = v.findViewById(R.id.config_provider_google);
         providerAnthropic = v.findViewById(R.id.config_provider_anthropic);
@@ -53,6 +55,7 @@ public class ConfigFragment extends Fragment {
         modelBox.setText(c.model);
         agentBox.setText(c.agentName);
         maxTokensBox.setText(String.valueOf(c.maxTokens));
+        maxStepsBox.setText(String.valueOf(c.normalizedMaxSteps()));
         openaiKeyBox.setText(c.openaiKey);
         openaiUrlBox.setText(c.openaiBaseUrl);
         googleKeyBox.setText(c.googleKey);
@@ -91,6 +94,7 @@ public class ConfigFragment extends Fragment {
                     openaiUrlBox.getText().toString().trim(),
                     googleKeyBox.getText().toString().trim(),
                     anthropicKeyBox.getText().toString().trim());
+            nc.maxSteps = clampSteps(maxStepsBox.getText().toString());
             AgentBackend.get().updateConfig(nc);
             Toast.makeText(getContext(), "配置已保存", Toast.LENGTH_SHORT).show();
         });
@@ -169,5 +173,15 @@ public class ConfigFragment extends Fragment {
     private int parseIntSafe(String s, int def) {
         try { return Integer.parseInt(s.trim()); }
         catch (Exception e) { return def; }
+    }
+
+    // 最大步数收口：空/非数字/越界都回默认 10，合法值夹在 4~20
+    private int clampSteps(String s) {
+        int n;
+        try { n = Integer.parseInt(s.trim()); }
+        catch (Exception e) { return 10; }
+        if (n < 4) return 4;
+        if (n > 20) return 20;
+        return n;
     }
 }

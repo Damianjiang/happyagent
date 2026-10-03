@@ -115,6 +115,8 @@ public final class Models {
         public String openaiBaseUrl = "https://api.openai.com/v1";
         public String googleKey = "";
         public String anthropicKey = "";
+        // 任务最大步数（4~20）；老存档无该字段反序列化为 0，由 AgentBackend 归一为默认 10
+        public int maxSteps = 10;
 
         public Config() {}
 
@@ -169,6 +171,11 @@ public final class Models {
         // 有当前供应商的 Key 才调真接口，否则本地模拟
         public boolean hasKey() {
             return apiKey().trim().length() > 0;
+        }
+
+        // 最大步数归一：老存档反序列化为 0 时回默认 10；越界收 4~20
+        public int normalizedMaxSteps() {
+            return maxSteps >= 4 && maxSteps <= 20 ? maxSteps : 10;
         }
 
         // 兼容旧调用点

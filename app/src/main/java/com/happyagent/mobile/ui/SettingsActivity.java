@@ -55,6 +55,16 @@ public class SettingsActivity extends AppCompatActivity {
             Toast.makeText(this, "起始页已更新", Toast.LENGTH_SHORT).show();
         });
 
+        // 朗读回复：任务成功后 TTS 自动念 AI 最后一条
+        SwitchMaterial tts = findViewById(R.id.set_tts);
+        tts.setChecked(prefs.getBoolean(Prefs.KEY_TTS_ON, false));
+        tts.setOnCheckedChangeListener((b, isOn) -> {
+            prefs.putBoolean(Prefs.KEY_TTS_ON, isOn);
+            if (isOn) com.happyagent.mobile.data.TtsEngine.get().speak("朗读已开启");
+            else com.happyagent.mobile.data.TtsEngine.get().stop();
+            Toast.makeText(this, isOn ? "朗读已开启" : "朗读已关闭", Toast.LENGTH_SHORT).show();
+        });
+
         // 关于卡（版本号动态取包元信息，不写死）
         TextView versionTv = findViewById(R.id.set_about_version);
         versionTv.setText("Happy Agent " + AboutDialog.versionOf(this));

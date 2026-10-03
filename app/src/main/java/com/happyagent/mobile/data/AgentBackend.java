@@ -73,9 +73,14 @@ public final class AgentBackend {
             @Override
             public void run() {
                 synchronized (lock) {
-                    loadFromDisk();
-                    loaded = true;
-                    lock.notifyAll();
+                    try {
+                        loadFromDisk();
+                    } finally {
+                        // 无论读成功还是抛异常都要落位：否则 loaded 永不置位，
+                        // 界面线程每次 ensureLoaded 都会白等 5 秒（历史卡死点）
+                        loaded = true;
+                        lock.notifyAll();
+                    }
                 }
             }
         });
@@ -93,9 +98,16 @@ public final class AgentBackend {
                     break;
                 }
             }
-            // 等太久则当场同步读一遍，保证界面不卡死
+            // 等太久（后台读失败/线程已死）则当场同步读一遍；读崩也不许抛到界面线程
             if (!loaded) {
-                loadFromDisk();
+                try {
+                    loadFromDisk();
+                } catch (Exception e) {
+                    sessions = new ArrayList<Session>();
+                    tools = defaultTools();
+                    config = new Config();
+                    Log.w(TAG, "state sync load failed, using defaults", e);
+                }
                 loaded = true;
             }
         }
@@ -173,6 +185,7 @@ public final class AgentBackend {
                             new SystemTools(HappyAgentApplication.get()),
                             trace, control, getEnabledToolKeys());
                     agent.setRoleCard(currentRoleCard());
+                    agent.setMaxSteps(currentMaxSteps());
                     final String summary = agent.run(prompt, history, atts);
                     // 被取消/停止时，只记用户输入 + 已发生的工具步骤 + 停止说明，不标完成
                     List<Message> toolSteps = new ArrayList<Message>();
@@ -243,6 +256,7 @@ public final class AgentBackend {
                     new SystemTools(HappyAgentApplication.get()),
                     trace, control, getEnabledToolKeys());
             agent.setRoleCard(currentRoleCard());
+            agent.setMaxSteps(currentMaxSteps());
             String summary = agent.run(prompt, history,
                     new ArrayList<com.happyagent.mobile.model.Models.Attachment>());
             List<Message> toolSteps = new ArrayList<Message>();
@@ -288,6 +302,12 @@ public final class AgentBackend {
     private String currentRoleCard() {
         Prefs p = new Prefs(HappyAgentApplication.get());
         return p.getString(Prefs.KEY_ROLE_CARD, "");
+    }
+
+    // 任务最大步数：优先 Config.maxSteps（配置页可设），越界归一
+    private int currentMaxSteps() {
+        Config c = getConfig();
+        return c.normalizedMaxSteps();
     }
 
     // 会话操作：重命名 / 删除 / 清空（数据层早就能，只是界面没入口）

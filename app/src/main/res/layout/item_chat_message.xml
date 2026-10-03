@@ -58,12 +58,19 @@
         android:gravity="top"
         android:visibility="gone">
 
-        <ImageView
+        <FrameLayout
             android:layout_width="28dp"
             android:layout_height="28dp"
-            android:background="@drawable/bg_avatar_ai"
-            android:contentDescription="Happy Agent"
-            android:scaleType="center" />
+            android:background="@drawable/bg_avatar_ai">
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:gravity="center"
+                android:text="✦"
+                android:textSize="13sp"
+                android:includeFontPadding="false"
+                android:textColor="?attr/colorPrimary" />
+        </FrameLayout>
 
         <TextView
             android:id="@+id/bubble_ai"
@@ -121,16 +128,28 @@
                 android:paddingBottom="6dp"
                 android:textSize="11sp"
                 android:maxWidth="260dp"
+                android:lineSpacingExtra="2dp"
                 android:ellipsize="end"
                 android:singleLine="true"
                 android:textColor="?attr/colorOnSurfaceVariant" />
+
+            <ImageView
+                android:id="@+id/bubble_tool_expand"
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:padding="3dp"
+                android:layout_marginStart="2dp"
+                android:src="@drawable/ic_chevron"
+                android:contentDescription="展开工具输出"
+                app:tint="?attr/colorOnSurfaceVariant"
+                android:background="?android:attr/selectableItemBackgroundBorderless" />
 
             <ImageView
                 android:id="@+id/bubble_tool_copy"
                 android:layout_width="24dp"
                 android:layout_height="24dp"
                 android:padding="2dp"
-                android:layout_marginStart="4dp"
+                android:layout_marginStart="2dp"
                 android:src="@drawable/ic_copy"
                 android:contentDescription="复制工具输出"
                 app:tint="?attr/colorOnSurfaceVariant"

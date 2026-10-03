@@ -32,6 +32,7 @@ public class ReportsFragment extends Fragment {
     private TextView keyOpenai, keyGoogle, keyAnthropic;
     private TextView themeLabel, accentLabel, chatSizeLabel;
     private TextView webStateLabel, webLanLabel;
+    private TextView guiLabel, roleLabel, ttsLabel, maxStepsLabel;
     private ProgressBar progress;
 
     @Override
@@ -56,6 +57,10 @@ public class ReportsFragment extends Fragment {
         chatSizeLabel = v.findViewById(R.id.reports_chat_size);
         webStateLabel = v.findViewById(R.id.reports_web_state);
         webLanLabel = v.findViewById(R.id.reports_web_lan);
+        guiLabel = v.findViewById(R.id.reports_gui);
+        roleLabel = v.findViewById(R.id.reports_role);
+        ttsLabel = v.findViewById(R.id.reports_tts);
+        maxStepsLabel = v.findViewById(R.id.reports_max_steps);
         progress = v.findViewById(R.id.reports_progress);
         load();
         return v;
@@ -119,6 +124,19 @@ public class ReportsFragment extends Fragment {
                         themeLabel.setText(ThemeUtil.modeLabel(themeMode));
                         accentLabel.setText(ThemeUtil.accentLabels()[accent]);
                         chatSizeLabel.setText(chatSize == 2 ? "特大" : (chatSize == 1 ? "大" : "标准"));
+                        // 能力状态（数据层早能查，界面补出）
+                        boolean guiOn = com.happyagent.mobile.service.GuardService.isRunning();
+                        guiLabel.setText(guiOn ? "已开启" : "未开启");
+                        guiLabel.setTextColor(guiOn
+                                ? androidx.core.content.ContextCompat.getColor(
+                                    requireContext(), R.color.status_done)
+                                : androidx.core.content.ContextCompat.getColor(
+                                    requireContext(), R.color.on_surface_variant));
+                        String roleCard = p.getString(Prefs.KEY_ROLE_CARD, "");
+                        roleLabel.setText(roleCard.isEmpty() ? "未设置" : roleCard.length() + " 字");
+                        boolean ttsOn = p.getBoolean(Prefs.KEY_TTS_ON, false);
+                        ttsLabel.setText(ttsOn ? "已开启" : "已关闭");
+                        maxStepsLabel.setText(String.valueOf(c.normalizedMaxSteps()));
                         refreshWeb();
                     }
                 });

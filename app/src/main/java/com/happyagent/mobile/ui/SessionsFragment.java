@@ -179,6 +179,14 @@ public class SessionsFragment extends Fragment {
             h.title.setText(s.title);
             h.date.setText(fmt.format(new Date(s.updatedAt)));
             h.status.setText(s.statusLabel());
+            // 消息数（数据层 Session.messages 早能查，界面补露出；0 条时不显示）
+            int msgCount = s.messages.size();
+            if (msgCount > 0) {
+                h.msgs.setVisibility(View.VISIBLE);
+                h.msgs.setText(msgCount + " 条");
+            } else {
+                h.msgs.setVisibility(View.GONE);
+            }
             // 状态用小圆点作左侧 drawable，颜色跟状态走，卡片保持干净
             int dot = s.status == 0 ? R.drawable.dot_running
                     : (s.status == 3 ? R.drawable.dot_failed : R.drawable.dot_done);
@@ -207,7 +215,7 @@ public class SessionsFragment extends Fragment {
         }
 
         static class VH extends RecyclerView.ViewHolder {
-            final TextView title, status, date;
+            final TextView title, status, date, msgs;
             final com.google.android.material.button.MaterialButton more;
 
             VH(View v) {
@@ -215,6 +223,7 @@ public class SessionsFragment extends Fragment {
                 title = v.findViewById(R.id.session_title);
                 status = v.findViewById(R.id.session_status);
                 date = v.findViewById(R.id.session_date);
+                msgs = v.findViewById(R.id.session_msgs);
                 more = v.findViewById(R.id.session_more);
             }
         }
