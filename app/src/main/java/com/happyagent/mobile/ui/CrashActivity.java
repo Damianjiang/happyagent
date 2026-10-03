@@ -50,6 +50,7 @@ public class CrashActivity extends AppCompatActivity {
         Button btnCopy = findViewById(R.id.btn_copy_log);
         Button btnShare = findViewById(R.id.btn_share_log);
         Button btnHome = findViewById(R.id.btn_home);
+        Button btnGithub = findViewById(R.id.btn_github_issue);
 
         btnCopy.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -66,6 +67,17 @@ public class CrashActivity extends AppCompatActivity {
             @Override
             public void onClick(View v) {
                 share(logBox.getText().toString());
+            }
+        });
+
+        btnGithub.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                // 一键发 GitHub：先把日志全文复制进剪贴板，再打开预填了日志的 issue 新页
+                if (!copy(logBox.getText().toString())) {
+                    Toast.makeText(CrashActivity.this, "复制日志失败", Toast.LENGTH_SHORT).show();
+                }
+                openGithubIssue(logBox.getText().toString());
             }
         });
 
@@ -93,6 +105,36 @@ public class CrashActivity extends AppCompatActivity {
             i.putExtra(Intent.EXTRA_TEXT, text);
             startActivity(Intent.createChooser(i, "分享崩溃日志"));
         } catch (Exception ignored) {
+        }
+    }
+
+    // 一键发 GitHub：打开预填的 issue 新页（标题+版本+设备信息进 URL；完整日志在剪贴板，粘贴进正文即可）
+    private void openGithubIssue(String log) {
+        try {
+            String ver = "";
+            try {
+                ver = " v" + getApplicationContext().getPackageManager()
+                        .getPackageInfo(getPackageName(), 0).versionName;
+            } catch (Exception ignored) {}
+            String head = log.length() > 400 ? log.substring(0, 400) : log;
+            String title = java.net.URLEncoder.encode("HappyAgent 崩溃反馈" + ver + " (Android "
+                    + android.os.Build.VERSION.RELEASE + ")", "UTF-8");
+            String body = java.net.URLEncoder.encode("设备: " + android.os.Build.MANUFACTURER + " "
+                    + android.os.Build.MODEL + "（API " + android.os.Build.VERSION.SDK_INT + "）\n"
+                    + "构建: " + android.os.Build.FINGERPRINT + "\n\n"
+                    + "完整日志已复制在剪贴板，粘贴到下面即可；这是自动截断的头部：\n```\n"
+                    + head + "\n...\n```\n", "UTF-8");
+            String url = "https://github.com/Damianjiang/happyagent/issues/new"
+                    + "?title=" + title + "&body=" + body;
+            Intent i = new Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url));
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(i);
+            Toast.makeText(CrashActivity.this,
+                    "已打开 GitHub 反馈页（日志在剪贴板，粘贴进正文提交）",
+                    Toast.LENGTH_LONG).show();
+        } catch (Exception e) {
+            Toast.makeText(CrashActivity.this, "打不开浏览器，请手动复制日志发到 GitHub issues",
+                    Toast.LENGTH_LONG).show();
         }
     }
 

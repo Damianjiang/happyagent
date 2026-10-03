@@ -21,6 +21,9 @@ public class HappyAgentApplication extends Application {
 
         CrashHandler.install(this);
 
+        // 启动链路全程兜底：任何一步（主题/TTS/存档/Web 恢复）异常都弹日志弹窗，不白屏
+        try {
+
         // 套夜间模式（从三态主题键取；老版二值键自动迁移过来）
         ThemeUtil.applyGlobal();
 
@@ -33,6 +36,9 @@ public class HappyAgentApplication extends Application {
         // 上次开着的 Web 服务随启动恢复（默认关）
         if (prefs().getBoolean(com.happyagent.mobile.data.Prefs.KEY_WEBUI_ON, false)) {
             com.happyagent.mobile.service.WebUiService.start(this);
+        }
+        } catch (Throwable t) {
+            CrashHandler.showFrom(t);
         }
     }
 

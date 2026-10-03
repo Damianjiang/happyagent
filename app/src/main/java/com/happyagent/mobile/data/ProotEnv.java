@@ -202,24 +202,50 @@ public final class ProotEnv {
 
     private void downloadRootfs(ExecutorService pool, Progress p) throws Exception {
         String arch = (abi == 3) ? "x86_64" : (abi == 2 ? "aarch64" : "arm");
-        // 国内镜像链（中科大 → 清华）→ alpine 官方 CDN；版本用 stable 系列
-        String v = "3.20.3";
+        // 源链：国内镜像「latest/minirootfs.tar.gz」优先（实测 USTC/TUNA 通），再官方 CDN 多版本回退。
+        // 全是 .tar.gz（gzip+tar），extract 直接解。任一 200 即用，全失败才抛（诚实报「镜像不可达」）。
         String[] chain = {
-                "https://mirrors.ustc.edu.cn/alpine/minirootfs/" + arch + "/" + v + "/alpine-minirootfs-" + v + "-" + arch + ".tar.gz",
-                "https://mirrors.tuna.tsinghua.edu.cn/alpine/minirootfs/" + arch + "/" + v + "/alpine-minirootfs-" + v + "-" + arch + ".tar.gz",
-                "https://dl-cdn.alpinelinux.org/alpine/minirootfs/" + arch + "/" + v + "/alpine-minirootfs-" + v + "-" + arch + ".tar.gz",
-                // alpine 官方现用「latest 软链」形式；再备一路
-                "https://dl-cdn.alpinelinux.org/alpine/minirootfs/" + arch + "/latest/releases/apkINDEX.tar.gz"
+                "https://mirrors.ustc.edu.cn/alpine/minirootfs/" + arch + "/latest/minirootfs.tar.gz",
+                "https://mirrors.tuna.tsinghua.edu.cn/alpine/minirootfs/" + arch + "/latest/minirootfs.tar.gz",
+                "https://mirrors.pku.edu.cn/alpine/minirootfs/" + arch + "/latest/minirootfs.tar.gz",
+                "https://mirrors.aliyun.com/alpine/minirootfs/" + arch + "/latest/minirootfs.tar.gz",
+                "https://dl-cdn.alpinelinux.org/alpine/minirootfs/" + arch + "/latest/minirootfs.tar.gz",
+                // 官方按版本再备几路（版本号 3.23→3.20，取存在的）
+                "https://dl-cdn.alpinelinux.org/alpine/minirootfs/" + arch + "/3.22.1/alpine-minirootfs-3.22.1-" + arch + ".tar.gz",
+                "https://dl-cdn.alpinelinux.org/alpine/minirootfs/" + arch + "/3.21.1/alpine-minirootfs-3.21.1-" + arch + ".tar.gz",
+                "https://dl-cdn.alpinelinux.org/alpine/minirootfs/" + arch + "/3.20.3/alpine-minirootfs-3.20.3-" + arch + ".tar.gz",
         };
         ProotDownloader.Progress l = rootfsProgress(p);
         cacheTar.getParentFile().mkdirs();
+        Exception last = null;
         for (int i = 0; i < chain.length; i++) {
             try {
-                ProotDownloader.download(chain[i], cacheTar, l);
+                long total = ProotDownloader.download(chain[i], cacheTar, l);
+                // 下载到的若是 HTML（404 页常被当成功字节流），校验 gzip 魔数再认
+                if (!looksLikeGzip(cacheTar)) {
+                    cacheTar.delete();
+                    last = new Exception("非 gzip 内容: " + chain[i]);
+                    continue;
+                }
                 return;
             } catch (Exception e) {
-                if (i == chain.length - 1) throw e;
+                last = e;
+                if (i == chain.length - 1) throw last;
             }
+        }
+        throw (last != null) ? last : new Exception("rootfs 下载失败（所有镜像不可达）");
+    }
+
+    // 文件头是否 gzip（1f 8b），避免把 404 的 HTML 当成功
+    private static boolean looksLikeGzip(File f) {
+        try {
+            FileInputStream in = new FileInputStream(f);
+            byte[] b = new byte[2];
+            int r = in.read(b);
+            in.close();
+            return r == 2 && (b[0] & 0xff) == 0x1f && (b[1] & 0xff) == 0x8b;
+        } catch (Exception e) {
+            return false;
         }
     }
 

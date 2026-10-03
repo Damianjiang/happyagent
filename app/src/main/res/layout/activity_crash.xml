@@ -87,6 +87,14 @@
             style="@style/Widget.App.Button.Tonal" />
 
         <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_github_issue"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="发送到 GitHub 反馈"
+            style="@style/Widget.App.Button.Outline" />
+
+        <com.google.android.material.button.MaterialButton
             android:id="@+id/btn_home"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

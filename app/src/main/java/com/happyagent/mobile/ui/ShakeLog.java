@@ -78,17 +78,22 @@ public final class ShakeLog {
         sensorManager.unregisterListener(listener);
     }
 
+    // 传感器回调在主线程；把写日志（含读 AgentBackend，可能同步等 5 秒）丢后台，避免卡主线程
     private void dumpAndToast() {
-        String path = writeReport();
-        Log.i(TAG, "shake-log exported to " + path);
-        // Context 没有 runOnUiThread，走主线程 Handler 弹 Toast
-        new android.os.Handler(android.os.Looper.getMainLooper()).post(new Runnable() {
+        new Thread(new Runnable() {
             @Override
             public void run() {
-                android.widget.Toast.makeText(ctx, "已导出日志：\n" + path,
-                        android.widget.Toast.LENGTH_LONG).show();
+                final String path = writeReport();
+                Log.i(TAG, "shake-log exported to " + path);
+                new android.os.Handler(android.os.Looper.getMainLooper()).post(new Runnable() {
+                    @Override
+                    public void run() {
+                        android.widget.Toast.makeText(ctx, "已导出日志：\n" + path,
+                                android.widget.Toast.LENGTH_LONG).show();
+                    }
+                });
             }
-        });
+        }).start();
     }
 
     private String writeReport() {
@@ -96,17 +101,27 @@ public final class ShakeLog {
                 + new SimpleDateFormat("yyyyMMdd-HHmmss", Locale.getDefault())
                         .format(new Date()) + ".txt");
         try {
-            String body = "=== Happy Agent 摇一摇日志 ===\n"
-                    + "时间: " + new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
-                            .format(new Date()) + "\n"
-                    + "系统: Android " + android.os.Build.VERSION.RELEASE
-                            + " (API " + android.os.Build.VERSION.SDK_INT + ")\n"
-                    + "设备: " + android.os.Build.MANUFACTURER + " "
-                            + android.os.Build.MODEL + "\n"
-                    + "会话数: " + AgentBackend.get().getSessions().size() + "\n"
-                    + "配置: " + AgentBackend.get().getConfig() + "\n";
+            StringBuilder body = new StringBuilder();
+            body.append("=== Happy Agent 摇一摇日志 ===\n")
+               .append("时间: ").append(new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
+                            .format(new Date())).append("\n")
+               .append("系统: Android ").append(android.os.Build.VERSION.RELEASE)
+                            .append(" (API ").append(android.os.Build.VERSION.SDK_INT).append(")\n")
+               .append("设备: ").append(android.os.Build.MANUFACTURER).append(' ')
+                            .append(android.os.Build.MODEL).append('\n');
+            // 读 agent 快照（后台线程，等 5 秒也 OK，不卡界面）
+            try {
+                body.append("会话数: ").append(AgentBackend.get().getSessions().size()).append('\n');
+            } catch (Exception e) {
+                body.append("会话数: （读取失败 ").append(e.getMessage()).append(")\n");
+            }
+            try {
+                body.append("配置: ").append(AgentBackend.get().getConfig()).append('\n');
+            } catch (Exception e) {
+                body.append("配置: （读取失败 ").append(e.getMessage()).append(")\n");
+            }
             FileOutputStream fos = new FileOutputStream(f);
-            fos.write(body.getBytes("UTF-8"));
+            fos.write(body.toString().getBytes("UTF-8"));
             fos.close();
         } catch (Exception e) {
             Log.e(TAG, "write shake-log failed", e);
