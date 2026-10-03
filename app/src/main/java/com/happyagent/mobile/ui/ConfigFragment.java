@@ -1,6 +1,5 @@
 package com.happyagent.mobile.ui;
 
-import android.content.Intent;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -131,11 +130,6 @@ public class ConfigFragment extends Fragment {
             AgentBackend.get().updateConfig(nc);
             Toast.makeText(getContext(), "配置已保存", Toast.LENGTH_SHORT).show();
         });
-
-        // 设置入口卡：跳系统设置页（主题/震动/语音/容器/GUI/数据/关于）
-        View settingsEntry = v.findViewById(R.id.config_settings_entry);
-        settingsEntry.setOnClickListener(vv ->
-                startActivity(new Intent(requireContext(), SettingsActivity.class)));
         return v;
     }
 
