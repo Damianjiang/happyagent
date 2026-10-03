@@ -34,9 +34,18 @@ RELEASE_NOTES_*.txt
 # 临时发布脚本与产物（仅用于 GitHub Release 上传，不入库）
 _tok*.txt
 _cred*.txt
+_credin.txt
+_credout.txt
 _crederr*.txt
 _publish_*.ps1
 _rel_*.json
 _rel_resp.json
 _asset*.json
 _dl*.apk
+_dl_verify.apk
+# 版本发布用的 scratch 文件（release body 草稿 + 上传/校验脚本）
+_body*.txt
+_patch*.ps1
+_release*.ps1
+_upload*.ps1
+_verify*.ps1
