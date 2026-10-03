@@ -57,6 +57,11 @@
             android:parentActivityName=".ui.MainActivity" />
 
         <activity
+            android:name=".ui.FeatureHostActivity"
+            android:exported="false"
+            android:parentActivityName=".ui.MainActivity" />
+
+        <activity
             android:name=".ui.ModelConfigActivity"
             android:exported="false"
             android:parentActivityName=".ui.MainActivity"

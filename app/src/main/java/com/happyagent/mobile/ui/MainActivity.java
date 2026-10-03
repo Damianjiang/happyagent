@@ -22,8 +22,6 @@ public class MainActivity extends AppCompatActivity {
     private BottomNavigationView nav;
     private ShakeLog shakeLog;
     private SessionsFragment sessionsFragment;
-    private ToolsFragment toolsFragment;
-    private FilesFragment filesFragment;
     private SettingsListFragment settingsListFragment;
 
     @Override
@@ -43,14 +41,12 @@ public class MainActivity extends AppCompatActivity {
         boolean firstLaunch = !prefs.getBoolean(Prefs.KEY_FIRST_LAUNCH, false);
 
         if (savedInstanceState == null || firstLaunch) {
-            // 按设置里的"起始页"决定先显示哪块
-            int start = prefs.getInt(Prefs.KEY_START_PAGE, 0);
-            int startId = (start == 1) ? R.id.nav_tools : R.id.nav_sessions;
-            nav.setSelectedItemId(startId);
-            openTab(startId);
+            // 底部只剩「首页 / 设置」，默认落在首页（会话）
+            nav.setSelectedItemId(R.id.nav_home);
+            openTab(R.id.nav_home);
         }
 
-        // 外部指定先显示某 tab（诊断页"能改的行"点一下跳去配置/诊断页）
+        // 外部指定先显示某 tab（诊断页"能改的行"点一下跳去某 tab）
         int gotoTab = getIntent().getIntExtra(EXTRA_GOTO_TAB, -1);
         if (gotoTab != -1) {
             nav.setSelectedItemId(gotoTab);
@@ -89,11 +85,7 @@ public class MainActivity extends AppCompatActivity {
 
     private void openTab(int id) {
         Fragment target;
-        if (id == R.id.nav_tools) {
-            target = lazyTools();
-        } else if (id == R.id.nav_files) {
-            target = lazyFiles();
-        } else if (id == R.id.nav_settings) {
+        if (id == R.id.nav_settings) {
             target = lazySettings();
         } else {
             target = lazySessions();
@@ -107,16 +99,6 @@ public class MainActivity extends AppCompatActivity {
     private Fragment lazySessions() {
         if (sessionsFragment == null) sessionsFragment = new SessionsFragment();
         return sessionsFragment;
-    }
-
-    private Fragment lazyTools() {
-        if (toolsFragment == null) toolsFragment = new ToolsFragment();
-        return toolsFragment;
-    }
-
-    private Fragment lazyFiles() {
-        if (filesFragment == null) filesFragment = new FilesFragment();
-        return filesFragment;
     }
 
     private Fragment lazySettings() {
