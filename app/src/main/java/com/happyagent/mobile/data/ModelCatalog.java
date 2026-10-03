@@ -20,7 +20,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 
-// 从上游供应商拉取真实模型列表（Operit 同款能力：模型管理"自动识别上游模型"）。
+// 从上游供应商拉取真实模型列表（模型管理"自动识别上游可用模型"）。
 //  三家端点：OpenAI 兼容 GET {baseUrl}/models（Bearer）/ Gemini GET /v1beta/models?key= /
 //  Anthropic GET /v1/models（x-api-key）。后台线程执行，结果回主线程；
 //  诚实报错（无 Key / 网络 / 非 JSON / HTTP 错），绝不编造假列表。API 23 安全。

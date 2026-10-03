@@ -41,6 +41,7 @@ public class SessionDetailActivity extends AppCompatActivity {
     public static final String EXTRA_SESSION_ID = "session_id";
     private static final int PICK_IMAGE = 101;
     private static final int PICK_FILE = 102;
+    private static final int PICK_WORKSPACE = 104;
 
     private View empty;
     private EditText promptBox;
@@ -56,6 +57,8 @@ public class SessionDetailActivity extends AppCompatActivity {
     private android.widget.TextView runDot;
     private LinearLayout attachItems;
     private String model;
+    private TextView workspaceLabel;
+    private MaterialButton workspacePick;
 
     private String sessionId;
     private ChatAdapter adapter;
@@ -78,7 +81,7 @@ public class SessionDetailActivity extends AppCompatActivity {
 
         sessionId = getIntent().getStringExtra(EXTRA_SESSION_ID);
         mainHandler = new android.os.Handler(getMainLooper());
-        fileTools = new FileTools(getApplication());
+        fileTools = new FileTools(getApplication(), sessionId);
 
         toolbar = findViewById(R.id.detail_toolbar);
         promptBox = findViewById(R.id.detail_prompt);
@@ -96,6 +99,10 @@ public class SessionDetailActivity extends AppCompatActivity {
         cancelBtn = findViewById(R.id.detail_cancel);
         runStatus = findViewById(R.id.detail_run_status);
         runDot = findViewById(R.id.detail_run_dot);
+        workspaceLabel = findViewById(R.id.detail_workspace_label);
+        workspacePick = findViewById(R.id.detail_workspace_pick);
+        workspacePick.setOnClickListener(v -> pickWorkspace());
+        refreshWorkspaceBar();
 
         pauseBtn.setOnClickListener(v -> { Haptics.tap(v); AgentBackend.get().pauseTask(); });
         resumeBtn.setOnClickListener(v -> { Haptics.tap(v); AgentBackend.get().resumeTask(); });
@@ -144,10 +151,129 @@ public class SessionDetailActivity extends AppCompatActivity {
                 req == PICK_IMAGE ? "选图片" : "选文件"), req);
     }
 
+    // 本会话工作区：显示当前沙箱目录，可导外部目录进来（SAF 拿不到裸 File，导入=真拷贝）
+    private void refreshWorkspaceBar() {
+        if (workspaceLabel == null) return;
+        String ws = fileTools.getWorkspace();
+        String last = new java.io.File(ws).getName();
+        int slash = last.lastIndexOf('/');
+        if (slash >= 0) last = last.substring(slash + 1);
+        workspaceLabel.setText("内置沙箱 · " + last);
+    }
+
+    // 选外部目录：SAF 选一个 tree，把它整个拷进本会话沙箱的 external/ 下
+    private void pickWorkspace() {
+        android.content.Intent i = new android.content.Intent(android.content.Intent.ACTION_OPEN_DOCUMENT_TREE);
+        i.addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        startActivityForResult(i, PICK_WORKSPACE);
+    }
+
+    // 把选中的外部目录拷贝进本会话沙箱（后台线程，防卡 UI；只拷普通文件，限深度/数量防失控）
+    private void importWorkspace(android.net.Uri treeUri) {
+        final android.content.ContentResolver cr = getContentResolver();
+        String rootName = "外部目录";
+        android.database.Cursor nc = cr.query(treeUri,
+                new String[]{android.provider.DocumentsContract.Document.COLUMN_DISPLAY_NAME},
+                null, null, null);
+        if (nc != null) {
+            try { if (nc.moveToFirst()) rootName = nc.getString(0); }
+            finally { nc.close(); }
+        }
+        final String rootNameFinal = rootName;
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                int n = 0;
+                try {
+                    n = copyTree(cr, treeUri, new java.io.File(fileTools.getWorkspace(), "external"), 0);
+                } catch (Exception ignored) {}
+                final int count = n;
+                final String rn = rootNameFinal;
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        if (count > 0) {
+                            refreshWorkspaceBar();
+                            android.widget.Toast.makeText(SessionDetailActivity.this,
+                                    "已把「" + rn + "」的 " + count + " 个文件导入本会话工作区（external/）",
+                                    android.widget.Toast.LENGTH_LONG).show();
+                        } else {
+                            android.widget.Toast.makeText(SessionDetailActivity.this,
+                                    "该目录没可读文件，或未授权读权限",
+                                    android.widget.Toast.LENGTH_LONG).show();
+                        }
+                    }
+                });
+            }
+        }, "ws-import").start();
+    }
+
+    // 递归列 DocumentsTree 下所有文件，拷到 dest；限深度/数量防失控
+    private int copyTree(android.content.ContentResolver cr, android.net.Uri treeUri,
+                         java.io.File dest, int depth) {
+        int count = 0;
+        if (depth > 6 || count > 500) return 0;
+        String rootId = android.provider.DocumentsContract.getTreeDocumentId(treeUri);
+        if (rootId == null) return 0;
+        android.net.Uri q = android.provider.DocumentsContract.buildChildDocumentsUri(
+                treeUri.getAuthority(), rootId);
+        android.database.Cursor c = cr.query(q, null, null, null, null);
+        if (c == null) return 0;
+        try {
+            int iId = c.getColumnIndex(android.provider.DocumentsContract.Document.COLUMN_DOCUMENT_ID);
+            int iName = c.getColumnIndex(android.provider.DocumentsContract.Document.COLUMN_DISPLAY_NAME);
+            int iType = c.getColumnIndex(android.provider.DocumentsContract.Document.COLUMN_MIME_TYPE);
+            int iFlags = c.getColumnIndex(android.provider.DocumentsContract.Document.COLUMN_FLAGS);
+            while (c.moveToNext()) {
+                if (count >= 500) break;
+                String docId = c.getString(iId);
+                String name = c.getString(iName);
+                String mime = iType >= 0 ? c.getString(iType) : "";
+                int flags = iFlags >= 0 ? c.getInt(iFlags) : 0;
+                boolean isDir = (flags & 2) != 0;
+                if (name == null || name.isEmpty() || name.equals(".") || name.equals("..")) continue;
+                if (isDir && "vnd.android.document/directory".equals(mime)) {
+                    android.net.Uri childUri = android.provider.DocumentsContract.buildDocumentUri(treeUri.getAuthority(), docId);
+                    count += copyTree(cr, childUri, new java.io.File(dest, name), depth + 1);
+                } else if (!isDir) {
+                    android.net.Uri fileUri = android.provider.DocumentsContract.buildDocumentUri(treeUri.getAuthority(), docId);
+                    if (copyFile(cr, fileUri, new java.io.File(dest, name))) count++;
+                }
+            }
+        } finally {
+            c.close();
+        }
+        return count;
+    }
+
+    private boolean copyFile(android.content.ContentResolver cr, android.net.Uri uri, java.io.File out) {
+        if (!out.getParentFile().exists()) out.getParentFile().mkdirs();
+        java.io.FileInputStream in = null;
+        try {
+            android.os.ParcelFileDescriptor pfd = cr.openFileDescriptor(uri, "r");
+            if (pfd == null) return false;
+            in = new java.io.FileInputStream(pfd.getFileDescriptor());
+            byte[] buf = new byte[8192];
+            java.io.OutputStream os = new java.io.FileOutputStream(out);
+            int r;
+            while ((r = in.read(buf)) != -1) os.write(buf, 0, r);
+            os.close();
+            return true;
+        } catch (Exception e) {
+            return false;
+        } finally {
+            if (in != null) { try { in.close(); } catch (Exception ignored) {} }
+        }
+    }
+
     @Override
     protected void onActivityResult(int req, int res, android.content.Intent data) {
         super.onActivityResult(req, res, data);
         if (res != RESULT_OK || data == null || data.getData() == null) return;
+        if (req == PICK_WORKSPACE) {
+            importWorkspace(data.getData());
+            return;
+        }
         Attachment a;
         try {
             a = fileTools.saveAttachment(getContentResolver(), data.getData(),

@@ -17,6 +17,8 @@ public final class Models {
         public int status;   // 0 运行中 / 1 暂停 / 2 完成 / 3 失败
         public long updatedAt;
         public final List<Message> messages;
+        // 本会话工作区标签（外部目录显示名；空=用内置会话沙箱，未绑外部目录）
+        public String workspaceLabel;
 
         public Session(String id, String title, String agent, int status, long updatedAt, List<Message> messages) {
             this.id = id;

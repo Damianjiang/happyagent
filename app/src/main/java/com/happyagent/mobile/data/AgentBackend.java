@@ -178,9 +178,9 @@ public final class AgentBackend {
                             history.add(m);
                         }
                     }
-                    // 多步 ReAct：有 Key 走 LLM 驱动工具，没 Key 降级本地
+                    // 多步 ReAct：有 Key 走 LLM 驱动工具，没 Key 降级本地；FileTools 锚本会话沙箱
                     ReactAgent agent = new ReactAgent(getConfig(),
-                            new FileTools(HappyAgentApplication.get()),
+                            new FileTools(HappyAgentApplication.get(), session.id),
                             new ShellExecutor(HappyAgentApplication.get()),
                             new SystemTools(HappyAgentApplication.get()),
                             trace, control, getEnabledToolKeys());
@@ -253,7 +253,7 @@ public final class AgentBackend {
         TaskControl control = new TaskControl();
         try {
             ReactAgent agent = new ReactAgent(getConfig(),
-                    new FileTools(HappyAgentApplication.get()),
+                    new FileTools(HappyAgentApplication.get(), sid),
                     new ShellExecutor(HappyAgentApplication.get()),
                     new SystemTools(HappyAgentApplication.get()),
                     trace, control, getEnabledToolKeys());

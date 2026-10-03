@@ -38,12 +38,28 @@ public final class FileTools {
     private static volatile boolean seeded;
 
     public FileTools(Context context) {
+        this(context, new File(context.getApplicationContext().getFilesDir(), "workspace"), true);
+    }
+
+    // 会话级沙箱根：每个会话各占一个子目录，工作区文件互不串（对应"每对话一个工作区"）
+    public FileTools(Context context, File sandboxRoot) {
+        this(context, sandboxRoot, false);
+    }
+
+    // 按会话 id 各占一个沙箱子目录 workspace/<sessionId>
+    public FileTools(Context context, String sessionId) {
+        this(context, new File(
+                context.getApplicationContext().getFilesDir(),
+                "workspace/" + (sessionId == null ? "default" : sessionId)));
+    }
+
+    private FileTools(Context context, File sandboxRoot, boolean seedDefault) {
         this.ctx = context.getApplicationContext();
-        this.sandboxRoot = new File(ctx.getFilesDir(), "workspace");
+        this.sandboxRoot = sandboxRoot;
         if (!sandboxRoot.exists()) sandboxRoot.mkdirs();
         this.attachRoot = new File(sandboxRoot, "attachments");
         if (!attachRoot.exists()) attachRoot.mkdirs();
-        seed();
+        if (seedDefault) seed();
     }
 
     // 首次进入时建一个 WELCOME.txt，让文件页一开始就有内容可看

@@ -1,5 +1,6 @@
 package com.happyagent.mobile.ui;
 
+import android.graphics.Color;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -7,7 +8,6 @@ import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
-import android.widget.RadioButton;
 import android.widget.SeekBar;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -19,21 +19,25 @@ import com.happyagent.mobile.R;
 import com.happyagent.mobile.data.AgentBackend;
 import com.happyagent.mobile.model.Models.Config;
 
-// 运行配置页：供应商、模型、温度、token + 各家 API Key / Base URL
+// 运行配置页：供应商（分段互斥单选）、模型、温度、token、最大步数 + 各家 API Key / Base URL
 public class ConfigFragment extends Fragment {
 
     private EditText modelBox, agentBox, maxTokensBox;
     private EditText openaiKeyBox, openaiUrlBox, googleKeyBox, anthropicKeyBox;
-    private RadioButton providerOpenai, providerGoogle, providerAnthropic;
+    private Button providerOpenai, providerGoogle, providerAnthropic;
     private View openaiGroup, googleGroup, anthropicGroup;
     private SeekBar tempBar;
     private TextView tempLabel;
     private EditText maxStepsBox;
     private java.util.List<String> fetchedModels = new java.util.ArrayList<String>();
+    // 供应商当前选中（分段按钮自管互斥，避免 3 个 RadioButton 无组导致多选）
+    private String selProvider = Config.PROVIDER_OPENAI;
+    private View root;
 
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle s) {
         View v = inflater.inflate(R.layout.fragment_config, container, false);
+        root = v;
         modelBox = v.findViewById(R.id.config_model);
         agentBox = v.findViewById(R.id.config_agent);
         maxTokensBox = v.findViewById(R.id.config_max_tokens);
@@ -105,11 +109,11 @@ public class ConfigFragment extends Fragment {
                     });
         });
 
-        // 三家 Radio 单选，点了就显对应凭据分组、同步模型默认值 + 刷新模型快捷列表
-        providerOpenai.setOnClickListener(vv -> onProviderPicked(v));
-        providerGoogle.setOnClickListener(vv -> onProviderPicked(v));
-        providerAnthropic.setOnClickListener(vv -> onProviderPicked(v));
-        checkProviderRadio(c.getProvider(), v);
+        // 三家分段按钮互斥单选（自管状态，避免 3 个 RadioButton 无组导致多选）
+        providerOpenai.setOnClickListener(vv -> pickProvider(Config.PROVIDER_OPENAI));
+        providerGoogle.setOnClickListener(vv -> pickProvider(Config.PROVIDER_GOOGLE));
+        providerAnthropic.setOnClickListener(vv -> pickProvider(Config.PROVIDER_ANTHROPIC));
+        pickProvider(c.getProvider());
 
         saveBtn.setOnClickListener(vv -> {
             // workspace/autoCommit 没有可编辑 UI（引擎用固定沙箱根、App 无 git），
@@ -133,11 +137,15 @@ public class ConfigFragment extends Fragment {
         return v;
     }
 
-    private void onProviderPicked(View v) {
-        String p = currentProvider();
+    // 分段按钮互斥：点一家 → 记 selProvider + 显对应凭据分组 + 选中态样式 + 同步模型默认值
+    private void pickProvider(String p) {
+        selProvider = p;
         openaiGroup.setVisibility(Config.PROVIDER_OPENAI.equals(p) ? View.VISIBLE : View.GONE);
         googleGroup.setVisibility(Config.PROVIDER_GOOGLE.equals(p) ? View.VISIBLE : View.GONE);
         anthropicGroup.setVisibility(Config.PROVIDER_ANTHROPIC.equals(p) ? View.VISIBLE : View.GONE);
+        styleSeg(providerOpenai, Config.PROVIDER_OPENAI.equals(p));
+        styleSeg(providerGoogle, Config.PROVIDER_GOOGLE.equals(p));
+        styleSeg(providerAnthropic, Config.PROVIDER_ANTHROPIC.equals(p));
         // 模型框还停在上家默认值时，换成本家默认，避免拿别家的模型 id 调接口
         String cur = modelBox.getText().toString().trim();
         String[] providers = {Config.PROVIDER_OPENAI, Config.PROVIDER_GOOGLE, Config.PROVIDER_ANTHROPIC};
@@ -147,7 +155,15 @@ public class ConfigFragment extends Fragment {
                 break;
             }
         }
-        fillModelChips(v, p);
+        fillModelChips(root, p);
+    }
+
+    // 分段按钮选中态：选中=强调色容器底，未选=透明底+发丝描边；颜色跟主题强调色 overlay 走
+    private void styleSeg(Button b, boolean on) {
+        b.setBackgroundResource(on ? R.drawable.bg_seg_on : R.drawable.bg_seg_off);
+        b.setTextColor(on
+                ? androidx.core.content.ContextCompat.getColor(requireContext(), R.color.acc_default_c_on)
+                : androidx.core.content.ContextCompat.getColor(requireContext(), R.color.on_surface_variant));
     }
 
     // 按供应商铺一排常用模型 chip，点一下填入模型框；模型框仍支持手输自定义
@@ -207,17 +223,8 @@ public class ConfigFragment extends Fragment {
         return "gpt-4o-mini";
     }
 
-    private void checkProviderRadio(String provider, View v) {
-        providerOpenai.setChecked(Config.PROVIDER_OPENAI.equals(provider));
-        providerGoogle.setChecked(Config.PROVIDER_GOOGLE.equals(provider));
-        providerAnthropic.setChecked(Config.PROVIDER_ANTHROPIC.equals(provider));
-        onProviderPicked(v);
-    }
-
     private String currentProvider() {
-        if (providerGoogle.isChecked()) return Config.PROVIDER_GOOGLE;
-        if (providerAnthropic.isChecked()) return Config.PROVIDER_ANTHROPIC;
-        return Config.PROVIDER_OPENAI;
+        return selProvider;
     }
 
     private int parseIntSafe(String s, int def) {

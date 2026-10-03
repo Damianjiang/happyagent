@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 容器终端：proot 部署后可手动在 Alpine 里跑命令（对应 Operit 的 Ubuntu 终端）；未部署则诚实引导一键部署 -->
+<!-- 容器终端：proot 部署后可手动在 Alpine 里跑命令（免 root Linux 终端）；未部署则诚实引导一键部署 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"

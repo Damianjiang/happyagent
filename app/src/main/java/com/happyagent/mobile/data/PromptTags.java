@@ -6,7 +6,7 @@ import org.json.JSONObject;
 import java.util.ArrayList;
 import java.util.List;
 
-// 标签 / 提示词片段（对应 Operit 的"标签"多提示词）：JSON 存 Prefs，启用段拼接进系统提示词。
+// 标签 / 提示词片段：多段可挂、启用段拼接进系统提示词，JSON 存 Prefs。
 // 每段 {name, content, enabled}。API 23 安全（org.json，无 List.of/stream/Optional）。
 public final class PromptTags {
 

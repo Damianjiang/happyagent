@@ -17,7 +17,7 @@ import com.happyagent.mobile.HappyAgentApplication;
 import com.happyagent.mobile.R;
 import com.happyagent.mobile.data.ProotEnv;
 
-// 容器终端：proot 就绪后可手动在 Alpine 里跑命令（apk add / python / git 等，对应 Operit 的 Ubuntu 终端）。
+// 容器终端：proot 就绪后可手动在 Alpine 里跑命令（apk add / python / git 等，免 root Linux 终端）。
 // 未部署时诚实引导一键部署（复用 ProotEnv.deploy，与设置页同套多线程+断点+国内镜像进度），绝不假装能跑。
 public class TerminalActivity extends AppCompatActivity {
 

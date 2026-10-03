@@ -17,6 +17,52 @@
         app:subtitleTextColor="?attr/colorOnSurfaceVariant"
         app:title="对话" />
 
+    <!-- 本会话工作区：每个对话各占一个沙箱；可导外部目录进来（真拷贝，SAF 拿不到裸 File） -->
+    <LinearLayout
+        android:id="@+id/detail_workspace_bar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingLeft="16dp"
+        android:paddingRight="16dp"
+        android:paddingTop="8dp"
+        android:paddingBottom="8dp"
+        android:background="?attr/colorSurface"
+        android:baselineAligned="false">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="本会话工作区"
+            android:textSize="12sp"
+            android:textColor="?attr/colorOnSurfaceVariant" />
+
+        <TextView
+            android:id="@+id/detail_workspace_label"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="8dp"
+            android:layout_marginLeft="8dp"
+            android:ellipsize="middle"
+            android:singleLine="true"
+            android:text="内置沙箱"
+            android:textSize="12sp"
+            android:textColor="?attr/colorOnSurface" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/detail_workspace_pick"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:insetTop="0dp"
+            android:insetBottom="0dp"
+            android:minWidth="0dp"
+            android:text="选外部目录"
+            android:textSize="12sp"
+            style="@style/Widget.App.Button.Outline" />
+    </LinearLayout>
+
     <!-- 消息流 -->
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/chat_recycler"
