@@ -163,6 +163,11 @@ public class ToolDetailActivity extends AppCompatActivity {
                 add(l, "system_clipboard_get", "读剪贴板文本（无参）");
                 add(l, "system_clipboard_set", "写剪贴板 {text}");
                 break;
+            case "tool.gui":
+                add(l, "gui_dump", "读当前屏幕元素（需先开无障碍服务，无参）");
+                add(l, "gui_click", "按文本点按钮/条目 {query}");
+                add(l, "gui_type", "向可输入框输入 {text}");
+                break;
             default:
                 break;
         }

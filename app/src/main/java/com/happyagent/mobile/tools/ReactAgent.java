@@ -40,6 +40,8 @@ public final class ReactAgent {
     private final Set<String> enabledTools;
     private List<Attachment> currentImages;
     private int callCounter;
+    // 角色卡 / 世界书：一段设定文本，注入系统提示词（AgentBackend 从 Prefs 读入）
+    private String roleCard = "";
 
     public ReactAgent(Config cfg, FileTools ft, ShellExecutor se, SystemTools st, List<Message> trace) {
         this(cfg, ft, se, st, trace, new TaskControl(), null);
@@ -63,6 +65,11 @@ public final class ReactAgent {
     // 工具分组是否启用；null 视为全开
     private boolean toolOn(String groupKey) {
         return enabledTools == null || enabledTools.contains(groupKey);
+    }
+
+    // 角色卡 / 世界书：设了就在系统提示词开头套上人设
+    public void setRoleCard(String roleCard) {
+        this.roleCard = roleCard == null ? "" : roleCard.trim();
     }
 
     public String run(String task, List<Message> history, List<Attachment> attachments) throws Exception {
@@ -204,6 +211,11 @@ public final class ReactAgent {
             arr.put(fn("system_network", "网络类型与连接状态", schema0()));
             arr.put(fn("system_clipboard_get", "读剪贴板文本", schema0()));
             arr.put(fn("system_clipboard_set", "写剪贴板文本", schema("text", true)));
+        }
+        if (toolOn("tool.gui")) {
+            arr.put(fn("gui_dump", "读取当前屏幕：列出可点击/可输入的元素及文本（需开启无障碍服务）", schema0()));
+            arr.put(fn("gui_click", "按文本点当前屏幕上的按钮/条目", schema("query", true)));
+            arr.put(fn("gui_type", "向当前屏幕的可输入框输入文本", schema("text", true)));
         }
         // 时间工具始终可用（无副作用）
         arr.put(fn("time_now", "获取当前日期时间", schema0()));
@@ -402,6 +414,11 @@ public final class ReactAgent {
             decls.put(decl0("system_clipboard_get", "读剪贴板文本"));
             decls.put(decl("system_clipboard_set", "写剪贴板文本", "text", new String[]{"text"}));
         }
+        if (toolOn("tool.gui")) {
+            decls.put(decl0("gui_dump", "读取当前屏幕元素（需无障碍服务）"));
+            decls.put(decl("gui_click", "按文本点屏幕按钮", "query", new String[]{"query"}));
+            decls.put(decl("gui_type", "向可输入框输入文本", "text", new String[]{"text"}));
+        }
         decls.put(decl0("time_now", "获取当前日期时间"));
         return new JSONArray().put(new JSONObject().put("function_declarations", decls));
     }
@@ -590,6 +607,11 @@ public final class ReactAgent {
             arr.put(declA0("system_clipboard_get", "读剪贴板文本"));
             arr.put(declA("system_clipboard_set", "写剪贴板文本", "text", true));
         }
+        if (toolOn("tool.gui")) {
+            arr.put(declA0("gui_dump", "读取当前屏幕元素（需无障碍服务）"));
+            arr.put(declA("gui_click", "按文本点屏幕按钮", "query", true));
+            arr.put(declA("gui_type", "向可输入框输入文本", "text", true));
+        }
         arr.put(declA0("time_now", "获取当前日期时间"));
         return arr;
     }
@@ -743,6 +765,9 @@ public final class ReactAgent {
         StringBuilder sb = new StringBuilder();
         sb.append("你是「").append(agent).append("」，运行在安卓上的任务助手，")
           .append("通过调用工具完成用户任务，再用与用户相同的语言简洁汇报。\n");
+        if (roleCard.length() > 0) {
+            sb.append("\n【角色设定 / 世界书（务必遵守）】\n").append(roleCard).append("\n");
+        }
         sb.append("\n【工具使用规则】\n");
         sb.append("1. 一次只调一个工具，拿到结果再决定下一步；不要一次塞多个。\n");
         sb.append("2. 参数必须精确。改文件前先 file_read 看清内容，再操作；不要凭空猜路径或内容。\n");
@@ -758,6 +783,8 @@ public final class ReactAgent {
                 + "file_zip 压缩 / file_unzip 解压 / file_find 按名找 / file_grep 搜关键词\n");
         sb.append("文本：text_base64_encode/decode、text_url_encode/decode、text_json_get(按点路径取字段)、text_upper/lower、text_stats、text_calc(四则运算 3+4*2 这种)\n");
         sb.append("设备(只读)：system_device_info / system_battery / system_storage / system_network / system_clipboard_get / system_clipboard_set\n");
+        sb.append("GUI(需用户先在系统里开无障碍服务)：gui_dump(读当前屏幕元素) / gui_click(按文本点按钮) / gui_type(向可输入框输入)\n");
+        sb.append("  - 想做 GUI 操作前先 gui_dump 看屏幕上有什么，再按文本点/输；没开服务会返回提示，如实告诉用户即可，别硬点。\n");
         sb.append("其它：shell_exec(白名单命令) / http_get(抓网页) / http_post(发POST请求可带JSON体) / time_now(当前时间)\n");
         sb.append("\n完成所有工具调用后，用两三句话总结做了什么即可，别把工具原始输出整段贴回来。");
         return sb.toString();
@@ -922,6 +949,9 @@ public final class ReactAgent {
                 {"system_network", "network", "network_info", "connection"},
                 {"system_clipboard_get", "clipboard", "clipboard_get", "read_clipboard"},
                 {"system_clipboard_set", "clipboard_set", "set_clipboard", "copy_to_clipboard"},
+                {"gui_dump", "gui", "gui_screen", "ui_dump", "screen_dump"},
+                {"gui_click", "gui_tap", "gui_press"},
+                {"gui_type", "gui_input", "gui_type_text"},
         };
         for (String[] group : aliasMap) {
             for (String alias : group) {
@@ -974,6 +1004,10 @@ public final class ReactAgent {
                 return "tool.system";
             case "time_now":
                 return "";   // 时间工具无副作用，始终可用，不受工具页开关门控
+            case "gui_dump":
+            case "gui_click":
+            case "gui_type":
+                return "tool.gui";
             default:
                 return "";
         }
@@ -1119,6 +1153,28 @@ public final class ReactAgent {
                     String t = str(args, "text", "input");
                     return systemTools.clipboardSet(t);
                 }
+                case "gui_dump": {
+                    com.happyagent.mobile.service.GuardService g =
+                            com.happyagent.mobile.service.GuardService.getInstance();
+                    if (g == null) return guiNotEnabled();
+                    return g.dumpScreen();
+                }
+                case "gui_click": {
+                    com.happyagent.mobile.service.GuardService g =
+                            com.happyagent.mobile.service.GuardService.getInstance();
+                    if (g == null) return guiNotEnabled();
+                    String q = str(args, "query", "text", "label");
+                    if (q.isEmpty()) return "缺 'query'（要点的按钮/条目文本，可部分匹配）。先 gui_dump 看当前屏幕。";
+                    return g.clickByText(q);
+                }
+                case "gui_type": {
+                    com.happyagent.mobile.service.GuardService g =
+                            com.happyagent.mobile.service.GuardService.getInstance();
+                    if (g == null) return guiNotEnabled();
+                    String t = str(args, "text", "input", "value");
+                    if (t.isEmpty()) return "缺 'text'（要输入的内容）。";
+                    return g.typeText(t);
+                }
                 default:
                     return "未知工具 '" + name + "'。可用：file_read, file_write, file_list, file_info, file_exists, file_move, file_copy, file_zip, file_unzip, "
                             + "file_edit, file_append, file_find, file_grep, shell_exec, http_get, http_post, "
@@ -1234,5 +1290,11 @@ public final class ReactAgent {
             case Config.PROVIDER_ANTHROPIC: return "Anthropic";
             default:                        return "OpenAI";
         }
+    }
+
+    // GUI 工具未开启无障碍服务时的诚实提示（不做假实现）
+    private String guiNotEnabled() {
+        return "GUI 自动化工具需要先在系统「设置 → 无障碍 → Happy Agent」里开启无障碍服务。"
+                + "当前未开启，无法读取屏幕/点按/输入。开启后 gui_dump / gui_click / gui_type 才能工作。";
     }
 }

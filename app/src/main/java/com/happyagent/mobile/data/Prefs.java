@@ -22,6 +22,8 @@ public final class Prefs {
     public static final String KEY_ACCENT = "accent";
     // 个性化：会话气泡字号（0 标准 / 1 大 / 2 超大）
     public static final String KEY_CHAT_TEXT_SIZE = "chat_text_size";
+    // 个性化：角色卡 / 世界书（一段文字设定，注入系统提示词；空=无）
+    public static final String KEY_ROLE_CARD = "role_card";
 
     // 直接对齐 AppCompat 的常量，别自己造数值
     public static final int NIGHT_FOLLOW_SYSTEM = AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM;
@@ -70,5 +72,14 @@ public final class Prefs {
 
     public void putStringStorage(String value) {
         sp.edit().putString(KEY_STORAGE_URI, value).apply();
+    }
+
+    // 通用字符串存取（角色卡/世界书 JSON 等）
+    public String getString(String key, String def) {
+        return sp.getString(key, def == null ? "" : def);
+    }
+
+    public void putString(String key, String value) {
+        sp.edit().putString(key, value == null ? "" : value).apply();
     }
 }

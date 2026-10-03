@@ -35,4 +35,5 @@
     <string name="detail_summary_header">结果</string>
     <string name="no_sessions_hint">还没有会话</string>
     <string name="create_first_session">创建第一个会话</string>
+    <string name="guard_service_desc">让 Happy Agent 读取屏幕内容并执行点按/输入（GUI 自动化工具 gui_dump / gui_click / gui_type 依赖它）。仅在你手动开启后生效，不做手势、不截屏。</string>
 </resources>

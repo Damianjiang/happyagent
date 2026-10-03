@@ -81,6 +81,28 @@ public class SettingsActivity extends AppCompatActivity {
                     .show();
         });
 
+        // 能力扩展卡：GUI 自动化（无障碍服务）状态 + 角色卡编辑器
+        TextView guiState = findViewById(R.id.set_gui_state);
+        android.widget.Button guiOpen = findViewById(R.id.set_gui_open);
+        guiOpen.setOnClickListener(v -> {
+            // 跳到系统「无障碍」设置，让用户手动开启我们的 GuardService（诚实：不做静默自启）
+            try {
+                startActivity(new android.content.Intent(
+                        android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS));
+            } catch (Exception e) {
+                Toast.makeText(this, "请在系统设置里搜索「无障碍」手动开启", Toast.LENGTH_LONG).show();
+            }
+        });
+        refreshGuiState(guiState);
+
+        android.widget.EditText roleBox = findViewById(R.id.set_role_card);
+        roleBox.setText(prefs.getString(Prefs.KEY_ROLE_CARD, ""));
+        findViewById(R.id.set_role_save).setOnClickListener(v -> {
+            String txt = roleBox.getText().toString().trim();
+            prefs.putString(Prefs.KEY_ROLE_CARD, txt);
+            Toast.makeText(this, txt.isEmpty() ? "已清除角色设定" : "角色设定已保存", Toast.LENGTH_SHORT).show();
+        });
+
         // Web 服务开关
         View webuiInfo = findViewById(R.id.webui_info);
         SwitchMaterial webui = findViewById(R.id.set_webui);
@@ -297,6 +319,22 @@ public class SettingsActivity extends AppCompatActivity {
         } catch (Exception e) {
             Toast.makeText(this, "无法打开浏览器：" + url, Toast.LENGTH_LONG).show();
         }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        // 用户可能刚从系统无障碍设置开完服务回来，刷新 GUI 状态
+        refreshGuiState(findViewById(R.id.set_gui_state));
+    }
+
+    // GUI 自动化（无障碍服务）是否已开启
+    private void refreshGuiState(TextView stateTv) {
+        boolean on = com.happyagent.mobile.service.GuardService.isRunning();
+        stateTv.setText(on ? "无障碍服务已开启（gui_* 工具可用）" : "无障碍服务未开启");
+        stateTv.setTextColor(on
+                ? androidx.core.content.ContextCompat.getColor(this, R.color.status_done)
+                : getThemeColor(R.color.on_surface_variant));
     }
 
     @Override

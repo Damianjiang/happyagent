@@ -49,6 +49,8 @@ public final class AgentBackend {
     private volatile Future<Session> runningFuture;
     private volatile TaskControl runningControl;
     private volatile String runningSessionId;
+    // 当前任务的 ReAct trace（同步列表），供界面在任务运行中实时增量显示工具步骤
+    private volatile java.util.List<com.happyagent.mobile.model.Models.Message> runningTrace;
 
     private AgentBackend() {
         Context ctx = HappyAgentApplication.get();
@@ -153,7 +155,8 @@ public final class AgentBackend {
         Future<Session> future = io.submit(new Callable<Session>() {
             @Override
             public Session call() {
-                List<Message> trace = new ArrayList<Message>();
+                List<Message> trace = new java.util.concurrent.CopyOnWriteArrayList<Message>();
+                runningTrace = trace;   // 绑上，界面运行中能实时增量显示工具步骤
                 trace.add(new Message("user", prompt, System.currentTimeMillis(), atts));
                 try {
                     // 取本会话已有 user/assistant 对话作为多轮上下文
@@ -169,6 +172,7 @@ public final class AgentBackend {
                             new ShellExecutor(HappyAgentApplication.get()),
                             new SystemTools(HappyAgentApplication.get()),
                             trace, control, getEnabledToolKeys());
+                    agent.setRoleCard(currentRoleCard());
                     final String summary = agent.run(prompt, history, atts);
                     // 被取消/停止时，只记用户输入 + 已发生的工具步骤 + 停止说明，不标完成
                     List<Message> toolSteps = new ArrayList<Message>();
@@ -238,6 +242,7 @@ public final class AgentBackend {
                     new ShellExecutor(HappyAgentApplication.get()),
                     new SystemTools(HappyAgentApplication.get()),
                     trace, control, getEnabledToolKeys());
+            agent.setRoleCard(currentRoleCard());
             String summary = agent.run(prompt, history,
                     new ArrayList<com.happyagent.mobile.model.Models.Attachment>());
             List<Message> toolSteps = new ArrayList<Message>();
@@ -276,6 +281,13 @@ public final class AgentBackend {
         runningControl = null;
         runningFuture = null;
         runningSessionId = null;
+        runningTrace = null;
+    }
+
+    // 角色卡 / 世界书：从 Prefs 读（每次任务前取，改了立即生效）
+    private String currentRoleCard() {
+        Prefs p = new Prefs(HappyAgentApplication.get());
+        return p.getString(Prefs.KEY_ROLE_CARD, "");
     }
 
     // 会话操作：重命名 / 删除 / 清空（数据层早就能，只是界面没入口）
@@ -331,6 +343,18 @@ public final class AgentBackend {
     // 指定会话是不是当前在跑的那个任务（页面回来时只对号才重挂轮询/控制条）
     public boolean isSessionRunning(String sessionId) {
         return isTaskRunning() && sessionId != null && sessionId.equals(runningSessionId);
+    }
+
+    // 实时增量：返回当前运行中任务的工具步骤（role=tool），任务跑完前就能在界面滚动显示
+    // 返回的是快照（CopyOnWriteArrayList 遍历安全），没在跑或没 trace 时返回空
+    public List<Message> peekRunningToolSteps() {
+        java.util.List<Message> t = runningTrace;
+        if (t == null) return new ArrayList<Message>();
+        List<Message> out = new ArrayList<Message>();
+        for (Message m : t) {
+            if (m.role.equals("tool")) out.add(m);
+        }
+        return out;
     }
 
     public boolean isTaskPaused() {
@@ -477,6 +501,7 @@ public final class AgentBackend {
         l.add(new Tool("tool.http", "HTTP 请求", "抓取网页 / 发 POST（可带 JSON 请求体）", false, "net"));
         l.add(new Tool("tool.text", "文本 / 数据处理", "base64、URL 编解码、JSON 取字段、大小写统计、四则运算", true, "dev"));
         l.add(new Tool("tool.system", "设备状态", "设备 / 电池 / 存储 / 网络 / 剪贴板查询（只读）", true, "dev"));
+        l.add(new Tool("tool.gui", "GUI 自动化", "读屏幕 / 按文本点按 / 向可输入框输入（需先开启无障碍服务）", false, "sys"));
         return l;
     }
 

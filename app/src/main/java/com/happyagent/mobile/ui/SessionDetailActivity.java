@@ -56,6 +56,8 @@ public class SessionDetailActivity extends AppCompatActivity {
     private String sessionId;
     private ChatAdapter adapter;
     private final List<Attachment> pending = new ArrayList<Attachment>();
+    // 运行中已实时增量显示过的工具步骤数（任务结束时随 dump 全量重置）
+    private int liveToolCount = 0;
 
     private android.os.Handler mainHandler;
     private Runnable pollTask;
@@ -248,6 +250,7 @@ public class SessionDetailActivity extends AppCompatActivity {
 
         promptBox.setText("");
         sendBtn.setEnabled(false);
+        liveToolCount = 0;   // 新任务从头实时计数
         try {
             AgentBackend.get().runTask(sessionId, text, atts);
             startPolling();
@@ -275,16 +278,27 @@ public class SessionDetailActivity extends AppCompatActivity {
     }
 
     private void checkRunning() {
+        AgentBackend backend = AgentBackend.get();
         if (anyRunning()) {
             updateControls();
+            // 实时增量：把比已显示多的工具步骤立即 append，不必等任务跑完
+            List<Message> live = backend.peekRunningToolSteps();
+            if (live.size() > liveToolCount) {
+                for (int i = liveToolCount; i < live.size(); i++) {
+                    adapter.append(live.get(i));
+                }
+                liveToolCount = live.size();
+                updateEmpty();
+                scrollBottom();
+            }
             mainHandler.postDelayed(pollTask, 250);
             return;
         }
-        Session s = AgentBackend.get().getSession(sessionId);
+        Session s = backend.getSession(sessionId);
         if (s != null) {
-            List<Message> full = chatOf(s.messages);
-            int prev = Math.min(adapter.count(), full.size());
-            adapter.appendRange(full.subList(prev, full.size()));
+            // 结束：全量重建（会话已含全部 user/tool/assistant），重置实时计数避免重复
+            adapter.submit(chatOf(s.messages));
+            liveToolCount = 0;
             updateEmpty();
             scrollBottom();
             if (s.status == 3) {
