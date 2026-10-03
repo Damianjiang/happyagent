@@ -13,3 +13,7 @@ gradle/agenz-release.keystore
 *.log
 captures/
 .cxx/
+
+# 发布产物不入库：APK 和更新日志只作为 GitHub Release 资产/正文，不进代码仓库
+*.apk
+RELEASE_NOTES_*.txt
