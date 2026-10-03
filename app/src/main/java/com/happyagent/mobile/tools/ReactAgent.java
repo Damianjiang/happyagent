@@ -1104,6 +1104,26 @@ public final class ReactAgent {
         return null;
     }
 
+    // 是否为已知工具：带分组的 + 一批零参工具（system_* / gui_dump / proot_* / time_now）。
+    // 零参工具的分组 key 为空串（time_now 无副作用常开），不能靠 toolGroup 判"未知"。
+    private boolean isKnownTool(String tool) {
+        if (toolGroup(tool).length() > 0) return true;
+        switch (tool) {
+            case "time_now":
+            case "system_device_info":
+            case "system_battery":
+            case "system_storage":
+            case "system_network":
+            case "system_clipboard_get":
+            case "gui_dump":
+            case "proot_status":
+            case "proot_setup":
+                return true;
+            default:
+                return false;
+        }
+    }
+
     private static final class SoftCheck {
         final String msg;
         SoftCheck(String m) { this.msg = m; }
@@ -1111,7 +1131,7 @@ public final class ReactAgent {
 
     // 执行前软性校验：未知工具 / 缺必填参数 → 返回可行动提示（不执行、不硬报错，让 AI 重写）
     private SoftCheck precheckTool(String tool, JSONObject args) {
-        if (tool.length() == 0 || toolGroup(tool).length() == 0) {
+        if (tool.length() == 0 || !isKnownTool(tool)) {
             return new SoftCheck("未识别的工具名（\"" + tool + "\"）。请改用列表中的标准工具名"
                     + "（file_read / file_write / file_edit / file_append / file_list / http_get / http_post / "
                     + "text_calc / time_now / shell_proot 等），并带上正确参数重写调用。");
@@ -1133,29 +1153,34 @@ public final class ReactAgent {
         return null;
     }
 
-    // 判断工具结果是否为"软错误"（缺参/没找到/路径不存在/命令失败等）→ 提示 AI 重写而非硬报错
-    // 中文提示（ReactAgent 缺参/分组停用）+ 英文结果（FileTools "not found"/"error:"）都覆盖
+    // 判断工具结果是否为"软错误"（缺参/没找到/路径不存在/命令失败等）→ 提示 AI 重写而非硬报错。
+    // 只看结果开头（前 80 字符）的错误前缀，避免"成功读出的文件正文里恰好含 error/failed 字样"被误判成失败。
+    // 中文提示（ReactAgent 缺参/分组停用）与英文结果（FileTools "not found" 等）都按开头匹配。
     private boolean isSoftError(String result) {
         if (result == null) return false;
         String r = result.trim();
         if (r.length() == 0) return false;
-        String low = r.toLowerCase();
-        if (r.contains("缺 '") || r.contains("缺\"") || r.contains("未识别")
-                || r.contains("没找到") || r.contains("未找到")
-                || r.contains("不存在") || r.contains("路径越界")
-                || r.contains("工具出错") || r.contains("http 出错")
-                || r.contains("未知工具") || r.contains("无法计算")
-                || r.contains("已停用") || r.contains("命令失败")
-                || r.contains("执行失败") || r.contains("Permission denied")
-                || r.contains("未就绪") || r.contains("未部署")
-                || r.contains("需先") || r.contains("请先")
-                || r.contains("示例 {")) return true;
-        if (low.contains("not found") || low.contains("is a directory")
-                || low.contains("too large") || low.contains("error:")
-                || low.contains("failed") || low.contains("does not exist")
-                || low.contains("cannot create") || low.contains("cannot delete")
-                || low.contains("not a dir")) return true;
-        return false;
+        String head = r.length() > 80 ? r.substring(0, 80) : r;
+        String low = head.toLowerCase();
+        if (head.contains("缺 '") || head.contains("缺\"") || head.contains("缺 必填")
+                || head.contains("未识别") || head.contains("请重写")
+                || head.contains("路径越界") || head.contains("工具出错")
+                || head.contains("http 出错") || head.contains("未知工具")
+                || head.contains("无法计算") || head.contains("已停用")
+                || head.contains("命令失败") || head.contains("执行失败")
+                || head.contains("Permission denied") || head.contains("示例 {")) {
+            return true;
+        }
+        // 英文错误前缀（FileTools/Shell 失败）只在开头出现才算，正文里的同词不触发
+        return low.startsWith("not found") || low.startsWith("is a directory")
+                || low.startsWith("too large") || low.startsWith("file too large")
+                || low.startsWith("read error") || low.startsWith("write error")
+                || low.startsWith("edit error") || low.startsWith("append error")
+                || low.startsWith("move failed") || low.startsWith("zip error")
+                || low.startsWith("unzip error") || low.startsWith("grep error")
+                || low.startsWith("list failed") || low.startsWith("cannot delete")
+                || low.startsWith("cannot create") || low.startsWith("not a dir")
+                || low.startsWith("http 4") || low.startsWith("http 5");
     }
 
     // 弱智 AI 兼容：把 AI 可能输出的"不规范 JSON 参数"（前后带引号/多余文本/单引号）清洗成可解析对象
@@ -1169,6 +1194,11 @@ public final class ReactAgent {
         try { return new JSONObject(s); } catch (Exception ignored) {}
         // 单引号键/值 → 双引号（弱 AI 常见）
         try { return new JSONObject(s.replace('\'', '"')); } catch (Exception ignored) {}
+        // 结尾多了引号/文本尾巴：截到最后一个 '}' 再解析
+        int lastBrace = s.lastIndexOf('}');
+        if (lastBrace > 0) {
+            try { return new JSONObject(s.substring(0, lastBrace + 1)); } catch (Exception ignored) {}
+        }
         // 取第一个 { 到最后一个 } 之间的子串再试
         int lb = s.indexOf('{');
         int rb = s.lastIndexOf('}');

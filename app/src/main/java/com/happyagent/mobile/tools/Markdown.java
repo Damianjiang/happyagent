@@ -3,8 +3,7 @@ package com.happyagent.mobile.tools;
 import android.content.Context;
 import android.content.res.TypedArray;
 import android.graphics.Color;
-import android.text.Spannable;
-import android.text.SpannableString;
+import android.graphics.Typeface;
 import android.text.SpannableStringBuilder;
 import android.text.Spanned;
 import android.text.style.BackgroundColorSpan;
@@ -14,8 +13,6 @@ import android.text.style.StyleSpan;
 import android.text.style.TypefaceSpan;
 import android.text.style.URLSpan;
 import android.text.style.UnderlineSpan;
-import android.util.TypedValue;
-import android.graphics.Typeface;
 
 // 轻量级 Markdown → Spanned 渲染器（纯 Java + Android span，API 23 安全，无第三方依赖）。
 // 支持：围栏代码块(带语言标签) / 行内代码 / 粗体 / 斜体 / 链接 / 标题 / 引用 / 列表 / 分隔线。
@@ -31,10 +28,10 @@ public final class Markdown {
 
     public static Palette palette(Context ctx) {
         int[] attrs = {
-                android.R.attr.colorPrimary,
-                android.R.attr.colorPrimary,
+                com.google.android.material.R.attr.colorPrimary,
+                com.google.android.material.R.attr.colorPrimary,
                 com.google.android.material.R.attr.colorOnSurfaceVariant,
-                android.R.attr.colorPrimary,
+                com.google.android.material.R.attr.colorPrimary,
                 com.google.android.material.R.attr.colorSurfaceVariant,
                 com.google.android.material.R.attr.colorOnSurface,
                 com.google.android.material.R.attr.colorOnSurfaceVariant,
