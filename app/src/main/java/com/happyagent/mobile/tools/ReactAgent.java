@@ -44,6 +44,8 @@ public final class ReactAgent {
     private int callCounter;
     // 角色卡 / 世界书：一段设定文本，注入系统提示词（AgentBackend 从 Prefs 读入）
     private String roleCard = "";
+    // 自定义系统提示词：用户在设置页编辑的追加指令，真注入引擎（留空=只用内置默认）
+    private String customSystemPrompt = "";
     // 任务最大步数：默认 10，AgentBackend 按 Prefs 覆写（老存档兼容，不进序列化）
     private int maxSteps = DEFAULT_MAX_STEPS;
 
@@ -74,6 +76,11 @@ public final class ReactAgent {
     // 角色卡 / 世界书：设了就在系统提示词开头套上人设
     public void setRoleCard(String roleCard) {
         this.roleCard = roleCard == null ? "" : roleCard.trim();
+    }
+
+    // 自定义系统提示词：设置页编辑的追加指令，注入到角色设定之后、工具规则之前
+    public void setCustomSystemPrompt(String s) {
+        this.customSystemPrompt = s == null ? "" : s.trim();
     }
 
     // 任务最大步数（AgentBackend 按 Prefs 设，允许 4~20；越界回默认）
@@ -809,6 +816,9 @@ public final class ReactAgent {
           .append("通过调用工具完成用户任务，再用与用户相同的语言简洁汇报。\n");
         if (roleCard.length() > 0) {
             sb.append("\n【角色设定 / 世界书（务必遵守）】\n").append(roleCard).append("\n");
+        }
+        if (customSystemPrompt.length() > 0) {
+            sb.append("\n【用户自定义指令（务必遵守）】\n").append(customSystemPrompt).append("\n");
         }
         sb.append("\n【工具使用规则】\n");
         sb.append("1. 一次只调一个工具，拿到结果再决定下一步；不要一次塞多个。\n");

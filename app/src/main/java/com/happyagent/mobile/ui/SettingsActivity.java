@@ -123,6 +123,26 @@ public class SettingsActivity extends AppCompatActivity {
         LinearLayout presetRow = findViewById(R.id.set_role_presets);
         fillRolePresets(presetRow, roleBoxName, roleBox);
 
+        // 提示词编辑：自定义系统提示词，真注入引擎；加载已存值 + 状态 + 保存
+        android.widget.EditText sysPromptBox = findViewById(R.id.set_system_prompt);
+        android.widget.TextView sysPromptState = findViewById(R.id.set_system_prompt_state);
+        String sysInit = prefs.getString(Prefs.KEY_SYSTEM_PROMPT, "").trim();
+        sysPromptBox.setText(sysInit);
+        sysPromptState.setText(sysInit.isEmpty() ? "未自定义（用内置默认）" : "已自定义");
+        sysPromptState.setTextColor(sysInit.isEmpty()
+                ? androidx.core.content.ContextCompat.getColor(this, R.color.status_failed)
+                : androidx.core.content.ContextCompat.getColor(this, R.color.status_done));
+        findViewById(R.id.set_system_prompt_save).setOnClickListener(v -> {
+            String s = sysPromptBox.getText().toString().trim();
+            prefs.putString(Prefs.KEY_SYSTEM_PROMPT, s);
+            sysPromptState.setText(s.isEmpty() ? "未自定义（用内置默认）" : "已自定义");
+            sysPromptState.setTextColor(s.isEmpty()
+                    ? androidx.core.content.ContextCompat.getColor(this, R.color.status_failed)
+                    : androidx.core.content.ContextCompat.getColor(this, R.color.status_done));
+            Toast.makeText(this, s.isEmpty() ? "已恢复内置默认提示词" : "自定义提示词已保存",
+                    Toast.LENGTH_SHORT).show();
+        });
+
         // 容器环境（proot）：一键部署 + 进度 + 取消
         TextView prootState = findViewById(R.id.set_proot_state);
         ProgressBar prootProg = findViewById(R.id.set_proot_progress);

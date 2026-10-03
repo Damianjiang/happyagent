@@ -185,6 +185,7 @@ public final class AgentBackend {
                             new SystemTools(HappyAgentApplication.get()),
                             trace, control, getEnabledToolKeys());
                     agent.setRoleCard(currentRoleCard());
+                    agent.setCustomSystemPrompt(currentSystemPrompt());
                     agent.setMaxSteps(currentMaxSteps());
                     final String summary = agent.run(prompt, history, atts);
                     // 被取消/停止时，只记用户输入 + 已发生的工具步骤 + 停止说明，不标完成
@@ -256,6 +257,7 @@ public final class AgentBackend {
                     new SystemTools(HappyAgentApplication.get()),
                     trace, control, getEnabledToolKeys());
             agent.setRoleCard(currentRoleCard());
+            agent.setCustomSystemPrompt(currentSystemPrompt());
             agent.setMaxSteps(currentMaxSteps());
             String summary = agent.run(prompt, history,
                     new ArrayList<com.happyagent.mobile.model.Models.Attachment>());
@@ -313,6 +315,12 @@ public final class AgentBackend {
     private int currentMaxSteps() {
         Config c = getConfig();
         return c.normalizedMaxSteps();
+    }
+
+    // 自定义系统提示词：设置页编辑的追加指令，真注入引擎（留空=只用内置默认）
+    private String currentSystemPrompt() {
+        Prefs p = new Prefs(HappyAgentApplication.get());
+        return p.getString(Prefs.KEY_SYSTEM_PROMPT, "").trim();
     }
 
     // 会话操作：重命名 / 删除 / 清空（数据层早就能，只是界面没入口）
