@@ -35,6 +35,24 @@
         android:visibility="gone"
         style="@style/Widget.App.Button" />
 
+    <EditText
+        android:id="@+id/sessions_search"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginLeft="12dp"
+        android:layout_marginRight="12dp"
+        android:layout_marginTop="12dp"
+        android:layout_marginBottom="4dp"
+        android:background="@drawable/bg_input"
+        android:padding="10dp"
+        android:textSize="13sp"
+        android:textColor="?attr/colorOnSurface"
+        android:textColorHint="?attr/colorOnSurfaceVariant"
+        android:hint="搜索会话标题…"
+        android:inputType="text"
+        android:maxLines="1"
+        android:imeOptions="actionSearch" />
+
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/sessions_recycler"
         android:layout_width="match_parent"

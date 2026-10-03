@@ -24,6 +24,9 @@ import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 
+import android.text.Editable;
+import android.text.TextWatcher;
+
 // 会话列表：每行一个会话，带状态徽章，点进去看详情
 public class SessionsFragment extends Fragment {
 
@@ -31,7 +34,10 @@ public class SessionsFragment extends Fragment {
     private ProgressBar progress;
     private TextView empty;
     private com.google.android.material.button.MaterialButton createBtn;
+    private EditText searchBox;
     private SessionAdapter adapter;
+    // 全量缓存（含搜索过滤后再喂 adapter；搜索只是"过滤"，不真删）
+    private List<Session> allSessions = new ArrayList<Session>();
 
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle s) {
@@ -44,8 +50,40 @@ public class SessionsFragment extends Fragment {
         recycler.setLayoutManager(new LinearLayoutManager(getContext()));
         adapter = new SessionAdapter(new ArrayList<Session>());
         recycler.setAdapter(adapter);
+        searchBox = v.findViewById(R.id.sessions_search);
+        searchBox.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence c, int a, int b, int cn) {}
+            @Override public void onTextChanged(CharSequence c, int a, int b, int cn) { applyFilter(); }
+            @Override public void afterTextChanged(Editable e) {}
+        });
         load();
         return v;
+    }
+
+    // 按搜索词过滤全量会话（数据层早能按标题匹配，界面补上搜索框）
+    private void applyFilter() {
+        String q = searchBox == null ? "" : searchBox.getText().toString().trim().toLowerCase(Locale.ROOT);
+        List<Session> shown;
+        if (q.isEmpty()) {
+            shown = allSessions;
+        } else {
+            shown = new ArrayList<Session>();
+            for (Session s : allSessions) {
+                String t = s.title == null ? "" : s.title.toLowerCase(Locale.ROOT);
+                if (t.contains(q)) shown.add(s);
+            }
+        }
+        adapter.update(shown);
+        boolean isEmpty = shown.isEmpty();
+        empty.setVisibility(isEmpty ? View.VISIBLE : View.GONE);
+        createBtn.setVisibility(isEmpty ? View.VISIBLE : View.GONE);
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        // 从详情/其他页回来刷新（标题/状态可能变了）
+        load();
     }
 
     // 空态"创建第一个会话"：建一个会话并直接进聊天页
@@ -106,10 +144,8 @@ public class SessionsFragment extends Fragment {
                     public void run() {
                         if (!isAdded()) return;
                         progress.setVisibility(View.GONE);
-                        adapter.update(data);
-                        boolean isEmpty = data.isEmpty();
-                        SessionsFragment.this.empty.setVisibility(isEmpty ? View.VISIBLE : View.GONE);
-                        createBtn.setVisibility(isEmpty ? View.VISIBLE : View.GONE);
+                        allSessions = data;
+                        applyFilter();
                     }
                 });
             }
