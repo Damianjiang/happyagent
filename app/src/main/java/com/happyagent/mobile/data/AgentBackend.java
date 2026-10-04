@@ -86,11 +86,12 @@ public final class AgentBackend {
         });
     }
 
-    private void ensureLoaded() {
+    // 后台线程专用：等预加载完成（最坏 10 秒），绝不可在界面线程调（老安卓 6 上直接 ANR）
+    private void ensureLoadedBlocking() {
         if (loaded) return;
         synchronized (lock) {
             int waited = 0;
-            while (!loaded && waited++ < 100) {
+            while (!loaded && waited++ < 200) {
                 try {
                     lock.wait(WAIT_STEP_MS);
                 } catch (InterruptedException e) {
@@ -98,7 +99,6 @@ public final class AgentBackend {
                     break;
                 }
             }
-            // 等太久（后台读失败/线程已死）则当场同步读一遍；读崩也不许抛到界面线程
             if (!loaded) {
                 try {
                     loadFromDisk();
@@ -109,6 +109,17 @@ public final class AgentBackend {
                     Log.w(TAG, "state sync load failed, using defaults", e);
                 }
                 loaded = true;
+            }
+        }
+    }
+
+    // 界面线程用：不阻塞。没加载好就安全走空白默认，后台 preload 完成后数据自然在
+    private void ensureLoaded() {
+        if (loaded) return;
+        synchronized (lock) {
+            if (!loaded) {
+                // 不等待，当前数据为空集合/默认工具/空 config
+                // 后台 preload() 完成后 loaded 会置 true，后续访问直接走快照
             }
         }
     }
@@ -167,6 +178,8 @@ public final class AgentBackend {
         Future<Session> future = io.submit(new Callable<Session>() {
             @Override
             public Session call() {
+                // 后台线程里确认数据已就绪（可安全等待）
+                ensureLoadedBlocking();
                 List<Message> trace = new java.util.concurrent.CopyOnWriteArrayList<Message>();
                 runningTrace = trace;   // 绑上，界面运行中能实时增量显示工具步骤
                 trace.add(new Message("user", prompt, System.currentTimeMillis(), atts));

@@ -15,6 +15,14 @@
         app:titleTextColor="?attr/colorOnSurface"
         app:title="编辑" />
 
+    <ProgressBar
+        android:id="@+id/ed_loading"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:layout_margin="16dp"
+        android:visibility="gone" />
+
     <EditText
         android:id="@+id/ed_content"
         android:layout_width="match_parent"

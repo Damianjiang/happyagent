@@ -19,16 +19,14 @@
             android:layout_height="?attr/actionBarSize"
             android:background="?attr/colorSurface"
             app:title="@string/app_name"
-            app:titleTextAppearance="@style/TextAppearance.Material3.TitleLarge"
-            app:titleTextColor="?attr/colorOnSurface"
-            app:subtitleTextColor="?attr/colorOnSurfaceVariant"
-            app:subtitle="端侧智能体" />
+            app:titleTextAppearance="@style/TextAppearance.Material3.TitleMedium"
+            app:titleTextColor="?attr/colorOnSurface" />
     </com.google.android.material.appbar.AppBarLayout>
 
     <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:layout_marginBottom="64dp"
+        android:layout_marginBottom="56dp"
         app:layout_behavior="@string/appbar_scrolling_view_behavior">
 
         <FrameLayout
@@ -47,7 +45,7 @@
         android:contentDescription="@string/new_task"
         app:layout_anchor="@id/bottom_nav"
         app:layout_anchorGravity="top|end"
-        android:layout_marginTop="16dp"
+        android:layout_marginTop="12dp"
         android:layout_marginEnd="16dp" />
 
     <com.google.android.material.bottomnavigation.BottomNavigationView
@@ -56,10 +54,11 @@
         android:layout_height="wrap_content"
         android:layout_gravity="bottom"
         android:background="?attr/colorSurface"
-        android:elevation="8dp"
+        android:elevation="0dp"
         app:menu="@menu/bottom_nav_menu"
         app:itemIconTint="@color/nav_item_color"
         app:itemTextColor="@color/nav_item_color"
-        app:labelVisibilityMode="selected" />
+        app:labelVisibilityMode="labeled"
+        app:elevation="0dp" />
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

@@ -1,18 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 企业级设计 token：8dp 网格，统一间距/圆角/层级 -->
+<!-- 间距 token：8dp 网格，紧凑 -->
 <resources>
-    <dimen name="space_xl">24dp</dimen>
+    <dimen name="space_xl">20dp</dimen>
     <dimen name="space_l">16dp</dimen>
     <dimen name="space_m">12dp</dimen>
     <dimen name="space_s">8dp</dimen>
     <dimen name="space_xs">4dp</dimen>
 
-    <dimen name="card_radius">12dp</dimen>
-    <dimen name="card_elevation">1dp</dimen>
+    <dimen name="card_radius">14dp</dimen>
+    <dimen name="card_elevation">0dp</dimen>
     <dimen name="list_inset">16dp</dimen>
 
-    <dimen name="title_size">20sp</dimen>
-    <dimen name="header_size">13sp</dimen>
-    <dimen name="body_size">15sp</dimen>
-    <dimen name="caption_size">12sp</dimen>
+    <dimen name="title_size">18sp</dimen>
+    <dimen name="header_size">12sp</dimen>
+    <dimen name="body_size">14sp</dimen>
+    <dimen name="caption_size">11sp</dimen>
 </resources>

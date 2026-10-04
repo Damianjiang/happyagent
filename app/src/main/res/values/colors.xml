@@ -1,41 +1,41 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 浅色：纸感。暖白底 + 墨色文字 + 单一强调色，卡片走发丝边框不吃阴影 -->
+<!-- 浅色：干净紫灰。白底微灰，紫色系强调，不做花哨，留白多 -->
 <resources>
-    <!-- 强调色 5 选 1（values-night 给暗色用提亮版） -->
-    <color name="acc_default">#4B7BF5</color>
-    <color name="acc_teal">#0F766E</color>
-    <color name="acc_moss">#4D7C0F</color>
-    <color name="acc_rust">#BE123C</color>
-    <color name="acc_amber">#B45309</color>
+    <!-- 强调色 5 选 1 -->
+    <color name="acc_default">#6B5BA0</color>
+    <color name="acc_teal">#2A9D8F</color>
+    <color name="acc_moss">#5B8C2A</color>
+    <color name="acc_rust">#C44B6C</color>
+    <color name="acc_amber">#A07030</color>
     <color name="acc_on">#FFFFFF</color>
 
-    <!-- 纸面基底 -->
-    <color name="background">#F6F5F2</color>
+    <!-- 基底：微灰白，不刺眼 -->
+    <color name="background">#F4F4F8</color>
     <color name="surface">#FFFFFF</color>
-    <color name="surface_variant">#F0EFEB</color>
-    <color name="on_surface">#1B1B1B</color>
-    <color name="on_surface_variant">#575652</color>
-    <color name="outline">#E5E3DD</color>
-    <color name="hairline">#ECEAE4</color>
+    <color name="surface_variant">#ECECf2</color>
+    <color name="on_surface">#1A1A2E</color>
+    <color name="on_surface_variant">#6A6A7A</color>
+    <color name="outline">#E0E0EA</color>
+    <color name="hairline">#F0F0F5</color>
 
-    <!-- 状态色：running 跟随强调色（drawable 里写 ?attr/colorPrimary），成败用固定语义色 -->
-    <color name="status_done">#3F8135</color>
-    <color name="status_done_bg">#E3F1E0</color>
-    <color name="status_failed">#C2373B</color>
-    <color name="status_paused">#B45309</color>
-    <color name="error">#C2373B</color>
+    <!-- 状态色 -->
+    <color name="status_done">#2E8B57</color>
+    <color name="status_done_bg">#E8F5E9</color>
+    <color name="status_failed">#C0392B</color>
+    <color name="status_paused">#A07030</color>
+    <color name="error">#C0392B</color>
 
     <color name="on_primary">#FFFFFF</color>
 
-    <!-- 强调色容器（浅色）：Tonal 按钮/选中控件的底 -->
-    <color name="acc_default_c">#E7EDFD</color>
-    <color name="acc_default_c_on">#14284B</color>
-    <color name="acc_teal_c">#D9EDEA</color>
-    <color name="acc_teal_c_on">#0B3B36</color>
-    <color name="acc_moss_c">#E7EFDA</color>
-    <color name="acc_moss_c_on">#2A4208</color>
-    <color name="acc_rust_c">#F9DEE3</color>
-    <color name="acc_rust_c_on">#4A0A18</color>
-    <color name="acc_amber_c">#F5E7D3</color>
-    <color name="acc_amber_c_on">#4A2B08</color>
+    <!-- 强调色容器 -->
+    <color name="acc_default_c">#E4E0F5</color>
+    <color name="acc_default_c_on">#2A2050</color>
+    <color name="acc_teal_c">#D4F0EE</color>
+    <color name="acc_teal_c_on">#0E3D3A</color>
+    <color name="acc_moss_c">#E0EDD4</color>
+    <color name="acc_moss_c_on">#2A4A10</color>
+    <color name="acc_rust_c">#F5DDE5</color>
+    <color name="acc_rust_c_on">#501A28</color>
+    <color name="acc_amber_c">#F5EBD8</color>
+    <color name="acc_amber_c_on">#4A3010</color>
 </resources>

@@ -402,7 +402,7 @@ public class SessionDetailActivity extends AppCompatActivity {
         return out;
     }
 
-    // 待发附件预览：缩略图/文件名 + 移除按钮
+    // 图片附件缩略图：后台线程解码 + 占位，老安卓 6 上不卡主线程
     private void renderPending() {
         attachItems.removeAllViews();
         attachStrip.setVisibility(pending.isEmpty() ? View.GONE : View.VISIBLE);
@@ -424,9 +424,26 @@ public class SessionDetailActivity extends AppCompatActivity {
             ImageView iv = new ImageView(this);
             int sz = (int) (56 * getResources().getDisplayMetrics().density);
             iv.setLayoutParams(new LinearLayout.LayoutParams(sz, sz));
-            iv.setImageBitmap(thumb(a.path, sz));
             iv.setScaleType(ImageView.ScaleType.CENTER_CROP);
+            iv.setBackgroundResource(R.drawable.bg_chip);
             chip.addView(iv);
+            // 后台解码，解完回来再设 bitmap
+            final String path = a.path;
+            final ImageView target = iv;
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    final Bitmap bm = thumb(path, sz);
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            if (bm != null && target.isAttachedToWindow()) {
+                                target.setImageBitmap(bm);
+                            }
+                        }
+                    });
+                }
+            }).start();
         } else {
             TextView label = new TextView(this);
             label.setText("📄 " + a.fileName);
@@ -742,6 +759,15 @@ public class SessionDetailActivity extends AppCompatActivity {
         }
 
         // 用户气泡上方渲染附件：图片缩略图 + 文件 chip
+        // 图片走后台解码（老安卓 6 不卡），用简单 LRU 缓存避免重复解码
+        private static final java.util.LinkedHashMap<String, Bitmap> thumbCache =
+                new java.util.LinkedHashMap<String, Bitmap>(16, 0.75f, true) {
+            @Override
+            protected boolean removeEldestEntry(java.util.Map.Entry<String, Bitmap> e) {
+                return size() > 12;
+            }
+        };
+
         private void bindUserAttachments(VH h, Message m) {
             List<Attachment> atts = m.safeAttachments();
             h.userAttach.removeAllViews();
@@ -755,10 +781,38 @@ public class SessionDetailActivity extends AppCompatActivity {
                     ImageView iv = new ImageView(h.itemView.getContext());
                     int sz = dp(h, 72);
                     iv.setLayoutParams(new LinearLayout.LayoutParams(sz, sz));
-                    iv.setImageBitmap(thumbFor(a.path, sz));
                     iv.setScaleType(ImageView.ScaleType.CENTER_CROP);
                     iv.setBackgroundResource(R.drawable.bg_chip);
+                    // 先设缓存里有的，没有就后台解
+                    synchronized (thumbCache) {
+                        Bitmap cached = thumbCache.get(a.path + ":" + sz);
+                        if (cached != null) iv.setImageBitmap(cached);
+                    }
                     h.userAttach.addView(iv);
+                    if (iv.getDrawable() == null) {
+                        final ImageView target = iv;
+                        final String key = a.path + ":" + sz;
+                        final String path = a.path;
+                        new Thread(new Runnable() {
+                            @Override
+                            public void run() {
+                                Bitmap bm = thumbFor(path, sz);
+                                if (bm != null) {
+                                    synchronized (thumbCache) {
+                                        thumbCache.put(key, bm);
+                                    }
+                                }
+                                if (bm != null && target.isAttachedToWindow()) {
+                                    target.post(new Runnable() {
+                                        @Override
+                                        public void run() {
+                                            target.setImageBitmap(bm);
+                                        }
+                                    });
+                                }
+                            }
+                        }).start();
+                    }
                 } else {
                     TextView chip = new TextView(h.itemView.getContext());
                     chip.setText("📄 " + a.fileName);

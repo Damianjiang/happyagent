@@ -15,6 +15,8 @@
     <!-- GUI 自动化：读屏幕结构 + 点按 + 输入（用户需在系统里手动开启） -->
     <uses-permission android:name="android.permission.BIND_ACCESSIBILITY_SERVICE"
         tools:ignore="MissingPermission" />
+    <!-- 悬浮球：在应用上层画小圆球 -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
     <application
         android:allowBackup="true"
@@ -103,6 +105,11 @@
             android:name=".service.WebUiService"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
+
+        <!-- 悬浮球：应用上层小圆球，点按打开主界面 -->
+        <service
+            android:name=".ui.FloatingBallService"
+            android:exported="false" />
 
         <!-- GUI 自动化：无障碍服务（用户需在系统「无障碍」里手动开启才生效） -->
         <service

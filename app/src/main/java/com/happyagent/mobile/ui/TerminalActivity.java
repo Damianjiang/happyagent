@@ -28,6 +28,8 @@ public class TerminalActivity extends AppCompatActivity {
     private ProgressBar deployProgress;
     private ScrollView outScroll;
     private LinearLayout deployBox;
+    // 输出上限：防老安卓 6 内存爆/卡顿（超长命令输出只保留尾部）
+    private static final int MAX_OUT_CHARS = 8000;
     // probe / 跑命令都走这单线程池，避免主线程阻塞 + 每次 new Thread 累积
     private final java.util.concurrent.ExecutorService execPool =
             java.util.concurrent.Executors.newSingleThreadExecutor();
@@ -205,6 +207,7 @@ public class TerminalActivity extends AppCompatActivity {
                     public void run() {
                         out.append(r == null ? "" : r);
                         out.append("\n（" + dt + "ms）\n\n");
+                        capOutput();
                         scrollBottom();
                         runBtn.setEnabled(true);
                     }
@@ -226,5 +229,14 @@ public class TerminalActivity extends AppCompatActivity {
                 outScroll.fullScroll(View.FOCUS_DOWN);
             }
         });
+    }
+
+    // 输出限长：超了砍头部，只保留尾部（防老设备内存爆）
+    private void capOutput() {
+        CharSequence t = out.getText();
+        if (t.length() > MAX_OUT_CHARS) {
+            String trimmed = t.subSequence(t.length() - MAX_OUT_CHARS, t.length()).toString();
+            out.setText(trimmed);
+        }
     }
 }

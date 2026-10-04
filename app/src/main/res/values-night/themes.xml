@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 暗色：墨色 #0E0E11 底（纯黑发闷不用），表面分层靠发丝线；强调色暗色下整体提亮 -->
+<!-- 暗色：近黑 + 紫灰玻璃层 -->
 <resources>
     <style name="AppTheme" parent="Theme.Material3.Dark.NoActionBar">
         <item name="colorPrimary">@color/acc_default</item>
