@@ -42,6 +42,7 @@
             android:textColor="?attr/colorPrimary" />
 
         <TextView
+            android:id="@+id/sessions_empty_title"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"

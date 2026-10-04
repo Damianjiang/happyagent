@@ -79,7 +79,15 @@ public class SessionsFragment extends Fragment {
         }
         adapter.update(shown);
         boolean isEmpty = shown.isEmpty();
-        empty.setVisibility(isEmpty ? View.VISIBLE : View.GONE);
+        if (isEmpty) {
+            empty.setVisibility(View.VISIBLE);
+            android.widget.TextView emptyTitle = (android.widget.TextView) empty.findViewById(R.id.sessions_empty_title);
+            if (!q.isEmpty() && emptyTitle != null) {
+                emptyTitle.setText("未找到匹配「" + q + "」的会话");
+            }
+        } else {
+            empty.setVisibility(View.GONE);
+        }
         createBtn.setVisibility(isEmpty ? View.VISIBLE : View.GONE);
     }
 
@@ -90,12 +98,23 @@ public class SessionsFragment extends Fragment {
         load();
     }
 
-    // 空态"创建第一个会话"：建一个会话并直接进聊天页
+    // 空态"创建第一个会话"：后台创建 + 跳转（老安卓 6 不卡主线程）
     private void newSessionAndOpen() {
-        String id = AgentBackend.get().createSession("新对话", null);
-        Intent i = new Intent(requireContext(), SessionDetailActivity.class);
-        i.putExtra(SessionDetailActivity.EXTRA_SESSION_ID, id);
-        startActivity(i);
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                String id = AgentBackend.get().createSession("新对话", null);
+                requireActivity().runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        if (!isAdded()) return;
+                        Intent i = new Intent(requireContext(), SessionDetailActivity.class);
+                        i.putExtra(SessionDetailActivity.EXTRA_SESSION_ID, id);
+                        startActivity(i);
+                    }
+                });
+            }
+        }, "new-session").start();
     }
 
     // 会话 ⋮ 菜单：重命名 / 删除（数据层早能，界面补上入口）

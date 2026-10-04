@@ -52,6 +52,9 @@ public class SettingsListFragment extends Fragment {
         feature.addView(row(ctx, R.drawable.ic_gear, C_ORANGE, "个性化",
                 "角色卡 · 提示词编辑 · 标签 / 提示词片段 · AI 生成角色卡",
                 iv -> startActivity(settingsIntent(ctx, "个性化"))));
+        feature.addView(row(ctx, R.drawable.ic_nav_tools, C_PURPLE, "提示词 / Skill",
+                "自定义系统提示词 · 标签片段 · 注入引擎",
+                iv -> startActivity(settingsIntent(ctx, "提示词 / Skill"))));
         feature.addView(row(ctx, R.drawable.ic_nav_tools, C_TEAL, "容器环境",
                 "免 root Alpine：一键部署 · 状态 · 终端",
                 iv -> startActivity(settingsIntent(ctx, "容器环境"))));
@@ -82,17 +85,12 @@ public class SettingsListFragment extends Fragment {
                     ctx.startActivity(bi);
                 }));
 
-        // 工具与文件组（原底部 tab，现收进设置列表）
-        tools.addView(row(ctx, R.drawable.ic_nav_tools, C_TEAL, "工具 / 插件",
-                "行内开关即时生效，点卡片看说明",
-                iv -> startActivity(new Intent(ctx, FeatureHostActivity.class)
-                        .putExtra(FeatureHostActivity.EXTRA_FRAGMENT, "tools")
-                        .putExtra(FeatureHostActivity.EXTRA_TITLE, "工具 / 插件"))));
-        tools.addView(row(ctx, R.drawable.ic_nav_files, C_ORANGE, "文件",
-                "工作区 / 我的目录：编辑 · 预览 · 发给智能体",
+        // 文件管理（工作区浏览/编辑/压缩/解压/发给智能体）
+        tools.addView(row(ctx, R.drawable.ic_nav_files, C_ORANGE, "文件管理",
+                "工作区浏览 · 编辑 · 压缩 · 发给智能体",
                 iv -> startActivity(new Intent(ctx, FeatureHostActivity.class)
                         .putExtra(FeatureHostActivity.EXTRA_FRAGMENT, "files")
-                        .putExtra(FeatureHostActivity.EXTRA_TITLE, "文件"))));
+                        .putExtra(FeatureHostActivity.EXTRA_TITLE, "文件管理"))));
         return v;
     }
 

@@ -22,34 +22,6 @@
             android:textSize="20sp"
             android:textStyle="bold"
             android:textColor="?attr/colorOnSurface" />
-
-        <!-- 搜索框（装饰性，与原生一致；功能项都在下面列表里） -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="48dp"
-            android:layout_marginTop="12dp"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:background="@drawable/bg_search_box"
-            android:paddingLeft="14dp"
-            android:paddingRight="14dp">
-
-            <ImageView
-                android:layout_width="20dp"
-                android:layout_height="20dp"
-                android:src="@drawable/ic_search"
-                android:tint="?attr/colorOnSurfaceVariant"
-                android:contentDescription="搜索" />
-
-            <TextView
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:layout_marginStart="10dp"
-                android:text="搜索设置"
-                android:textSize="15sp"
-                android:textColor="?attr/colorOnSurfaceVariant" />
-        </LinearLayout>
     </LinearLayout>
 
     <!-- 功能设置列表：代码里按分组填充 -->
