@@ -313,6 +313,30 @@ public final class ProotEnv {
                     while (skip > 0) { s = in.read(); if (s < 0) break; skip--; }
                     out.close();
                 }
+            } else if (typech.equals("2")) {
+                // 符号链接：API 23 没有 createSymbolicLink（那是 26+），用拷贝目标文件代替
+                String linkTarget = field(hdr, 157, 100);
+                File target = safeJoin(dst, name);
+                target.getParentFile().mkdirs();
+                long left = size;
+                while (left > 0) { int c = in.read(); if (c < 0) break; left--; }
+                long skip = (512 - (size % 512)) % 512;
+                while (skip > 0) { int c = in.read(); if (c < 0) break; skip--; }
+                if (!linkTarget.isEmpty()) {
+                    // 相对路径解析（../bin/busybox 等）
+                    File srcFile = new File(target.getParentFile(), linkTarget).getAbsoluteFile();
+                    if (srcFile.exists() && srcFile.length() < 50 * 1024 * 1024) {
+                        try {
+                            java.io.FileInputStream fis = new java.io.FileInputStream(srcFile);
+                            java.io.FileOutputStream fos = new java.io.FileOutputStream(target);
+                            byte[] cb = new byte[8192];
+                            int cn;
+                            while ((cn = fis.read(cb)) != -1) fos.write(cb, 0, cn);
+                            fos.close();
+                            fis.close();
+                        } catch (Exception ignored) {}
+                    }
+                }
             } else {
                 // 目录 / 其它，跳数据
                 long left = size;
