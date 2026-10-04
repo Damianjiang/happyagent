@@ -243,10 +243,46 @@ public class WebUiService extends Service {
             o.put("sessions", arr);
             return json(o);
         }
+        // 任务运行态（前端 1s 轮询）
+        if (path.equals("/api/running")) {
+            AgentBackend be = AgentBackend.get();
+            JSONObject o = new JSONObject();
+            o.put("running", be.isTaskRunning());
+            o.put("paused", be.isTaskPaused());
+            o.put("steps", be.peekRunningToolSteps().size());
+            return json(o);
+        }
+        // 任务控制（暂停/继续/取消）
+        if (path.equals("/api/control") && method.equalsIgnoreCase("POST")) {
+            JSONObject req = new JSONObject(body);
+            String action = req.optString("action", "");
+            AgentBackend be = AgentBackend.get();
+            if ("pause".equals(action)) be.pauseTask();
+            else if ("resume".equals(action)) be.resumeTask();
+            else if ("cancel".equals(action)) be.cancelTask();
+            return json(new JSONObject().put("ok", true));
+        }
         if (path.equals("/api/ask") && method.equalsIgnoreCase("POST")) {
             JSONObject req = new JSONObject(body);
             String prompt = req.optString("prompt", "");
             String sid = req.optString("sessionId", "");
+            boolean regen = req.optBoolean("regenerate", false);
+            if (regen) {
+                // 重新生成：找最后一条 user 消息截断后重跑
+                AgentBackend be = AgentBackend.get();
+                Models.Session s = be.getSession(sid.isEmpty() ? null : sid);
+                if (s != null) {
+                    // 截到最后一条 user
+                    int lastUser = -1;
+                    for (int i = s.messages.size() - 1; i >= 0; i--) {
+                        if ("user".equals(s.messages.get(i).role)) { lastUser = i; break; }
+                    }
+                    if (lastUser >= 0) {
+                        prompt = s.messages.get(lastUser).text;
+                        while (s.messages.size() > lastUser + 1) s.messages.remove(s.messages.size() - 1);
+                    }
+                }
+            }
             Map<String, Object> r = AgentBackend.get().askFreeForm(prompt, sid.isEmpty() ? null : sid);
             JSONObject o = new JSONObject();
             o.put("sessionId", String.valueOf(r.get("sessionId")));
@@ -254,6 +290,16 @@ public class WebUiService extends Service {
             o.put("running", r.get("running"));
             o.put("answer", r.get("answer"));
             o.put("statusLabel", r.get("statusLabel"));
+            // 返回工具步骤列表
+            JSONArray tools = new JSONArray();
+            AgentBackend be = AgentBackend.get();
+            Models.Session s2 = be.getSession(String.valueOf(r.get("sessionId")));
+            if (s2 != null) {
+                for (Models.Message m : s2.messages) {
+                    if ("tool".equals(m.role)) tools.put(m.text);
+                }
+            }
+            o.put("tools", tools);
             return json(o);
         }
         return json(new JSONObject().put("error", "not found").put("path", path), 404, "Not Found");
