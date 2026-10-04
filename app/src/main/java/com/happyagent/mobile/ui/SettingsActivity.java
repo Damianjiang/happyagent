@@ -42,6 +42,9 @@ public class SettingsActivity extends AppCompatActivity {
         com.google.android.material.appbar.MaterialToolbar t =
                 (com.google.android.material.appbar.MaterialToolbar) findViewById(R.id.set_toolbar);
         t.setNavigationOnClickListener(v -> finish());
+        // 从设置列表跳来时传标题（"外观·行为"/"个性化"/"容器环境" 等），覆盖默认"设置"
+        String sectionTitle = getIntent().getStringExtra("SETTINGS_TITLE");
+        if (sectionTitle != null && !sectionTitle.isEmpty()) t.setTitle(sectionTitle);
 
         bindThemeButtons();
         bindAccentRow();

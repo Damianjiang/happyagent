@@ -48,22 +48,22 @@ public class SettingsListFragment extends Fragment {
                 iv -> startActivity(new Intent(ctx, ModelConfigActivity.class))));
         feature.addView(row(ctx, R.drawable.ic_nav_config, C_GREEN, "外观 · 行为",
                 "主题 · 强调色 · 字号 · 震动 · 摇一摇 · 朗读",
-                iv -> startActivity(new Intent(ctx, SettingsActivity.class))));
+                iv -> startActivity(settingsIntent(ctx, "外观 · 行为"))));
         feature.addView(row(ctx, R.drawable.ic_gear, C_ORANGE, "个性化",
                 "角色卡 · 提示词编辑 · 标签 / 提示词片段 · AI 生成角色卡",
-                iv -> startActivity(new Intent(ctx, SettingsActivity.class))));
+                iv -> startActivity(settingsIntent(ctx, "个性化"))));
         feature.addView(row(ctx, R.drawable.ic_nav_tools, C_TEAL, "容器环境",
                 "免 root Alpine：一键部署 · 状态 · 终端",
-                iv -> startActivity(new Intent(ctx, SettingsActivity.class))));
+                iv -> startActivity(settingsIntent(ctx, "容器环境"))));
         feature.addView(row(ctx, R.drawable.ic_nav_tools, C_AMBER, "GUI 自动化",
                 "无障碍服务开关状态",
-                iv -> startActivity(new Intent(ctx, SettingsActivity.class))));
+                iv -> startActivity(settingsIntent(ctx, "GUI 自动化"))));
         feature.addView(row(ctx, R.drawable.ic_stat_web, C_CYAN, "Web 服务",
                 "在浏览器访问这台手机的智能体",
-                iv -> startActivity(new Intent(ctx, SettingsActivity.class))));
+                iv -> startActivity(settingsIntent(ctx, "Web 服务"))));
         feature.addView(row(ctx, R.drawable.ic_file, C_PURPLE, "数据管理",
                 "授权目录 · 撤销授权 · 清除会话",
-                iv -> startActivity(new Intent(ctx, SettingsActivity.class))));
+                iv -> startActivity(settingsIntent(ctx, "数据管理"))));
         feature.addView(row(ctx, R.drawable.ic_nav_reports, C_GRAY, "系统诊断",
                 "会话 / 工具 / 运行时 状态快照",
                 iv -> startActivity(new Intent(ctx, DiagnosticsActivity.class))));
@@ -94,6 +94,10 @@ public class SettingsListFragment extends Fragment {
                         .putExtra(FeatureHostActivity.EXTRA_FRAGMENT, "files")
                         .putExtra(FeatureHostActivity.EXTRA_TITLE, "文件"))));
         return v;
+    }
+
+    private Intent settingsIntent(Context ctx, String title) {
+        return new Intent(ctx, SettingsActivity.class).putExtra("SETTINGS_TITLE", title);
     }
 
     // 原生设置行：彩色圆底白图标 + 标题/副标题，整行可点

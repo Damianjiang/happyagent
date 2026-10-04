@@ -106,11 +106,5 @@ public class MainActivity extends AppCompatActivity {
         return settingsListFragment;
     }
 
-    // 右下角加号：随手开个新会话就去跑任务
-    public void onFabClick(View v) {
-        String id = AgentBackend.get().createSession("快速任务", null);
-        Intent i = new Intent(this, SessionDetailActivity.class);
-        i.putExtra(SessionDetailActivity.EXTRA_SESSION_ID, id);
-        startActivity(i);
-    }
+    // 右下角加号已去掉，新对话入口改到首页（SessionsFragment 顶部按钮）
 }

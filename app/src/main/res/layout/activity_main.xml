@@ -24,41 +24,25 @@
     </com.google.android.material.appbar.AppBarLayout>
 
     <FrameLayout
+        android:id="@+id/fragment_container"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:layout_marginBottom="56dp"
-        app:layout_behavior="@string/appbar_scrolling_view_behavior">
-
-        <FrameLayout
-            android:id="@+id/fragment_container"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent" />
-    </FrameLayout>
-
-    <com.google.android.material.floatingactionbutton.FloatingActionButton
-        android:id="@+id/fab_new_task"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:onClick="onFabClick"
-        android:src="@drawable/ic_add"
-        app:backgroundTint="?attr/colorPrimary"
-        android:contentDescription="@string/new_task"
-        app:layout_anchor="@id/bottom_nav"
-        app:layout_anchorGravity="top|end"
-        android:layout_marginTop="12dp"
-        android:layout_marginEnd="16dp" />
+        android:layout_marginBottom="48dp"
+        app:layout_behavior="@string/appbar_scrolling_view_behavior" />
 
     <com.google.android.material.bottomnavigation.BottomNavigationView
         android:id="@+id/bottom_nav"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="48dp"
         android:layout_gravity="bottom"
         android:background="?attr/colorSurface"
         android:elevation="0dp"
         app:menu="@menu/bottom_nav_menu"
         app:itemIconTint="@color/nav_item_color"
         app:itemTextColor="@color/nav_item_color"
-        app:labelVisibilityMode="labeled"
-        app:elevation="0dp" />
+        app:labelVisibilityMode="unlabeled"
+        app:itemIconSize="24dp"
+        app:itemPaddingTop="8dp"
+        app:itemPaddingBottom="8dp" />
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

@@ -48,6 +48,9 @@ public class SessionsFragment extends Fragment {
         empty = v.findViewById(R.id.sessions_empty);
         createBtn = v.findViewById(R.id.sessions_create);
         createBtn.setOnClickListener(view -> newSessionAndOpen());
+        // 顶部"新对话"按钮（始终可见，不用翻到空态才找得到）
+        com.google.android.material.button.MaterialButton newBtn = v.findViewById(R.id.sessions_new);
+        if (newBtn != null) newBtn.setOnClickListener(view2 -> newSessionAndOpen());
         recycler.setLayoutManager(new LinearLayoutManager(getContext()));
         adapter = new SessionAdapter(new ArrayList<Session>());
         recycler.setAdapter(adapter);

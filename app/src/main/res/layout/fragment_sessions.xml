@@ -4,6 +4,16 @@
     android:layout_height="match_parent"
     android:orientation="vertical">
 
+    <!-- 新对话按钮：始终可见，点一下就开新会话 -->
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/sessions_new"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_margin="16dp"
+        android:text="＋ 新对话"
+        android:textSize="14sp"
+        style="@style/Widget.App.Button" />
+
     <ProgressBar
         android:id="@+id/sessions_progress"
         android:layout_width="wrap_content"
@@ -58,12 +68,14 @@
         android:layout_height="wrap_content"
         android:layout_gravity="center_horizontal"
         android:layout_marginTop="4dp"
-        android:layout_marginBottom="16dp"
-        android:paddingLeft="22dp"
-        android:paddingRight="22dp"
-        android:text="@string/create_first_session"
+        android:layout_marginBottom="8dp"
+        android:paddingLeft="18dp"
+        android:paddingRight="18dp"
+        android:paddingTop="6dp"
+        android:paddingBottom="6dp"
+        android:text="＋ 新建对话"
+        android:textSize="13sp"
         android:letterSpacing="0.02"
-        android:visibility="gone"
         style="@style/Widget.App.Button" />
 
     <EditText
