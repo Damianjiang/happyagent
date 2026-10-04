@@ -522,36 +522,34 @@ public final class AgentBackend {
     }
 
     private void persistNow() {
+        // 锁里只做快照（极短），写磁盘放锁外——不卡 UI 读
+        State st;
         synchronized (lock) {
-            try {
-                State st = new State();
-                st.sessions = new ArrayList<Session>(sessions);
-                st.tools = new ArrayList<Tool>(tools);
-                st.config = config;
-
-                // 原子写：先写 tmp 再 rename，防崩在中间态导致旧存档丢失
-                File tmp = new File(storeDir, "state.ser.tmp");
-                File dest = new File(storeDir, "state.ser");
-                FileOutputStream fos = new FileOutputStream(tmp);
-                ObjectOutputStream oos = new ObjectOutputStream(fos);
-                oos.writeObject(st);
-                oos.close();
-                fos.close();
-                if (!tmp.renameTo(dest)) {
-                    // rename 失败兜底：直接覆盖写
-                    FileOutputStream f2 = new FileOutputStream(dest);
-                    ObjectInputStream ois = new ObjectInputStream(new FileInputStream(tmp));
-                    byte[] data = readAll(ois);
-                    ois.close();
-                    f2.write(data);
-                    f2.close();
-                    tmp.delete();
-                } else {
-                    // 成功 rename，tmp 已不存在
-                }
-            } catch (IOException e) {
-                Log.e(TAG, "persist failed", e);
+            st = new State();
+            st.sessions = new ArrayList<Session>(sessions);
+            st.tools = new ArrayList<Tool>(tools);
+            st.config = config;
+        }
+        try {
+            // 原子写：先写 tmp 再 rename，防崩在中间态导致旧存档丢失
+            File tmp = new File(storeDir, "state.ser.tmp");
+            File dest = new File(storeDir, "state.ser");
+            FileOutputStream fos = new FileOutputStream(tmp);
+            ObjectOutputStream oos = new ObjectOutputStream(fos);
+            oos.writeObject(st);
+            oos.close();
+            fos.close();
+            if (!tmp.renameTo(dest)) {
+                FileOutputStream f2 = new FileOutputStream(dest);
+                ObjectInputStream ois = new ObjectInputStream(new FileInputStream(tmp));
+                byte[] data = readAll(ois);
+                ois.close();
+                f2.write(data);
+                f2.close();
+                tmp.delete();
             }
+        } catch (IOException e) {
+            Log.e(TAG, "persist failed", e);
         }
     }
 

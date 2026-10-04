@@ -98,10 +98,14 @@ public final class GuardService extends AccessibilityService {
                 if (root == null) {
                     return "（无前台窗口：无障碍服务未启用，或当前无可见界面）";
                 }
-                StringBuilder sb = new StringBuilder();
-                int[] cnt = new int[]{0};
-                walk(root, 0, sb, cnt);
-                return sb.length() == 0 ? "（当前屏幕无可交互节点）" : sb.toString();
+                try {
+                    StringBuilder sb = new StringBuilder();
+                    int[] cnt = new int[]{0};
+                    walk(root, 0, sb, cnt);
+                    return sb.length() == 0 ? "（当前屏幕无可交互节点）" : sb.toString();
+                } finally {
+                    root.recycle();
+                }
             }
         }, 8000);
     }
@@ -128,7 +132,13 @@ public final class GuardService extends AccessibilityService {
         if (depth > 30) return;
         for (int i = 0; i < n.getChildCount(); i++) {
             AccessibilityNodeInfo ch = n.getChild(i);
-            if (ch != null) walk(ch, depth + 1, out, cnt);
+            if (ch != null) {
+                try {
+                    walk(ch, depth + 1, out, cnt);
+                } finally {
+                    ch.recycle();
+                }
+            }
         }
     }
 
