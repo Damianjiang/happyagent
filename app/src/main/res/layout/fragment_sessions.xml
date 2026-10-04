@@ -1,95 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- 会话首页：搜索置顶 → 新对话按钮 → 列表/空态（叠加），布局顺序固定不乱 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical">
 
-    <!-- 新对话按钮：始终可见，点一下就开新会话 -->
-    <com.google.android.material.button.MaterialButton
-        android:id="@+id/sessions_new"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_margin="16dp"
-        android:text="＋ 新对话"
-        android:textSize="14sp"
-        style="@style/Widget.App.Button" />
-
-    <ProgressBar
-        android:id="@+id/sessions_progress"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="center"
-        android:layout_margin="24dp"
-        android:visibility="gone" />
-
-    <!-- 空会话：居中星标 + 主副文案 + 主色按钮（留白节奏，不做成"没内容"的灰字） -->
-    <LinearLayout
-        android:id="@+id/sessions_empty"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
-        android:orientation="vertical"
-        android:gravity="center"
-        android:padding="40dp"
-        android:visibility="gone">
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:includeFontPadding="false"
-            android:text="✦"
-            android:textSize="34sp"
-            android:textColor="?attr/colorPrimary" />
-
-        <TextView
-            android:id="@+id/sessions_empty_title"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:text="还没有会话"
-            android:textSize="17sp"
-            android:textStyle="bold"
-            android:letterSpacing="0.02"
-            android:textColor="?attr/colorOnSurface" />
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="6dp"
-            android:gravity="center"
-            android:lineSpacingExtra="3dp"
-            android:text="点下方开始第一个任务，\n或直接在底部输入框描述要做的事"
-            android:textSize="13sp"
-            android:textColor="?attr/colorOnSurfaceVariant" />
-    </LinearLayout>
-
-    <com.google.android.material.button.MaterialButton
-        android:id="@+id/sessions_create"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="center_horizontal"
-        android:layout_marginTop="4dp"
-        android:layout_marginBottom="8dp"
-        android:paddingLeft="18dp"
-        android:paddingRight="18dp"
-        android:paddingTop="6dp"
-        android:paddingBottom="6dp"
-        android:text="＋ 新建对话"
-        android:textSize="13sp"
-        android:letterSpacing="0.02"
-        style="@style/Widget.App.Button" />
-
+    <!-- 搜索栏固定在最顶上，任何状态都可见 -->
     <EditText
         android:id="@+id/sessions_search"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginLeft="12dp"
-        android:layout_marginRight="12dp"
+        android:layout_marginLeft="16dp"
+        android:layout_marginRight="16dp"
         android:layout_marginTop="12dp"
-        android:layout_marginBottom="4dp"
         android:background="@drawable/bg_input"
-        android:padding="10dp"
-        android:textSize="13sp"
+        android:padding="12dp"
+        android:textSize="14sp"
         android:textColor="?attr/colorOnSurface"
         android:textColorHint="?attr/colorOnSurfaceVariant"
         android:hint="搜索会话标题…"
@@ -97,13 +23,78 @@
         android:maxLines="1"
         android:imeOptions="actionSearch" />
 
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/sessions_recycler"
+    <!-- 新对话：始终可见 -->
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/sessions_new"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginLeft="16dp"
+        android:layout_marginRight="16dp"
+        android:layout_marginTop="10dp"
+        android:text="＋ 新对话"
+        android:textSize="14sp"
+        style="@style/Widget.App.Button" />
+
+    <!-- 内容区：列表 + 空态 + 进度三层叠放，不再挤动上面的搜索/按钮 -->
+    <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_weight="1"
-        android:clipToPadding="false"
-        android:padding="12dp"
-        android:scrollbars="vertical" />
+        android:layout_weight="1">
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/sessions_recycler"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:clipToPadding="false"
+            android:padding="12dp"
+            android:scrollbars="vertical" />
+
+        <!-- 空会话：居中星标 + 主副文案 -->
+        <LinearLayout
+            android:id="@+id/sessions_empty"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:padding="40dp"
+            android:visibility="gone">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:includeFontPadding="false"
+                android:text="✦"
+                android:textSize="34sp"
+                android:textColor="?attr/colorPrimary" />
+
+            <TextView
+                android:id="@+id/sessions_empty_title"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:text="还没有会话"
+                android:textSize="17sp"
+                android:textStyle="bold"
+                android:letterSpacing="0.02"
+                android:textColor="?attr/colorOnSurface" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:gravity="center"
+                android:lineSpacingExtra="3dp"
+                android:text="点上方「＋ 新对话」开第一个任务，\n或直接在底部输入框描述要做的事"
+                android:textSize="13sp"
+                android:textColor="?attr/colorOnSurfaceVariant" />
+        </LinearLayout>
+
+        <ProgressBar
+            android:id="@+id/sessions_progress"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:visibility="gone" />
+    </FrameLayout>
 
 </LinearLayout>

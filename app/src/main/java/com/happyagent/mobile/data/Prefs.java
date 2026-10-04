@@ -16,7 +16,7 @@ public final class Prefs {
     public static final String KEY_FIRST_LAUNCH = "first_launch";
     public static final String KEY_STORAGE_URI = "storage_uri";
 
-    // 个性化：主题三态（0 跟随系统 / 1 浅色 / 2 暗色）
+    // 个性化：主题（0 跟随系统 / 1 浅色 / 2 暗色 / 3 灰底）
     public static final String KEY_THEME_MODE = "theme_mode";
     // 个性化：强调色下标（0 默认蓝 / 1 青 / 2 苔绿 / 3 砖红 / 4 琥珀）
     public static final String KEY_ACCENT = "accent";
@@ -41,10 +41,11 @@ public final class Prefs {
     public static final int NIGHT_NO = AppCompatDelegate.MODE_NIGHT_NO;
     public static final int NIGHT_YES = AppCompatDelegate.MODE_NIGHT_YES;
 
-    // 主题三态取值
+    // 主题取值（0 跟随系统 / 1 浅色 / 2 暗色 / 3 灰底）
     public static final int THEME_FOLLOW = 0;
     public static final int THEME_LIGHT = 1;
     public static final int THEME_DARK = 2;
+    public static final int THEME_GRAY = 3;
 
     // 强调色下标
     public static final int ACCENT_DEFAULT = 0, ACCENT_TEAL = 1, ACCENT_MOSS = 2,

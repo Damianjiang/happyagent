@@ -62,8 +62,34 @@
             android:stateNotNeeded="true"
             android:noHistory="true" />
 
+        <!-- 设置各功能独立页（每个功能一屏，不再共用综合大页） -->
         <activity
-            android:name=".ui.SettingsActivity"
+            android:name=".ui.AppearanceSettingsActivity"
+            android:exported="false"
+            android:parentActivityName=".ui.MainActivity" />
+
+        <activity
+            android:name=".ui.RoleCardActivity"
+            android:exported="false"
+            android:parentActivityName=".ui.MainActivity" />
+
+        <activity
+            android:name=".ui.PromptSettingsActivity"
+            android:exported="false"
+            android:parentActivityName=".ui.MainActivity" />
+
+        <activity
+            android:name=".ui.ContainerSettingsActivity"
+            android:exported="false"
+            android:parentActivityName=".ui.MainActivity" />
+
+        <activity
+            android:name=".ui.GuiSettingsActivity"
+            android:exported="false"
+            android:parentActivityName=".ui.MainActivity" />
+
+        <activity
+            android:name=".ui.WebSettingsActivity"
             android:exported="false"
             android:parentActivityName=".ui.MainActivity" />
 

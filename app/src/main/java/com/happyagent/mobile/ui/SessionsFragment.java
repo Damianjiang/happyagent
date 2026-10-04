@@ -34,7 +34,6 @@ public class SessionsFragment extends Fragment {
     private ProgressBar progress;
     // sessions_empty 现为容器（星标+文案），只 setVisibility，View 类型即可
     private View empty;
-    private com.google.android.material.button.MaterialButton createBtn;
     private EditText searchBox;
     private SessionAdapter adapter;
     // 全量缓存（含搜索过滤后再喂 adapter；搜索只是"过滤"，不真删）
@@ -46,9 +45,7 @@ public class SessionsFragment extends Fragment {
         recycler = v.findViewById(R.id.sessions_recycler);
         progress = v.findViewById(R.id.sessions_progress);
         empty = v.findViewById(R.id.sessions_empty);
-        createBtn = v.findViewById(R.id.sessions_create);
-        createBtn.setOnClickListener(view -> newSessionAndOpen());
-        // 顶部"新对话"按钮（始终可见，不用翻到空态才找得到）
+        // 顶部"新对话"按钮（搜索栏下方，始终可见）
         com.google.android.material.button.MaterialButton newBtn = v.findViewById(R.id.sessions_new);
         if (newBtn != null) newBtn.setOnClickListener(view2 -> newSessionAndOpen());
         recycler.setLayoutManager(new LinearLayoutManager(getContext()));
@@ -82,13 +79,14 @@ public class SessionsFragment extends Fragment {
         if (isEmpty) {
             empty.setVisibility(View.VISIBLE);
             android.widget.TextView emptyTitle = (android.widget.TextView) empty.findViewById(R.id.sessions_empty_title);
-            if (!q.isEmpty() && emptyTitle != null) {
-                emptyTitle.setText("未找到匹配「" + q + "」的会话");
+            if (emptyTitle != null) {
+                // 空结果时给搜索反馈；清空搜索词则恢复默认文案（避免残留旧提示）
+                emptyTitle.setText(q.isEmpty() ? "还没有会话"
+                        : "未找到匹配「" + q + "」的会话");
             }
         } else {
             empty.setVisibility(View.GONE);
         }
-        createBtn.setVisibility(isEmpty ? View.VISIBLE : View.GONE);
     }
 
     @Override

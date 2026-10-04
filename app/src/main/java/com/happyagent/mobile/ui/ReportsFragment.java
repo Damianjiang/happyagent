@@ -69,7 +69,7 @@ public class ReportsFragment extends Fragment {
         return v;
     }
 
-    // 诊断页"能改的行"点一下直接跳去能改的页（运行时/模型接入→模型接入页；个性化/Web/能力状态→设置页）
+    // 诊断页"能改的行"点一下直接跳去对应独立功能页
     private void bindHeaderClicks(View v) {
         android.content.Context ctx = requireContext();
         v.findViewById(R.id.reports_hdr_runtime).setOnClickListener(vv ->
@@ -77,11 +77,11 @@ public class ReportsFragment extends Fragment {
         v.findViewById(R.id.reports_hdr_provider).setOnClickListener(vv ->
                 startActivity(new Intent(ctx, ModelConfigActivity.class)));
         v.findViewById(R.id.reports_hdr_personal).setOnClickListener(vv ->
-                startActivity(new Intent(ctx, SettingsActivity.class)));
+                startActivity(new Intent(ctx, AppearanceSettingsActivity.class)));
         v.findViewById(R.id.reports_hdr_web).setOnClickListener(vv ->
-                startActivity(new Intent(ctx, SettingsActivity.class)));
+                startActivity(new Intent(ctx, WebSettingsActivity.class)));
         v.findViewById(R.id.reports_hdr_capability).setOnClickListener(vv ->
-                startActivity(new Intent(ctx, SettingsActivity.class)));
+                startActivity(new Intent(ctx, GuiSettingsActivity.class)));
     }
 
     void load() {

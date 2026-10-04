@@ -35,22 +35,28 @@ public final class ThemeUtil {
             default: break;
         }
         a.setTheme(resId);
+        // 灰色背景模式：在强调色主题之上叠一层灰底（只改背景/表面色，强调色保留）
+        if (p.getInt(Prefs.KEY_THEME_MODE, Prefs.THEME_FOLLOW) == Prefs.THEME_GRAY) {
+            a.getTheme().applyStyle(R.style.AppTheme_GrayBg, true);
+        }
     }
 
-    // 三态转 AppCompat 夜间模式
+    // 主题模式转 AppCompat 夜间模式（灰色固定走浅色底）
     public static int nightModeOf(int themeMode) {
         switch (themeMode) {
             case Prefs.THEME_LIGHT: return AppCompatDelegate.MODE_NIGHT_NO;
             case Prefs.THEME_DARK:  return AppCompatDelegate.MODE_NIGHT_YES;
+            case Prefs.THEME_GRAY:  return AppCompatDelegate.MODE_NIGHT_NO;
             default:                return AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM;
         }
     }
 
-    // 三态取 label（设置页分段按钮用）
+    // 主题模式取 label（设置页分段按钮用）
     public static String modeLabel(int themeMode) {
         switch (themeMode) {
             case Prefs.THEME_LIGHT: return "浅色";
             case Prefs.THEME_DARK:  return "暗色";
+            case Prefs.THEME_GRAY:  return "灰色";
             default:                return "跟随系统";
         }
     }

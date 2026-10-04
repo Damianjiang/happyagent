@@ -16,8 +16,7 @@ import androidx.fragment.app.Fragment;
 
 import com.happyagent.mobile.R;
 
-// 设置列表：纯文字行（不画花里胡哨的图标圆了，之前那些 shape 小尺寸渲染全糊）
-// 每行 = 标题 + 副标题 + 右箭头，整行可点
+// 设置列表：纯文字行 + 右箭头。每行跳自己的独立功能页（不再共用一张综合大页）。
 public class SettingsListFragment extends Fragment {
 
     @Override
@@ -27,25 +26,27 @@ public class SettingsListFragment extends Fragment {
         LinearLayout feature = v.findViewById(R.id.settings_list);
         LinearLayout tools = v.findViewById(R.id.tools_files_list);
 
-        // 功能设置
+        // 每行 = 独立页
         feature.addView(row(ctx, "模型接入", "供应商 · 模型 · 温度 · 最大步数",
                 () -> startActivity(new Intent(ctx, ModelConfigActivity.class))));
+        feature.addView(row(ctx, "角色卡", "角色名 · 设定 · 预设 · AI 生成",
+                () -> startActivity(new Intent(ctx, RoleCardActivity.class))));
         feature.addView(row(ctx, "外观 · 行为", "主题 · 强调色 · 字号 · 震动 · 朗读",
-                () -> startActivity(settingsIntent(ctx, "外观"))));
+                () -> startActivity(new Intent(ctx, AppearanceSettingsActivity.class))));
         feature.addView(row(ctx, "提示词 / Skill", "自定义系统提示词 · 标签片段",
-                () -> startActivity(settingsIntent(ctx, "提示词"))));
+                () -> startActivity(new Intent(ctx, PromptSettingsActivity.class))));
         feature.addView(row(ctx, "容器环境", "免 root Alpine 终端 · 一键部署",
-                () -> startActivity(settingsIntent(ctx, "容器"))));
+                () -> startActivity(new Intent(ctx, ContainerSettingsActivity.class))));
         feature.addView(row(ctx, "GUI 自动化", "无障碍服务状态",
-                () -> startActivity(settingsIntent(ctx, "GUI"))));
+                () -> startActivity(new Intent(ctx, GuiSettingsActivity.class))));
         feature.addView(row(ctx, "Web 服务", "电脑/手机浏览器访问智能体",
-                () -> startActivity(settingsIntent(ctx, "Web"))));
+                () -> startActivity(new Intent(ctx, WebSettingsActivity.class))));
         feature.addView(row(ctx, "系统诊断", "会话 / 工具 / 运行时快照",
                 () -> startActivity(new Intent(ctx, DiagnosticsActivity.class))));
         feature.addView(row(ctx, "关于 · 版本", AboutDialog.versionOf(ctx),
                 () -> AboutDialog.show(ctx)));
 
-        // 文件管理
+        // 工具与文件组
         tools.addView(row(ctx, "文件管理", "工作区浏览 · 编辑 · 压缩",
                 () -> startActivity(new Intent(ctx, FeatureHostActivity.class)
                         .putExtra(FeatureHostActivity.EXTRA_FRAGMENT, "files")
@@ -53,11 +54,7 @@ public class SettingsListFragment extends Fragment {
         return v;
     }
 
-    private Intent settingsIntent(Context ctx, String title) {
-        return new Intent(ctx, SettingsActivity.class).putExtra("SETTINGS_TITLE", title);
-    }
-
-    // 纯文字行：标题 + 副标题 + 右箭头，无图标（之前彩色圆底小 shape 全糊）
+    // 纯文字行：标题 + 副标题 + 右箭头，整行可点
     private View row(Context ctx, String title, String subtitle, Runnable onClick) {
         int d = (int) ctx.getResources().getDisplayMetrics().density;
         LinearLayout row = new LinearLayout(ctx);
@@ -91,7 +88,6 @@ public class SettingsListFragment extends Fragment {
 
         row.addView(mid);
 
-        // 右箭头
         TextView arrow = new TextView(ctx);
         arrow.setText("→");
         arrow.setTextSize(16);

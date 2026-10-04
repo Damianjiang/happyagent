@@ -20,6 +20,17 @@ public final class AboutDialog {
                 + "填对应 API Key 即走真接口，离线也能用本地模拟引擎。\n"
                 + "支持多步工具调用、任务暂停/继续/取消、\n"
                 + "真实文件 / Shell 沙箱、崩溃自动兜底。");
+        b.setNeutralButton("清除全部会话", (d, w) ->
+                new AlertDialog.Builder(ctx)
+                        .setTitle("清除全部会话？")
+                        .setMessage("所有会话与消息将被删除，不可恢复。")
+                        .setPositiveButton("清除", (d2, w2) -> {
+                            com.happyagent.mobile.data.AgentBackend.get().clearSessions();
+                            android.widget.Toast.makeText(ctx, "已清除全部会话",
+                                    android.widget.Toast.LENGTH_SHORT).show();
+                        })
+                        .setNegativeButton("取消", null)
+                        .show());
         b.setPositiveButton("知道了", null);
         b.show();
     }
