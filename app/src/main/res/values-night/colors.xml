@@ -1,42 +1,41 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 暗色：近黑底（纯黑闷，微蓝灰提一档），紫色系玻璃层感 -->
+<!-- 暗色：纯黑底 + 琥珀金强调（开心暗面） -->
 <resources>
     <!-- 暗色下强调色提亮 -->
-    <color name="acc_default">#9B8FD0</color>
+    <color name="acc_default">#FFC832</color>
     <color name="acc_teal">#5CCFC4</color>
     <color name="acc_moss">#8FBF4E</color>
     <color name="acc_rust">#E88BA4</color>
     <color name="acc_amber">#D4A854</color>
-    <!-- 亮强调色上文字用墨色 -->
-    <color name="acc_on">#0F0F13</color>
+    <color name="acc_on">#000000</color>
 
-    <!-- 基底 -->
-    <color name="background">#0B0B0F</color>
-    <color name="surface">#131318</color>
-    <color name="surface_variant">#1B1B22</color>
-    <color name="on_surface">#E4E4EA</color>
-    <color name="on_surface_variant">#7E7E8A</color>
-    <color name="outline">#282830</color>
-    <color name="hairline">#1A1A22</color>
+    <!-- 基底：纯黑 -->
+    <color name="background">#000000</color>
+    <color name="surface">#0A0A0A</color>
+    <color name="surface_variant">#141414</color>
+    <color name="on_surface">#F0F0F0</color>
+    <color name="on_surface_variant">#808080</color>
+    <color name="outline">#222222</color>
+    <color name="hairline">#111111</color>
 
     <!-- 状态色 -->
     <color name="status_done">#4EC98C</color>
-    <color name="status_done_bg">#14281E</color>
+    <color name="status_done_bg">#0E2A18</color>
     <color name="status_failed">#E85866</color>
     <color name="status_paused">#D4A854</color>
     <color name="error">#E85866</color>
 
-    <color name="on_primary">#0F0F13</color>
+    <color name="on_primary">#000000</color>
 
     <!-- 强调色容器 -->
-    <color name="acc_default_c">#26243E</color>
-    <color name="acc_default_c_on">#B9B3F0</color>
-    <color name="acc_teal_c">#142828</color>
+    <color name="acc_default_c">#3A2E0A</color>
+    <color name="acc_default_c_on">#FFD866</color>
+    <color name="acc_teal_c">#0E2828</color>
     <color name="acc_teal_c_on">#7EE8DE</color>
-    <color name="acc_moss_c">#1C2A14</color>
+    <color name="acc_moss_c">#142A0E</color>
     <color name="acc_moss_c_on">#B8DE7E</color>
-    <color name="acc_rust_c">#2C1A20</color>
+    <color name="acc_rust_c">#2C0E18</color>
     <color name="acc_rust_c_on">#F0A4B8</color>
-    <color name="acc_amber_c">#2C2414</color>
+    <color name="acc_amber_c">#2C240E</color>
     <color name="acc_amber_c_on">#EDCB8A</color>
 </resources>

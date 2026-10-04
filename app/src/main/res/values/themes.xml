@@ -66,6 +66,15 @@
         <item name="colorOnSecondaryContainer">@color/acc_amber_c_on</item>
     </style>
 
+    <!-- 灰色背景选项：中性灰 -->
+    <style name="AppTheme.GrayBg" parent="AppTheme">
+        <item name="android:colorBackground">#E8E8E8</item>
+        <item name="android:windowBackground">#E8E8E8</item>
+        <item name="colorSurface">#F5F5F5</item>
+        <item name="android:statusBarColor">#E8E8E8</item>
+        <item name="android:navigationBarColor">#E8E8E8</item>
+    </style>
+
     <!-- 按钮：10dp 圆角，不花哨 -->
     <style name="Widget.App.Button" parent="Widget.Material3.Button">
         <item name="cornerRadius">10dp</item>

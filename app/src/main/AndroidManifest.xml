@@ -15,6 +15,9 @@
     <!-- GUI 自动化：读屏幕结构 + 点按 + 输入（用户需在系统里手动开启） -->
     <uses-permission android:name="android.permission.BIND_ACCESSIBILITY_SERVICE"
         tools:ignore="MissingPermission" />
+    <!-- 存储（API 33 以下读外部文件用；33+ 走 SAF 不需要） -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
     <!-- 悬浮球：在应用上层画小圆球 -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
@@ -43,6 +46,11 @@
 
         <activity
             android:name=".ui.WelcomeActivity"
+            android:exported="false"
+            android:parentActivityName=".ui.MainActivity" />
+
+        <activity
+            android:name=".ui.PermissionGuideActivity"
             android:exported="false"
             android:parentActivityName=".ui.MainActivity" />
 

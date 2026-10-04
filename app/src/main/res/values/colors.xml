@@ -1,35 +1,35 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 浅色：干净紫灰。白底微灰，紫色系强调，不做花哨，留白多 -->
+<!-- 浅色：开心黄。暖奶油底 + 深棕文字 + 琥珀强调 -->
 <resources>
-    <!-- 强调色 5 选 1 -->
-    <color name="acc_default">#6B5BA0</color>
+    <!-- 强调色：快乐黄/琥珀系 -->
+    <color name="acc_default">#E8A317</color>
     <color name="acc_teal">#2A9D8F</color>
     <color name="acc_moss">#5B8C2A</color>
     <color name="acc_rust">#C44B6C</color>
-    <color name="acc_amber">#A07030</color>
+    <color name="acc_amber">#B07020</color>
     <color name="acc_on">#FFFFFF</color>
 
-    <!-- 基底：微灰白，不刺眼 -->
-    <color name="background">#F4F4F8</color>
+    <!-- 基底：暖奶油色（开心感） -->
+    <color name="background">#FFFBE8</color>
     <color name="surface">#FFFFFF</color>
-    <color name="surface_variant">#ECECf2</color>
-    <color name="on_surface">#1A1A2E</color>
-    <color name="on_surface_variant">#6A6A7A</color>
-    <color name="outline">#E0E0EA</color>
-    <color name="hairline">#F0F0F5</color>
+    <color name="surface_variant">#F5EDD4</color>
+    <color name="on_surface">#2A2210</color>
+    <color name="on_surface_variant">#7A7060</color>
+    <color name="outline">#EDE4CC</color>
+    <color name="hairline">#F5F0E0</color>
 
     <!-- 状态色 -->
     <color name="status_done">#2E8B57</color>
     <color name="status_done_bg">#E8F5E9</color>
     <color name="status_failed">#C0392B</color>
-    <color name="status_paused">#A07030</color>
+    <color name="status_paused">#B07020</color>
     <color name="error">#C0392B</color>
 
     <color name="on_primary">#FFFFFF</color>
 
     <!-- 强调色容器 -->
-    <color name="acc_default_c">#E4E0F5</color>
-    <color name="acc_default_c_on">#2A2050</color>
+    <color name="acc_default_c">#FFF0C0</color>
+    <color name="acc_default_c_on">#5A3E00</color>
     <color name="acc_teal_c">#D4F0EE</color>
     <color name="acc_teal_c_on">#0E3D3A</color>
     <color name="acc_moss_c">#E0EDD4</color>

@@ -1,5 +1,6 @@
 package com.happyagent.mobile.ui;
 
+import android.content.Intent;
 import android.os.Bundle;
 
 import androidx.appcompat.app.AppCompatActivity;
@@ -22,7 +23,8 @@ public class WelcomeActivity extends AppCompatActivity {
     }
 
     private void enterApp() {
-        new Prefs(this).putBoolean(Prefs.KEY_FIRST_LAUNCH, true);
-        finish();   // 回到背后已铺好的主界面
+        // 进权限引导页，完了再落盘标记
+        startActivity(new Intent(this, PermissionGuideActivity.class));
+        finish();
     }
 }

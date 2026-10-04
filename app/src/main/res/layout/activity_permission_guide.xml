@@ -1,0 +1,187 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 权限引导：简洁列表，每行一个权限 -->
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="?android:colorBackground">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="20dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="开心办公 需要以下权限"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            android:textColor="?attr/colorOnSurface"
+            android:layout_marginBottom="4dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="不给也能用，部分功能会少。随时可在设置里关闭。"
+            android:textSize="13sp"
+            android:textColor="?attr/colorOnSurfaceVariant"
+            android:layout_marginBottom="20dp" />
+
+        <!-- 网络 -->
+        <LinearLayout
+            android:id="@+id/perm_net"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:padding="14dp"
+            android:background="?attr/colorSurface">
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="网络访问"
+                    android:textSize="14sp" android:textStyle="bold"
+                    android:textColor="?attr/colorOnSurface" />
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="调 AI 接口要用（自动给，不用手动操作）"
+                    android:textSize="12sp" android:textColor="?attr/colorOnSurfaceVariant"
+                    android:layout_marginTop="2dp" />
+            </LinearLayout>
+            <TextView
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="已自动授权"
+                android:textSize="11sp" android:textStyle="bold"
+                android:textColor="@color/status_done" />
+        </LinearLayout>
+
+        <!-- 麦克风 -->
+        <LinearLayout
+            android:id="@+id/perm_mic"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:padding="14dp"
+            android:layout_marginTop="8dp"
+            android:background="?attr/colorSurface">
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="麦克风"
+                    android:textSize="14sp" android:textStyle="bold"
+                    android:textColor="?attr/colorOnSurface" />
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="语音输入（可选，不给也行）"
+                    android:textSize="12sp" android:textColor="?attr/colorOnSurfaceVariant"
+                    android:layout_marginTop="2dp" />
+            </LinearLayout>
+            <TextView
+                android:id="@+id/perm_mic_status"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:textSize="11sp" android:textStyle="bold"
+                android:layout_marginEnd="8dp"
+                android:textColor="?attr/colorOnSurfaceVariant" />
+            <Button
+                android:id="@+id/perm_mic_btn"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:background="@android:color/transparent"
+                android:textColor="?attr/colorPrimary" android:textSize="13sp"
+                android:padding="8dp" android:text="去授权" />
+        </LinearLayout>
+
+        <!-- 悬浮窗 -->
+        <LinearLayout
+            android:id="@+id/perm_overlay"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:padding="14dp"
+            android:layout_marginTop="8dp"
+            android:background="?attr/colorSurface">
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="悬浮窗"
+                    android:textSize="14sp" android:textStyle="bold"
+                    android:textColor="?attr/colorOnSurface" />
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="悬浮球（可选，不给就没悬浮球）"
+                    android:textSize="12sp" android:textColor="?attr/colorOnSurfaceVariant"
+                    android:layout_marginTop="2dp" />
+            </LinearLayout>
+            <TextView
+                android:id="@+id/perm_overlay_status"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:textSize="11sp" android:textStyle="bold"
+                android:layout_marginEnd="8dp"
+                android:textColor="?attr/colorOnSurfaceVariant" />
+            <Button
+                android:id="@+id/perm_overlay_btn"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:background="@android:color/transparent"
+                android:textColor="?attr/colorPrimary" android:textSize="13sp"
+                android:padding="8dp" android:text="去授权" />
+        </LinearLayout>
+
+        <!-- 存储 -->
+        <LinearLayout
+            android:id="@+id/perm_storage"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:padding="14dp"
+            android:layout_marginTop="8dp"
+            android:background="?attr/colorSurface">
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="外部存储"
+                    android:textSize="14sp" android:textStyle="bold"
+                    android:textColor="?attr/colorOnSurface" />
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="导入外部文件（可选）"
+                    android:textSize="12sp" android:textColor="?attr/colorOnSurfaceVariant"
+                    android:layout_marginTop="2dp" />
+            </LinearLayout>
+            <TextView
+                android:id="@+id/perm_storage_status"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:textSize="11sp" android:textStyle="bold"
+                android:layout_marginEnd="8dp"
+                android:textColor="?attr/colorOnSurfaceVariant" />
+            <Button
+                android:id="@+id/perm_storage_btn"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:background="@android:color/transparent"
+                android:textColor="?attr/colorPrimary" android:textSize="13sp"
+                android:padding="8dp" android:text="去授权" />
+        </LinearLayout>
+
+        <Button
+            android:id="@+id/perm_skip"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:text="跳过，开始使用"
+            android:textSize="14sp"
+            android:textColor="?attr/colorPrimary"
+            android:background="@android:color/transparent"
+            android:padding="12dp" />
+
+    </LinearLayout>
+</ScrollView>

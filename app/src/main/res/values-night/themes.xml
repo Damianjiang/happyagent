@@ -62,4 +62,13 @@
         <item name="colorSecondaryContainer">@color/acc_amber_c</item>
         <item name="colorOnSecondaryContainer">@color/acc_amber_c_on</item>
     </style>
+
+    <!-- 灰色背景（暗色下） -->
+    <style name="AppTheme.GrayBg" parent="AppTheme">
+        <item name="android:colorBackground">#1A1A1A</item>
+        <item name="android:windowBackground">#1A1A1A</item>
+        <item name="colorSurface">#222222</item>
+        <item name="android:statusBarColor">#1A1A1A</item>
+        <item name="android:navigationBarColor">#1A1A1A</item>
+    </style>
 </resources>
