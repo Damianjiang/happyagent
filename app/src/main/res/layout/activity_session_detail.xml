@@ -198,6 +198,19 @@
         </LinearLayout>
     </LinearLayout>
 
+    <!-- 重新生成：任务结束后显示，点一下重跑最后一条用户消息 -->
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/detail_regen"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:layout_marginTop="4dp"
+        android:layout_marginBottom="4dp"
+        android:text="重新生成"
+        android:textSize="12sp"
+        android:visibility="gone"
+        style="@style/Widget.App.Button.Text" />
+
     <!-- 待发送附件预览行：选了图片/文件后显示，点 × 移除 -->
     <HorizontalScrollView
         android:id="@+id/detail_attach_strip"

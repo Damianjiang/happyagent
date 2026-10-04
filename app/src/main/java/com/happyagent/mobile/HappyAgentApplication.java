@@ -2,8 +2,6 @@ package com.happyagent.mobile;
 
 import android.app.Application;
 
-import androidx.appcompat.app.AppCompatDelegate;
-
 import com.happyagent.mobile.data.AgentBackend;
 import com.happyagent.mobile.data.Prefs;
 import com.happyagent.mobile.data.TtsEngine;

@@ -21,7 +21,6 @@ public class FloatingBallService extends Service {
     private View ball;
     private WindowManager.LayoutParams lp;
     private int initWinX, initWinY;
-    private int lastRawX, lastRawY;
     private int firstRawX, firstRawY;
 
     @Override

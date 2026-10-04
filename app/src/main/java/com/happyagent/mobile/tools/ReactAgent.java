@@ -1052,18 +1052,15 @@ public final class ReactAgent {
             byte[] buf = new byte[65536];
             ByteArrayOutputStream bo = new ByteArrayOutputStream();
             int n;
-            // 内存上限：老机（尤其 6 台 2/3GB）多图同发时防 OOM，超上限就不带这张图
             while ((n = fis.read(buf)) != -1) {
-                if (bo.size() > MAX_IMAGE_BYTES) {
-                    fis.close();
-                    return null;
-                }
+                if (bo.size() > MAX_IMAGE_BYTES) return null;
                 bo.write(buf, 0, n);
             }
-            fis.close();
             return android.util.Base64.encodeToString(bo.toByteArray(), android.util.Base64.NO_WRAP);
         } catch (Exception e) {
             return null;
+        } finally {
+            if (fis != null) try { fis.close(); } catch (Exception ignored) {}
         }
     }
 

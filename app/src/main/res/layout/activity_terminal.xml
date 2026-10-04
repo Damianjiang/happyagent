@@ -152,6 +152,7 @@
             android:hint="apk add python3  …"
             android:inputType="text"
             android:maxLines="1"
+            android:imeOptions="actionGo"
             android:padding="12dp"
             android:textSize="13sp"
             android:textColor="?attr/colorOnSurface"

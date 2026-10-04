@@ -7,6 +7,7 @@
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- 语音输入：聊天页麦克风按钮用 SpeechRecognizer 听写填进输入框 -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <!-- Web 服务以前台常驻服务跑，挂一条不可滑掉的通知；dataSync 是其前台类型 -->

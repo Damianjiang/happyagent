@@ -124,32 +124,38 @@ public final class StorageAccess {
     // ---- 文本读写（编辑器用）----
     public static String readText(Context ctx, String docId) {
         Uri u = docUri(ctx, docId);
-        InputStream in;
+        InputStream in = null;
+        BufferedReader r = null;
         try {
             in = ctx.getContentResolver().openInputStream(u);
             if (in == null) return "";
-            BufferedReader r = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
+            r = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
             StringBuilder sb = new StringBuilder();
             char[] buf = new char[8192];
             int n;
             while ((n = r.read(buf)) != -1) sb.append(buf, 0, n);
-            r.close();
             return sb.toString();
         } catch (Exception e) {
             return "读取失败：" + e.getMessage();
+        } finally {
+            if (r != null) try { r.close(); } catch (Exception ignored) {}
+            if (in != null) try { in.close(); } catch (Exception ignored) {}
         }
     }
 
     public static String writeText(Context ctx, String docId, String content) {
         Uri u = docUri(ctx, docId);
+        OutputStreamWriter w = null;
         try {
-            OutputStreamWriter w = new OutputStreamWriter(
+            w = new OutputStreamWriter(
                     ctx.getContentResolver().openOutputStream(u), StandardCharsets.UTF_8);
             w.write(content == null ? "" : content);
-            w.close();
+            w.flush();
             return "已保存";
         } catch (Exception e) {
             return "保存失败：" + e.getMessage();
+        } finally {
+            if (w != null) try { w.close(); } catch (Exception ignored) {}
         }
     }
 

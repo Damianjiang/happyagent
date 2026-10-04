@@ -342,16 +342,6 @@ public final class ProotEnv {
         }
     }
 
-    private static int readFull(InputStream in, byte[] buf) throws Exception {
-        int got = 0;
-        while (got < buf.length) {
-            int r = in.read(buf, got, buf.length - got);
-            if (r < 0) break;
-            got += r;
-        }
-        return got == 0 ? -1 : got;
-    }
-
     private File safeJoin(File base, String name) {
         File a = new File(base, name).getAbsoluteFile();
         File b = base.getAbsoluteFile();
@@ -365,7 +355,7 @@ public final class ProotEnv {
         f.delete();
     }
 
-    // 探活：真跑一次 proot，能回 uid= 才说明容器能跑
+    // 探活：真跑一次 proot，能回 uid= 才说明容器能跑（10s 超时防挂死）
     public String probeExec() {
         if (abi == 3) {
             return "x86_64 设备需要 QEMU 才能跑 ARM/其它 rootfs，当前默认 aarch64/arm，暂不支持此架构容器。";
@@ -373,14 +363,32 @@ public final class ProotEnv {
         if (!prootBin.exists()) return "未部署：proot 二进制不存在";
         if (!rootfs.isDirectory()) return "未部署：rootfs 不存在";
         try {
-            Process proc = Runtime.getRuntime().exec(new String[]{
+            final Process proc = Runtime.getRuntime().exec(new String[]{
                     prootBin.getAbsolutePath(), "-0",
                     "-r", rootfs.getAbsolutePath(),
                     "-w", "/",
                     rootfs.getAbsolutePath() + "/bin/sh", "-c", "id"
             });
-            byte[] out = readAll(proc.getInputStream());
-            proc.waitFor();
+            final java.util.concurrent.ExecutorService p =
+                    java.util.concurrent.Executors.newFixedThreadPool(2);
+            final java.util.concurrent.Future<byte[]> fo = p.submit(() -> readAll(proc.getInputStream()));
+            final java.util.concurrent.Future<Boolean> fd = p.submit(new java.util.concurrent.Callable<Boolean>() {
+                @Override public Boolean call() throws Exception { proc.waitFor(); return true; }
+            });
+            boolean done;
+            try {
+                fd.get(10, java.util.concurrent.TimeUnit.SECONDS);
+                done = true;
+            } catch (Exception e) {
+                done = false;
+            }
+            if (!done) {
+                proc.destroy();
+                p.shutdownNow();
+                return "探活超时（10s）";
+            }
+            byte[] out = fo.get(3, java.util.concurrent.TimeUnit.SECONDS);
+            p.shutdown();
             String r = new String(out, StandardCharsets.UTF_8).trim();
             return r.isEmpty() ? "探活无输出（SELinux/执行权限被拒）" : r;
         } catch (Exception e) {

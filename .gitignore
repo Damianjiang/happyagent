@@ -52,3 +52,4 @@ _patch*.ps1
 _release*.ps1
 _upload*.ps1
 _verify*.ps1
+src/opencode-selective/

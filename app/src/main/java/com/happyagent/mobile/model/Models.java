@@ -85,6 +85,7 @@ public final class Models {
     }
 
     public static class Tool implements Serializable {
+        static final long serialVersionUID = 1L;
         public final String id;
         public final String name;
         public final String desc;
@@ -101,6 +102,7 @@ public final class Models {
     }
 
     public static class Config implements Serializable {
+        static final long serialVersionUID = 1L;
         // 三家供应商 id，老存档没有该字段（反序列化时为 null），getProvider() 归一为 openai
         public static final String PROVIDER_OPENAI = "openai";
         public static final String PROVIDER_GOOGLE = "google";

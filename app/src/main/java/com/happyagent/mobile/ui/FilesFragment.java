@@ -484,8 +484,11 @@ public class FilesFragment extends Fragment {
                         .setMessage(r.isDir ? "将删除整个目录及其内容，不可恢复。" : "不可恢复。")
                         .setPositiveButton("删除", new android.content.DialogInterface.OnClickListener() {
                             @Override public void onClick(android.content.DialogInterface d, int w) {
-                                toast(fileTools.delete(r.absPath));
-                                loadWs();
+                                final String delPath = r.absPath;
+                                bgRun(() -> {
+                                    String res = fileTools.delete(delPath);
+                                    ui(() -> { toast(res); loadWs(); });
+                                });
                             }
                         })
                         .setNegativeButton("取消", null)

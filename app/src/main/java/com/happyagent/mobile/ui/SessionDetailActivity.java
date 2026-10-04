@@ -107,6 +107,8 @@ public class SessionDetailActivity extends AppCompatActivity {
         pauseBtn.setOnClickListener(v -> { Haptics.tap(v); AgentBackend.get().pauseTask(); });
         resumeBtn.setOnClickListener(v -> { Haptics.tap(v); AgentBackend.get().resumeTask(); });
         cancelBtn.setOnClickListener(v -> { Haptics.tap(v); AgentBackend.get().cancelTask(); });
+        com.google.android.material.button.MaterialButton regenBtn = findViewById(R.id.detail_regen);
+        regenBtn.setOnClickListener(v -> regenerateLast());
         pickImage.setOnClickListener(v -> pick(PICK_IMAGE));
         pickFile.setOnClickListener(v -> pick(PICK_FILE));
         if (micBtn != null) micBtn.setOnClickListener(v -> toggleMic());
@@ -513,6 +515,8 @@ public class SessionDetailActivity extends AppCompatActivity {
     }
 
     private void startPolling() {
+        com.google.android.material.button.MaterialButton regenBtn = findViewById(R.id.detail_regen);
+        if (regenBtn != null) regenBtn.setVisibility(View.GONE);
         updateControls();
         if (pollTask == null) {
             pollTask = new Runnable() {
@@ -564,6 +568,44 @@ public class SessionDetailActivity extends AppCompatActivity {
         pollTask = null;
         sendBtn.setEnabled(true);
         updateControls();
+        // 任务成功后显示"重新生成"按钮
+        com.google.android.material.button.MaterialButton regenBtn = findViewById(R.id.detail_regen);
+        if (regenBtn != null && s != null && s.status == 2) {
+            regenBtn.setVisibility(View.VISIBLE);
+        }
+    }
+
+    // 重新生成：去掉最后一条 AI 回复 + 工具步骤，重跑最后一条用户消息
+    private void regenerateLast() {
+        com.google.android.material.button.MaterialButton regenBtn = findViewById(R.id.detail_regen);
+        if (regenBtn != null) regenBtn.setVisibility(View.GONE);
+        AgentBackend backend = AgentBackend.get();
+        com.happyagent.mobile.model.Models.Session s = backend.getSession(sessionId);
+        if (s == null || s.messages.isEmpty()) return;
+        // 找最后一条 user 消息的索引
+        int lastUserIdx = -1;
+        for (int i = s.messages.size() - 1; i >= 0; i--) {
+            if (s.messages.get(i).role.equals("user")) { lastUserIdx = i; break; }
+        }
+        if (lastUserIdx < 0) return;
+        String lastPrompt = s.messages.get(lastUserIdx).text;
+        List<Attachment> atts = s.messages.get(lastUserIdx).safeAttachments();
+        // 把消息截到 user 那条之前（丢掉 AI 回复和工具步骤）
+        synchronized (backend.getClass()) {
+            while (s.messages.size() > lastUserIdx + 1) s.messages.remove(s.messages.size() - 1);
+        }
+        adapter.submit(chatOf(s.messages));
+        updateEmpty();
+        // 重新跑
+        sendBtn.setEnabled(false);
+        liveToolCount = 0;
+        try {
+            backend.runTask(sessionId, lastPrompt, atts.isEmpty() ? null : atts);
+            startPolling();
+        } catch (Exception e) {
+            CrashHandler.showFrom(e);
+            sendBtn.setEnabled(true);
+        }
     }
 
     private List<Message> chatOf(List<Message> all) {
@@ -703,6 +745,7 @@ public class SessionDetailActivity extends AppCompatActivity {
 
         @Override
         public void onBindViewHolder(@NonNull VH h, int pos) {
+            h.expanded = false;   // 每次绑新数据重置展开态（复用 VH 防残留）
             Message m = items.get(pos);
             boolean isUser = m.role.equals("user");
             boolean isTool = m.role.equals("tool");

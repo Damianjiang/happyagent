@@ -149,10 +149,14 @@ public final class GuardService extends AccessibilityService {
             public String doIt() {
                 AccessibilityNodeInfo root = getRootInActiveWindow();
                 if (root == null) return "（无前台窗口）";
-                AccessibilityNodeInfo hit = findClickableByLabel(root, query);
-                if (hit == null) return "未找到文本含「" + query + "」的可点元素。用 gui_dump 先看当前屏幕。";
-                boolean ok = hit.performAction(AccessibilityNodeInfo.ACTION_CLICK);
-                return ok ? "已点「" + query + "」" : "点按失败（元素可能已失效，请重新 gui_dump）";
+                try {
+                    AccessibilityNodeInfo hit = findClickableByLabel(root, query);
+                    if (hit == null) return "未找到文本含「" + query + "」的可点元素。用 gui_dump 先看当前屏幕。";
+                    boolean ok = hit.performAction(AccessibilityNodeInfo.ACTION_CLICK);
+                    return ok ? "已点「" + query + "」" : "点按失败（元素可能已失效，请重新 gui_dump）";
+                } finally {
+                    root.recycle();
+                }
             }
         }, 8000);
     }
@@ -165,8 +169,10 @@ public final class GuardService extends AccessibilityService {
         if (n.isClickable() && label.toLowerCase().contains(q.toLowerCase())) return n;
         for (int i = 0; i < n.getChildCount(); i++) {
             AccessibilityNodeInfo ch = n.getChild(i);
+            if (ch == null) continue;
             AccessibilityNodeInfo r = findClickableByLabel(ch, q);
             if (r != null) return r;
+            ch.recycle();
         }
         return null;
     }
@@ -178,12 +184,16 @@ public final class GuardService extends AccessibilityService {
             public String doIt() {
                 AccessibilityNodeInfo root = getRootInActiveWindow();
                 if (root == null) return "（无前台窗口）";
-                AccessibilityNodeInfo ed = findEditable(root);
-                if (ed == null) return "当前屏幕没有可输入框。用 gui_dump 确认，或先点进输入框。";
-                Bundle args = new Bundle();
-                args.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text);
-                boolean ok = ed.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args);
-                return ok ? "已向可输入框写入文本" : "写入失败（元素可能已失效）";
+                try {
+                    AccessibilityNodeInfo ed = findEditable(root);
+                    if (ed == null) return "当前屏幕没有可输入框。用 gui_dump 确认，或先点进输入框。";
+                    Bundle args = new Bundle();
+                    args.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text);
+                    boolean ok = ed.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args);
+                    return ok ? "已向可输入框写入文本" : "写入失败（元素可能已失效）";
+                } finally {
+                    root.recycle();
+                }
             }
         }, 8000);
     }
@@ -193,8 +203,10 @@ public final class GuardService extends AccessibilityService {
         if (n.isEditable()) return n;
         for (int i = 0; i < n.getChildCount(); i++) {
             AccessibilityNodeInfo ch = n.getChild(i);
+            if (ch == null) continue;
             AccessibilityNodeInfo r = findEditable(ch);
             if (r != null) return r;
+            ch.recycle();
         }
         return null;
     }

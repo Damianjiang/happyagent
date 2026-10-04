@@ -60,7 +60,7 @@ public class TerminalActivity extends AppCompatActivity {
         out.append("容器内可跑：apk add / python / git / gcc 等（免 root）\n\n");
         runBtn.setOnClickListener(v -> run());
         input.setOnEditorActionListener((tv, actionId, ev) -> {
-            if (actionId == 100) { run(); return true; }
+            if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_GO) { run(); return true; }
             return false;
         });
         deployBtn.setOnClickListener(v -> startDeploy());
