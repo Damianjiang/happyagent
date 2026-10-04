@@ -72,7 +72,7 @@ public class FloatingBallService extends Service {
 
         wm.addView(ball, lp);
 
-        int touchSlop = (int) (20 * getResources().getDisplayMetrics().density);
+        int touchSlop = (int) (8 * getResources().getDisplayMetrics().density);
 
         ball.setOnTouchListener(new View.OnTouchListener() {
             @Override

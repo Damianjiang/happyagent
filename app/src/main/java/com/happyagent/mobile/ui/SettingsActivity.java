@@ -568,7 +568,10 @@ public class SettingsActivity extends AppCompatActivity {
                 lanTv.setText((lan.isEmpty() ? "（获取中）" : lan) + ":" + port);
                 pubTv.setText(pub.isEmpty() ? "（获取中）" : pub + ":" + port);
                 if (lan.isEmpty() || (webuiPollCount < 10 && pub.isEmpty())) {
-                    webuiPoll.postDelayed(this, 1500);
+                    // 有限次数：最多 30 次（45秒），防止无网络时永远空转
+                    if (webuiPollCount < 30) {
+                        webuiPoll.postDelayed(this, 1500);
+                    }
                 }
             }
         };

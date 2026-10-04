@@ -529,15 +529,39 @@ public final class AgentBackend {
                 st.tools = new ArrayList<Tool>(tools);
                 st.config = config;
 
-                FileOutputStream fos = new FileOutputStream(new File(storeDir, "state.ser"));
+                // 原子写：先写 tmp 再 rename，防崩在中间态导致旧存档丢失
+                File tmp = new File(storeDir, "state.ser.tmp");
+                File dest = new File(storeDir, "state.ser");
+                FileOutputStream fos = new FileOutputStream(tmp);
                 ObjectOutputStream oos = new ObjectOutputStream(fos);
                 oos.writeObject(st);
                 oos.close();
                 fos.close();
+                if (!tmp.renameTo(dest)) {
+                    // rename 失败兜底：直接覆盖写
+                    FileOutputStream f2 = new FileOutputStream(dest);
+                    ObjectInputStream ois = new ObjectInputStream(new FileInputStream(tmp));
+                    byte[] data = readAll(ois);
+                    ois.close();
+                    f2.write(data);
+                    f2.close();
+                    tmp.delete();
+                } else {
+                    // 成功 rename，tmp 已不存在
+                }
             } catch (IOException e) {
                 Log.e(TAG, "persist failed", e);
             }
         }
+    }
+
+    private static byte[] readAll(java.io.InputStream is) throws IOException {
+        java.io.ByteArrayOutputStream bo = new java.io.ByteArrayOutputStream();
+        byte[] buf = new byte[4096];
+        int n;
+        while ((n = is.read(buf)) != -1) bo.write(buf, 0, n);
+        is.close();
+        return bo.toByteArray();
     }
 
     private void loadFromDisk() {
@@ -547,17 +571,22 @@ public final class AgentBackend {
                 ObjectInputStream ois = new ObjectInputStream(new FileInputStream(f));
                 State st = (State) ois.readObject();
                 ois.close();
-                sessions = st.sessions;
+                // 不直接替换 sessions，而是合并（UI 线程在 load 前可能已 createSession 塞了新的）
+                for (Session s : st.sessions) {
+                    // 去重：内存里已有的不覆盖
+                    boolean exists = false;
+                    for (Session x : sessions) { if (x.id.equals(s.id)) { exists = true; break; } }
+                    if (!exists) sessions.add(s);
+                }
                 tools = st.tools;
                 config = st.config;
-                mergeDefaultTools();   // 老存档补齐新增的工具分组
+                mergeDefaultTools();
                 Log.d(TAG, "loaded state from disk");
                 return;
             } catch (Exception e) {
                 Log.w(TAG, "state read failed, using defaults", e);
             }
         }
-        sessions = new ArrayList<Session>();
         tools = defaultTools();
         config = new Config();
     }

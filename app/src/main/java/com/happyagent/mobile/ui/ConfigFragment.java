@@ -83,11 +83,19 @@ public class ConfigFragment extends Fragment {
         final Button fetchBtn = v.findViewById(R.id.config_fetch_models);
         fetchBtn.setOnClickListener(vv -> {
             final String provider = currentProvider();
-            String base = openaiUrlBox.getText().toString().trim();
-            if (base.isEmpty()) base = "https://api.openai.com/v1";
-            String key = openaiKeyBox.getText().toString().trim();
-            if (Config.PROVIDER_GOOGLE.equals(provider)) key = googleKeyBox.getText().toString().trim();
-            if (Config.PROVIDER_ANTHROPIC.equals(provider)) key = anthropicKeyBox.getText().toString().trim();
+            String base;
+            String key;
+            if (Config.PROVIDER_GOOGLE.equals(provider)) {
+                base = "https://generativelanguage.googleapis.com";
+                key = googleKeyBox.getText().toString().trim();
+            } else if (Config.PROVIDER_ANTHROPIC.equals(provider)) {
+                base = "https://api.anthropic.com";
+                key = anthropicKeyBox.getText().toString().trim();
+            } else {
+                base = openaiUrlBox.getText().toString().trim();
+                if (base.isEmpty()) base = "https://api.openai.com/v1";
+                key = openaiKeyBox.getText().toString().trim();
+            }
             fetchBtn.setEnabled(false);
             fetchBtn.setText("拉取中…");
             modelsHint.setVisibility(View.VISIBLE);

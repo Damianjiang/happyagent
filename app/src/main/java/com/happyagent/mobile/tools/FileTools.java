@@ -32,6 +32,9 @@ public final class FileTools {
     private final Context ctx;
     // 沙箱根：只能在 app 私有文件目录里操作，防越权
     private final File sandboxRoot;
+    // canonical 根（解符号链接后），用于路径比较——getFilesDir() 在 Android 上
+    // 是 /data/user/0/... 的符号链接，canonical 是 /data/data/...，必须对齐比较
+    private final String canonicalRoot;
     // 附件目录：落在 workspace 内，agent 的 file_read 能直接读到用户发的文件
     private final File attachRoot;
 
@@ -57,6 +60,12 @@ public final class FileTools {
         this.ctx = context.getApplicationContext();
         this.sandboxRoot = sandboxRoot;
         if (!sandboxRoot.exists()) sandboxRoot.mkdirs();
+        // canonical 路径（解符号链接）：getFilesDir() 返回 /data/user/0/...，
+        // 但 canonical 是 /data/data/...，必须对齐比较
+        String cr;
+        try { cr = sandboxRoot.getCanonicalPath(); }
+        catch (Exception e) { cr = sandboxRoot.getAbsolutePath(); }
+        this.canonicalRoot = cr;
         this.attachRoot = new File(sandboxRoot, "attachments");
         if (!attachRoot.exists()) attachRoot.mkdirs();
         if (seedDefault) seed();
@@ -173,23 +182,20 @@ public final class FileTools {
         } catch (Exception e) {
             throw new SecurityException("cannot resolve path: " + path);
         }
-        String root;
-        try {
-            root = sandboxRoot.getCanonicalPath();
-        } catch (Exception e) {
-            root = sandboxRoot.getAbsolutePath();
-        }
         String target = abs.getPath();
-        if (!target.equals(root) && !target.startsWith(root + File.separator)) {
+        if (!target.equals(canonicalRoot) && !target.startsWith(canonicalRoot + File.separator)) {
             throw new SecurityException("path out of workspace: " + path);
         }
         return abs;
     }
 
     private boolean inSandbox(File f) {
-        String root = sandboxRoot.getAbsolutePath();
-        String p = f.getAbsolutePath();
-        return p.equals(root) || p.startsWith(root + File.separator);
+        try {
+            String p = f.getCanonicalPath();
+            return p.equals(canonicalRoot) || p.startsWith(canonicalRoot + File.separator);
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     public String read(String path) {
@@ -369,7 +375,7 @@ public final class FileTools {
     public String delete(String path) {
         File f = resolveSafe(path);
         if (!f.exists()) return "not found: " + path;
-        if (f.equals(sandboxRoot)) return "cannot delete workspace root";
+        if (f.getPath().equals(canonicalRoot)) return "cannot delete workspace root";
         deleteRec(f);
         return f.exists() ? "delete failed: " + path : "deleted " + f.getName();
     }

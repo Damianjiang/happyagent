@@ -216,10 +216,8 @@ public class FilesFragment extends Fragment {
         boolean atRoot = shownDir.equals(fileTools.getWorkspace());
         wsFolder.setText((atRoot ? "工作区" : new File(shownDir).getName()) + (q.length() > 0 ? " · 搜索「" + q + "」" : ""));
         int dirs = 0;
-        long total = 0;
         for (Row r : rows) {
             if (r.isDir) dirs++;
-            else if (!r.fromSaf && r.absPath != null) total += new File(r.absPath).length();
         }
         wsCount.setText(dirs + " 目录 · " + (rows.size() - dirs) + " 文件");
     }
@@ -428,26 +426,34 @@ public class FilesFragment extends Fragment {
             case "复制":
                 promptText("复制为（新名称，同目录）", r.name + " (copy)", new TextCb() {
                     @Override public void onResult(String v) {
-                        toast(fileTools.copy(r.absPath, parentDir + File.separator + v));
-                        loadWs();
+                        final String src = r.absPath, dst = parentDir + File.separator + v;
+                        bgRun(() -> {
+                            String res = fileTools.copy(src, dst);
+                            ui(() -> { toast(res); loadWs(); });
+                        });
                     }
                 });
                 break;
             case "移动 / 重命名":
                 promptText("重命名为（目标目录内名称）", r.name, new TextCb() {
                     @Override public void onResult(String v) {
-                        toast(fileTools.move(r.absPath, parentDir + File.separator + v));
-                        loadWs();
+                        final String src = r.absPath, dst = parentDir + File.separator + v;
+                        bgRun(() -> {
+                            String res = fileTools.move(src, dst);
+                            ui(() -> { toast(res); loadWs(); });
+                        });
                     }
                 });
                 break;
             case "解压":
                 promptText("解压到（工作区内目录名）", r.name.replace(".zip", ""), new TextCb() {
                     @Override public void onResult(String v) {
-                        String dest = fileTools.getWorkspace() + File.separator + v;
-                        fileTools.mkdir(dest);
-                        toast(fileTools.unzip(r.absPath, dest));
-                        loadWs();
+                        final String src = r.absPath, dest = fileTools.getWorkspace() + File.separator + v;
+                        bgRun(() -> {
+                            fileTools.mkdir(dest);
+                            String res = fileTools.unzip(src, dest);
+                            ui(() -> { toast(res); loadWs(); });
+                        });
                     }
                 });
                 break;
@@ -455,8 +461,11 @@ public class FilesFragment extends Fragment {
                 promptText("压缩为 zip（输出文件名，存到工作区根）",
                         new File(r.absPath).getName() + ".zip", new TextCb() {
                     @Override public void onResult(String v) {
-                        toast(fileTools.zip(r.absPath, fileTools.getWorkspace() + File.separator + v));
-                        loadWs();
+                        final String src = r.absPath, dst = fileTools.getWorkspace() + File.separator + v;
+                        bgRun(() -> {
+                            String res = fileTools.zip(src, dst);
+                            ui(() -> { toast(res); loadWs(); });
+                        });
                     }
                 });
                 break;
@@ -521,22 +530,30 @@ public class FilesFragment extends Fragment {
     // ---- 发给智能体 ----
 
     private void sendWsToAgent(Row r) {
-        String sid = AgentBackend.get().createSession("文件：" + r.name, null);
-        AgentBackend.get().runTask(sid, "请读取并处理工作区里的这个文件：" + r.absPath, null);
-        toast("已发给智能体（工作区文件，可直接读取）");
+        final String name = r.name, absPath = r.absPath;
+        bgRun(() -> {
+            String sid = AgentBackend.get().createSession("文件：" + name, null);
+            AgentBackend.get().runTask(sid, "请读取并处理工作区里的这个文件：" + absPath, null);
+            ui(() -> toast("已发给智能体（工作区文件，可直接读取）"));
+        });
     }
 
     private void sendSafToAgent(Row r) {
-        Models.Attachment a = StorageAccess.sendToAgent(requireContext(), r.docId, r.name);
-        if (a == null) {
-            toast("拷贝失败");
-            return;
-        }
-        List<Models.Attachment> atts = new ArrayList<Models.Attachment>();
-        atts.add(a);
-        String sid = AgentBackend.get().createSession("文件：" + r.name, null);
-        AgentBackend.get().runTask(sid, "请读取并处理这个文件：", atts);
-        toast("已发给智能体");
+        final String docId = r.docId, rname = r.name;
+        bgRun(() -> {
+            Models.Attachment a = StorageAccess.sendToAgent(requireContext(), docId, rname);
+            ui(() -> {
+                if (a == null) {
+                    toast("拷贝失败");
+                    return;
+                }
+                List<Models.Attachment> atts = new ArrayList<Models.Attachment>();
+                atts.add(a);
+                String sid = AgentBackend.get().createSession("文件：" + rname, null);
+                AgentBackend.get().runTask(sid, "请读取并处理这个文件：", atts);
+                toast("已发给智能体");
+            });
+        });
     }
 
     // ---- 分享 / 系统打开 ----
@@ -647,6 +664,15 @@ public class FilesFragment extends Fragment {
         empty.setVisibility(show ? View.VISIBLE : View.GONE);
         recycler.setVisibility(show ? View.GONE : View.VISIBLE);
         empty.setText(text);
+    }
+
+    // 后台线程跑（防主线程卡），完事回 UI 线程
+    private void bgRun(Runnable bg) {
+        new Thread(bg, "files-bg").start();
+    }
+
+    private void ui(Runnable r) {
+        requireActivity().runOnUiThread(r);
     }
 
     private void toast(String msg) {

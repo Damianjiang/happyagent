@@ -402,14 +402,27 @@ public final class ProotEnv {
             });
             final Process p = proc;
             final java.util.concurrent.ExecutorService pool =
-                    java.util.concurrent.Executors.newFixedThreadPool(2);
+                    java.util.concurrent.Executors.newFixedThreadPool(3);
             final java.util.concurrent.Future<String> fo = pool.submit(new Callable<String>() {
                 @Override public String call() throws Exception { return readAllStr(p.getInputStream()); }
             });
             final java.util.concurrent.Future<String> fe = pool.submit(new Callable<String>() {
                 @Override public String call() throws Exception { return readAllStr(p.getErrorStream()); }
             });
-            boolean done = p.waitFor(timeoutMs, TimeUnit.MILLISECONDS);
+            // API 23 没有 waitFor(long, TimeUnit)（那是 24+），用 Future.get(timeout) 等价
+            final java.util.concurrent.Future<Boolean> fDone = pool.submit(new Callable<Boolean>() {
+                @Override public Boolean call() throws Exception {
+                    p.waitFor();
+                    return Boolean.TRUE;
+                }
+            });
+            boolean done;
+            try {
+                fDone.get(timeoutMs, TimeUnit.MILLISECONDS);
+                done = true;
+            } catch (Exception e) {
+                done = false;
+            }
             if (!done) {
                 p.destroy();
                 pool.shutdownNow();

@@ -49,9 +49,10 @@ public class FilePreviewActivity extends AppCompatActivity {
         t.setNavigationOnClickListener(v -> finish());
 
         String n = name == null ? "" : name.toLowerCase(Locale.US);
-        boolean image = mime != null && mime.startsWith("image/")
-                || n.endsWith(".png") || n.endsWith(".jpg") || n.endsWith(".jpeg")
-                || n.endsWith(".gif") || n.endsWith(".webp");
+        // MIME 优先，没有 MIME 才看扩展名（&& 优先于 ||，不加括号会误判）
+        boolean image = (mime != null && mime.startsWith("image/"))
+                || (mime == null && (n.endsWith(".png") || n.endsWith(".jpg") || n.endsWith(".jpeg")
+                || n.endsWith(".gif") || n.endsWith(".webp")));
         boolean isText = isTextLike(n, mime);
 
         ScrollView scroll = findViewById(R.id.prev_text_scroll);

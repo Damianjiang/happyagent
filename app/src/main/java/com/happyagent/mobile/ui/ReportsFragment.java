@@ -86,6 +86,7 @@ public class ReportsFragment extends Fragment {
 
     void load() {
         progress.setVisibility(View.VISIBLE);
+        final android.content.Context appCtx = requireContext().getApplicationContext();
         new Thread(new Runnable() {
             @Override
             public void run() {
@@ -114,7 +115,7 @@ public class ReportsFragment extends Fragment {
                                 .format(new Date(sessions.get(0).updatedAt));
 
                 // 个性化（读 Prefs，主线程读也便宜，这里为统一放在子线程）
-                Prefs p = new Prefs(requireContext().getApplicationContext());
+                Prefs p = new Prefs(appCtx);
                 final int themeMode = p.getInt(Prefs.KEY_THEME_MODE, Prefs.THEME_FOLLOW);
                 final int accent = p.getInt(Prefs.KEY_ACCENT, Prefs.ACCENT_DEFAULT);
                 final int chatSize = p.getInt(Prefs.KEY_CHAT_TEXT_SIZE, 0);
