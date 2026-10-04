@@ -45,6 +45,18 @@ public class FloatingBallService extends Service {
         tv.setGravity(Gravity.CENTER);
         tv.setTextColor(0xFFFFFFFF);
         tv.setBackgroundResource(R.drawable.bg_floating_ball);
+        // 悬浮球跟随当前强调色（服务上下文没套强调色主题，按 Prefs 直接画半透明圆）
+        try {
+            String hex = com.happyagent.mobile.ui.ThemeUtil.accentHex(this);
+            if (hex == null) hex = "#E8A317";
+            android.graphics.drawable.GradientDrawable g = new android.graphics.drawable.GradientDrawable();
+            g.setShape(android.graphics.drawable.GradientDrawable.OVAL);
+            g.setColor((0xCC << 24) | android.graphics.Color.parseColor(hex));
+            g.setStroke(1, 0x44FFFFFF);
+            g.setSize(sz, sz);
+            tv.setBackground(g);
+        } catch (Exception ignored) {
+        }
         FrameLayout.LayoutParams tlp = new FrameLayout.LayoutParams(sz, sz);
         root.addView(tv, tlp);
 

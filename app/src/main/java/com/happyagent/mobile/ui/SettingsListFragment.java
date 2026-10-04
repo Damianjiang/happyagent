@@ -46,11 +46,8 @@ public class SettingsListFragment extends Fragment {
         feature.addView(row(ctx, "关于 · 版本", AboutDialog.versionOf(ctx),
                 () -> AboutDialog.show(ctx)));
 
-        // 工具与文件组
-        tools.addView(row(ctx, "文件管理", "工作区浏览 · 编辑 · 压缩",
-                () -> startActivity(new Intent(ctx, FeatureHostActivity.class)
-                        .putExtra(FeatureHostActivity.EXTRA_FRAGMENT, "files")
-                        .putExtra(FeatureHostActivity.EXTRA_TITLE, "文件管理"))));
+        // 工具与文件组：文件管理入口已按需求移除（内置文件浏览器承担浏览，不再从设置进）
+        // 整组隐藏由布局 visibility=gone 完成，这里保持 tools 未被引用即可
         return v;
     }
 

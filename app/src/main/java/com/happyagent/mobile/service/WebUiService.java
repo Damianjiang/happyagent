@@ -169,7 +169,10 @@ public class WebUiService extends Service {
 
     // ---- HTTP 处理 ----
     private void handle(Socket socket) {
+        boolean replied = false;
         try {
+            // 读请求头限 60s：防慢速连接占死 4 线程池（响应回写不受影响，长任务 ask 不会被掐）
+            socket.setSoTimeout(60000);
             BufferedInputStream bin = new BufferedInputStream(socket.getInputStream());
             String reqLine = readLine(bin);
             if (reqLine == null || reqLine.trim().isEmpty()) return;
@@ -182,7 +185,11 @@ public class WebUiService extends Service {
             while ((hdr = readLine(bin)) != null && !hdr.isEmpty()) {
                 String low = hdr.toLowerCase();
                 if (low.startsWith("content-length:")) {
-                    contentLength = Integer.parseInt(low.substring(15).trim());
+                    try {
+                        contentLength = Integer.parseInt(low.substring(15).trim());
+                    } catch (NumberFormatException ignored) {
+                        contentLength = 0;
+                    }
                 }
             }
             byte[] body = new byte[0];
@@ -209,7 +216,22 @@ public class WebUiService extends Service {
             out.write(head.getBytes(StandardCharsets.UTF_8));
             out.write(resp.data);
             out.flush();
-        } catch (Exception ignored) {
+            replied = true;
+        } catch (Exception e) {
+            // 解析失败（坏 JSON / 断流等）：以前静默吞掉让浏览器干等超时，现在明确回 400
+            if (!replied) {
+                try {
+                    byte[] d = "{\"error\":\"bad request\"}".getBytes(StandardCharsets.UTF_8);
+                    OutputStream out = socket.getOutputStream();
+                    out.write(("HTTP/1.1 400 Bad Request\r\n"
+                            + "Content-Type: application/json\r\n"
+                            + "Content-Length: " + d.length + "\r\n"
+                            + "Connection: close\r\n\r\n").getBytes(StandardCharsets.UTF_8));
+                    out.write(d);
+                    out.flush();
+                } catch (Exception ignored) {
+                }
+            }
         } finally {
             try {
                 socket.close();
@@ -243,24 +265,75 @@ public class WebUiService extends Service {
             o.put("sessions", arr);
             return json(o);
         }
-        // 任务运行态（前端 1s 轮询）
+        // 消息历史：页面加载 / 切会话时渲染（带 sessionId 校验）
+        if (path.startsWith("/api/messages")) {
+            String sid = queryParam(path, "sessionId");
+            Models.Session s = AgentBackend.get().getSession(sid == null ? "" : sid);
+            if (s == null) {
+                return json(new JSONObject().put("error", "session not found"), 404, "Not Found");
+            }
+            JSONObject o = new JSONObject();
+            o.put("sessionId", s.id);
+            o.put("title", s.title);
+            o.put("status", s.status);
+            JSONArray msgs = new JSONArray();
+            for (Models.Message m : s.messages) {
+                JSONObject mj = new JSONObject().put("role", m.role).put("text", m.text);
+                if (m.thinking != null && !m.thinking.isEmpty()) mj.put("thinking", m.thinking);
+                msgs.put(mj);
+            }
+            o.put("messages", msgs);
+            return json(o);
+        }
+        // 会话管理：新建 / 删除 / 重命名（复用数据层现成方法）
+        if (path.equals("/api/sessions") && method.equalsIgnoreCase("POST")) {
+            JSONObject req = new JSONObject(body);
+            String action = req.optString("action", "");
+            AgentBackend be = AgentBackend.get();
+            if ("create".equals(action)) {
+                String title = req.optString("title", "").trim();
+                if (title.isEmpty()) title = "新对话";
+                String id = be.createSession(title, null);
+                JSONObject o = new JSONObject();
+                o.put("sessionId", id);
+                o.put("title", title);
+                return json(o);
+            } else if ("delete".equals(action)) {
+                be.deleteSession(req.optString("id", ""));
+                return json(new JSONObject().put("ok", true));
+            } else if ("rename".equals(action)) {
+                be.renameSession(req.optString("id", ""), req.optString("title", "未命名"));
+                return json(new JSONObject().put("ok", true));
+            }
+            return json(new JSONObject().put("error", "unknown action"), 400, "Bad Request");
+        }
+        // 任务运行态（前端轮询）：带 sessionId，前端按它对号，防止控制别的任务
         if (path.equals("/api/running")) {
             AgentBackend be = AgentBackend.get();
             JSONObject o = new JSONObject();
             o.put("running", be.isTaskRunning());
             o.put("paused", be.isTaskPaused());
             o.put("steps", be.peekRunningToolSteps().size());
+            String rs = be.runningSessionId();
+            o.put("sessionId", rs == null ? "" : rs);
             return json(o);
         }
-        // 任务控制（暂停/继续/取消）
+        // 任务控制（暂停/继续/取消）：必须带 sessionId 且与运行中任务一致，否则 409
         if (path.equals("/api/control") && method.equalsIgnoreCase("POST")) {
             JSONObject req = new JSONObject(body);
             String action = req.optString("action", "");
+            String sid = req.optString("sessionId", "");
             AgentBackend be = AgentBackend.get();
-            if ("pause".equals(action)) be.pauseTask();
-            else if ("resume".equals(action)) be.resumeTask();
-            else if ("cancel".equals(action)) be.cancelTask();
-            return json(new JSONObject().put("ok", true));
+            String runningSid = be.runningSessionId();
+            if (!sid.isEmpty() && sid.equals(runningSid)
+                    && ("pause".equals(action) || "resume".equals(action) || "cancel".equals(action))) {
+                if ("pause".equals(action)) be.pauseTask();
+                else if ("resume".equals(action)) be.resumeTask();
+                else be.cancelTask();
+                return json(new JSONObject().put("ok", true));
+            }
+            return json(new JSONObject().put("ok", false).put("error", "no such running task"),
+                    409, "Conflict");
         }
         if (path.equals("/api/ask") && method.equalsIgnoreCase("POST")) {
             JSONObject req = new JSONObject(body);
@@ -268,41 +341,54 @@ public class WebUiService extends Service {
             String sid = req.optString("sessionId", "");
             boolean regen = req.optBoolean("regenerate", false);
             if (regen) {
-                // 重新生成：找最后一条 user 消息截断后重跑
-                AgentBackend be = AgentBackend.get();
-                Models.Session s = be.getSession(sid.isEmpty() ? null : sid);
-                if (s != null) {
-                    // 截到最后一条 user
-                    int lastUser = -1;
-                    for (int i = s.messages.size() - 1; i >= 0; i--) {
-                        if ("user".equals(s.messages.get(i).role)) { lastUser = i; break; }
-                    }
-                    if (lastUser >= 0) {
-                        prompt = s.messages.get(lastUser).text;
-                        while (s.messages.size() > lastUser + 1) s.messages.remove(s.messages.size() - 1);
-                    }
+                // 重新生成：数据层锁内截断到最后一条 user 并落盘（旧版在 HTTP 线程裸改会话有竞态）
+                String p = AgentBackend.get().prepareRegenerate(sid);
+                if (p == null) {
+                    return json(new JSONObject().put("error", "nothing to regenerate"),
+                            400, "Bad Request");
                 }
+                prompt = p;
             }
             Map<String, Object> r = AgentBackend.get().askFreeForm(prompt, sid.isEmpty() ? null : sid);
+            if (Boolean.TRUE.equals(r.get("busy"))) {
+                return json(new JSONObject().put("error", "task running").put("sessionId",
+                        String.valueOf(r.get("sessionId"))), 409, "Conflict");
+            }
             JSONObject o = new JSONObject();
             o.put("sessionId", String.valueOf(r.get("sessionId")));
             o.put("status", r.get("status"));
             o.put("running", r.get("running"));
             o.put("answer", r.get("answer"));
             o.put("statusLabel", r.get("statusLabel"));
-            // 返回工具步骤列表
+            if (r.get("thinking") != null) o.put("thinking", String.valueOf(r.get("thinking")));
+            // 本轮工具步骤（只此一轮，不带历史）
             JSONArray tools = new JSONArray();
-            AgentBackend be = AgentBackend.get();
-            Models.Session s2 = be.getSession(String.valueOf(r.get("sessionId")));
-            if (s2 != null) {
-                for (Models.Message m : s2.messages) {
-                    if ("tool".equals(m.role)) tools.put(m.text);
-                }
+            Object ts = r.get("toolSteps");
+            if (ts instanceof java.util.List) {
+                for (Object x : (java.util.List<?>) ts) tools.put(String.valueOf(x));
             }
             o.put("tools", tools);
             return json(o);
         }
         return json(new JSONObject().put("error", "not found").put("path", path), 404, "Not Found");
+    }
+
+    // 从带 query 的 path 里取参数（/api/messages?sessionId=xxx）
+    private static String queryParam(String path, String key) {
+        int q = path.indexOf('?');
+        if (q < 0) return null;
+        String qs = path.substring(q + 1);
+        for (String kv : qs.split("&")) {
+            int eq = kv.indexOf('=');
+            if (eq > 0 && kv.substring(0, eq).equals(key)) {
+                try {
+                    return java.net.URLDecoder.decode(kv.substring(eq + 1), "UTF-8");
+                } catch (java.io.UnsupportedEncodingException e) {
+                    return kv.substring(eq + 1);   // UTF-8 必在，理论上走不到
+                }
+            }
+        }
+        return null;
     }
 
     private Resp json(JSONObject o) {
@@ -331,7 +417,15 @@ public class WebUiService extends Service {
     private byte[] readPage() {
         try {
             InputStream in = getApplicationContext().getResources().openRawResource(R.raw.web_chat);
-            return readAll(in);
+            byte[] raw = readAll(in);
+            // App 换了非默认强调色时，给 Web 页面末尾注入主题变量覆盖（后声明的 :root 生效），
+            // 浏览器端配色跟客户端一致；默认色时保持原页自带的明暗两套
+            String hex = com.happyagent.mobile.ui.ThemeUtil.accentHex(getApplicationContext());
+            if (hex == null) return raw;
+            String html = new String(raw, "UTF-8");
+            String inject = "<style>:root{--accent:" + hex + ";--user:" + hex + "}</style>";
+            html = html.replace("</head>", inject + "</head>");
+            return html.getBytes("UTF-8");
         } catch (Exception e) {
             return null;
         }

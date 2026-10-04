@@ -19,6 +19,10 @@
     <!-- 存储（API 33 以下读外部文件用；33+ 走 SAF 不需要） -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
+    <!-- 媒体读权限（安卓 13+）：内置文件浏览器按路径读图片/视频/音频 -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
     <!-- 悬浮球：在应用上层画小圆球 -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
@@ -54,6 +58,12 @@
             android:name=".ui.PermissionGuideActivity"
             android:exported="false"
             android:parentActivityName=".ui.MainActivity" />
+
+        <!-- 内置文件浏览器：选文件/选目录，替代系统文件选择器 -->
+        <activity
+            android:name=".ui.FileBrowserActivity"
+            android:exported="false"
+            android:parentActivityName=".ui.SessionDetailActivity" />
 
         <activity
             android:name=".ui.CrashActivity"

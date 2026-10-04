@@ -51,6 +51,9 @@ public final class AgentBackend {
     private volatile String runningSessionId;
     // 当前任务的 ReAct trace（同步列表），供界面在任务运行中实时增量显示工具步骤
     private volatile java.util.List<com.happyagent.mobile.model.Models.Message> runningTrace;
+    // Web 同步任务也登记进上面三个字段，用 webRunning 标记"跑在 HTTP 线程上"
+    private volatile boolean webRunning;
+    private final Object webAskLock = new Object();
 
     private AgentBackend() {
         Context ctx = HappyAgentApplication.get();
@@ -145,12 +148,19 @@ public final class AgentBackend {
 
     public String createSession(String title, String agent) {
         ensureLoaded();
+        // id 用 时间戳+随机串：避免同毫秒撞出多条同 id 空壳（旧版 bug：返回首页出现一堆重复新对话）
+        String id = System.currentTimeMillis() + "-"
+                + java.util.UUID.randomUUID().toString().substring(0, 8);
         Session s = new Session(
-                String.valueOf(System.currentTimeMillis()),
+                id,
                 title == null ? "New session" : title,
                 agent == null ? config.agentName : agent,
                 0, System.currentTimeMillis(), new ArrayList<Message>());
         synchronized (lock) {
+            // 幂等兜底：同 id 已存在直接复用，绝不追加重复会话
+            for (Session x : sessions) {
+                if (x.id.equals(id)) return x.id;
+            }
             sessions.add(0, s);
         }
         persist();
@@ -211,7 +221,9 @@ public final class AgentBackend {
                     synchronized (lock) {
                         session.messages.add(new Message("user", prompt, System.currentTimeMillis(), atts));
                         for (Message t : toolSteps) session.messages.add(t);
-                        session.messages.add(new Message("assistant", summary, System.currentTimeMillis()));
+                        Message am = new Message("assistant", summary, System.currentTimeMillis());
+                        am.thinking = agent.getLastThinking();   // 深度思考内容随消息落盘
+                        session.messages.add(am);
                         session.status = stopped ? 3 : 2;
                         if (stopped) {
                             session.messages.add(new Message("system", "任务被停止",
@@ -240,7 +252,10 @@ public final class AgentBackend {
         return future;
     }
 
-    // Web 端任务入口：无会话则创建，同步跑完 ReAct；独立于 UI 的 runningFuture
+    // Web 端任务入口：无会话则创建，同步跑完 ReAct。
+    // 与 runTask 共用全局运行态字段（runningControl/runningSessionId/runningTrace），
+    // 否则 Web 任务看不到控制条、/api/control 却能误控客户端任务（两套状态互相打架）。
+    // 同一时刻只允许一个任务：已有任务在跑时返回 busy，由服务层回 409。
     public java.util.Map<String, Object> askFreeForm(String prompt, String sessionId) {
         String sid = (sessionId == null || sessionId.isEmpty())
                 ? createSession("Web 任务", null) : sessionId;
@@ -260,10 +275,28 @@ public final class AgentBackend {
         for (Message m : session.messages) {
             if (m.role.equals("user") || m.role.equals("assistant")) history.add(m);
         }
-
         List<Message> trace = new ArrayList<Message>();
         trace.add(new Message("user", prompt, System.currentTimeMillis()));
         TaskControl control = new TaskControl();
+
+        // 原子门：HTTP 线程池有 4 条，检查+占位必须在同一把锁里，否则并发双跑
+        synchronized (webAskLock) {
+            if (isTaskRunning()) {
+                out.put("busy", Boolean.TRUE);
+                out.put("status", session.status);
+                out.put("statusLabel", "已有任务在运行");
+                return out;
+            }
+            // 登记为全局运行态：控制条 / 暂停 / 取消 / 实时步骤统一走这几个字段
+            webRunning = true;
+            runningControl = control;
+            runningSessionId = sid;
+            runningTrace = trace;
+        }
+        synchronized (lock) {
+            session.status = 0;   // 列表实时显示"运行中"
+            session.updatedAt = System.currentTimeMillis();
+        }
         try {
             ReactAgent agent = new ReactAgent(getConfig(),
                     new FileTools(HappyAgentApplication.get(), sid),
@@ -283,7 +316,9 @@ public final class AgentBackend {
             synchronized (lock) {
                 session.messages.add(new Message("user", prompt, System.currentTimeMillis()));
                 for (Message t : toolSteps) session.messages.add(t);
-                session.messages.add(new Message("assistant", summary, System.currentTimeMillis()));
+                Message am = new Message("assistant", summary, System.currentTimeMillis());
+                am.thinking = agent.getLastThinking();   // 深度思考内容随消息落盘
+                session.messages.add(am);
                 session.status = 2;
                 session.updatedAt = System.currentTimeMillis();
             }
@@ -291,6 +326,11 @@ public final class AgentBackend {
             out.put("answer", summary);
             out.put("status", session.status);
             out.put("statusLabel", session.statusLabel());
+            out.put("thinking", agent.getLastThinking());
+            // 只回本轮 trace 的工具步骤（回读 session.messages 会把历史步骤也带上，前端重复渲染）
+            java.util.ArrayList<String> steps = new java.util.ArrayList<String>();
+            for (Message t : toolSteps) steps.add(t.text);
+            out.put("toolSteps", steps);
         } catch (Exception e) {
             Log.e(TAG, "askFreeForm failed", e);
             synchronized (lock) {
@@ -303,9 +343,39 @@ public final class AgentBackend {
             out.put("answer", "");
             out.put("status", 3);
             out.put("statusLabel", "失败");
+        } finally {
+            clearRunning();
+            webRunning = false;
         }
         out.put("running", isTaskRunning());
         return out;
+    }
+
+    // Web 重新生成：在锁内截断到最后一条 user 并落盘，返回要重跑的 prompt（无则 null）
+    public String prepareRegenerate(String sessionId) {
+        Session s = getSession(sessionId);
+        if (s == null) return null;
+        String prompt;
+        synchronized (lock) {
+            int lastUser = -1;
+            for (int i = s.messages.size() - 1; i >= 0; i--) {
+                if ("user".equals(s.messages.get(i).role)) {
+                    lastUser = i;
+                    break;
+                }
+            }
+            if (lastUser < 0) return null;
+            prompt = s.messages.get(lastUser).text;
+            while (s.messages.size() > lastUser + 1) s.messages.remove(s.messages.size() - 1);
+            s.updatedAt = System.currentTimeMillis();
+        }
+        persist();
+        return prompt;
+    }
+
+    // 当前运行中任务所属会话（Web 控制条按 sid 对号，防止跨任务串台）
+    public String runningSessionId() {
+        return runningSessionId;
     }
 
     private void clearRunning() {
@@ -384,11 +454,11 @@ public final class AgentBackend {
         ensureLoaded();
         synchronized (lock) {
             boolean found = false;
-            for (int i = 0; i < sessions.size(); i++) {
+            // 倒序删光所有同 id（清掉历史 bug 留下的同 id 空壳，一次删除彻底干净）
+            for (int i = sessions.size() - 1; i >= 0; i--) {
                 if (sessions.get(i).id.equals(id)) {
                     sessions.remove(i);
                     found = true;
-                    break;
                 }
             }
             if (found) persist();
@@ -407,6 +477,7 @@ public final class AgentBackend {
     // ---- 任务控制：暂停 / 继续 / 取消 ----
 
     public boolean isTaskRunning() {
+        if (webRunning) return true;   // Web 同步任务：跑在 HTTP 线程，没有 Future
         return runningFuture != null && !runningFuture.isDone();
     }
 
@@ -521,35 +592,41 @@ public final class AgentBackend {
         });
     }
 
+    // 落盘互斥：HTTP 线程（Web 任务）和 io 线程（客户端任务）都可能写 state.ser.tmp，
+    // 不加锁会两个线程写同一 tmp 互相截断、损坏存档
+    private final Object persistLock = new Object();
+
     private void persistNow() {
-        // 锁里只做快照（极短），写磁盘放锁外——不卡 UI 读
-        State st;
-        synchronized (lock) {
-            st = new State();
-            st.sessions = new ArrayList<Session>(sessions);
-            st.tools = new ArrayList<Tool>(tools);
-            st.config = config;
-        }
-        try {
-            // 原子写：先写 tmp 再 rename，防崩在中间态导致旧存档丢失
-            File tmp = new File(storeDir, "state.ser.tmp");
-            File dest = new File(storeDir, "state.ser");
-            FileOutputStream fos = new FileOutputStream(tmp);
-            ObjectOutputStream oos = new ObjectOutputStream(fos);
-            oos.writeObject(st);
-            oos.close();
-            fos.close();
-            if (!tmp.renameTo(dest)) {
-                FileOutputStream f2 = new FileOutputStream(dest);
-                ObjectInputStream ois = new ObjectInputStream(new FileInputStream(tmp));
-                byte[] data = readAll(ois);
-                ois.close();
-                f2.write(data);
-                f2.close();
-                tmp.delete();
+        synchronized (persistLock) {
+            // 锁里只做快照（极短），写磁盘放锁外——不卡 UI 读
+            State st;
+            synchronized (lock) {
+                st = new State();
+                st.sessions = new ArrayList<Session>(sessions);
+                st.tools = new ArrayList<Tool>(tools);
+                st.config = config;
             }
-        } catch (IOException e) {
-            Log.e(TAG, "persist failed", e);
+            try {
+                // 原子写：先写 tmp 再 rename，防崩在中间态导致旧存档丢失
+                File tmp = new File(storeDir, "state.ser.tmp");
+                File dest = new File(storeDir, "state.ser");
+                FileOutputStream fos = new FileOutputStream(tmp);
+                ObjectOutputStream oos = new ObjectOutputStream(fos);
+                oos.writeObject(st);
+                oos.close();
+                fos.close();
+                if (!tmp.renameTo(dest)) {
+                    FileOutputStream f2 = new FileOutputStream(dest);
+                    ObjectInputStream ois = new ObjectInputStream(new FileInputStream(tmp));
+                    byte[] data = readAll(ois);
+                    ois.close();
+                    f2.write(data);
+                    f2.close();
+                    tmp.delete();
+                }
+            } catch (IOException e) {
+                Log.e(TAG, "persist failed", e);
+            }
         }
     }
 
@@ -579,6 +656,16 @@ public final class AgentBackend {
                 tools = st.tools;
                 config = st.config;
                 mergeDefaultTools();
+                // 启动清扫：任务不跨进程存活，进程重启后残留的"运行中/已暂停"都是假状态。
+                // 一律标成"失败(中断)"，治列表永远转圈、明明跑完还显示"运行中"的假状态。
+                boolean swept = false;
+                for (Session s : sessions) {
+                    if ((s.status == 0 || s.status == 1) && !s.id.equals(runningSessionId)) {
+                        s.status = 3;
+                        swept = true;
+                    }
+                }
+                if (swept) persist();   // 把清扫结果落盘（io 线程内调用，入队后执行）
                 Log.d(TAG, "loaded state from disk");
                 return;
             } catch (Exception e) {

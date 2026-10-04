@@ -164,6 +164,42 @@ public final class FileTools {
         }
     }
 
+    // 内置文件浏览器选中的是裸文件路径：直接拷进附件目录（与 content URI 版同语义）
+    public Models.Attachment saveAttachmentFromPath(String path) {
+        File src;
+        try {
+            src = new File(path).getCanonicalFile();
+        } catch (Exception e) {
+            return null;
+        }
+        if (!src.isFile() || !src.canRead()) return null;
+        String safeName = src.getName().replaceAll("[^A-Za-z0-9._\\-]", "_");
+        if (safeName.isEmpty() || safeName.equals(".") || safeName.equals("_")) {
+            safeName = String.valueOf(System.currentTimeMillis());
+        }
+        File dest = new File(attachRoot, System.currentTimeMillis() + "_" + safeName);
+        try {
+            java.io.InputStream in = new FileInputStream(src);
+            java.io.OutputStream out = new FileOutputStream(dest);
+            byte[] buf = new byte[8192];
+            int n;
+            while ((n = in.read(buf)) != -1) out.write(buf, 0, n);
+            out.close();
+            in.close();
+            String ext = "";
+            int dot = src.getName().lastIndexOf('.');
+            if (dot >= 0) ext = src.getName().substring(dot + 1).toLowerCase(java.util.Locale.US);
+            String mime = ext.isEmpty() ? null
+                    : android.webkit.MimeTypeMap.getSingleton().getMimeTypeFromExtension(ext);
+            return new Models.Attachment(safeName,
+                    mime == null ? "application/octet-stream" : mime,
+                    dest.getAbsolutePath(), dest.length());
+        } catch (Exception e) {
+            Log.e(TAG, "saveAttachmentFromPath", e);
+            return null;
+        }
+    }
+
     // 路径解析：相对路径（如 "notes.txt"、"a/b.txt"）一律锚到 workspace 根，
     // 绝对路径照常用；最终必须落在沙箱内，否则拒绝。
     private File resolveSafe(String path) {

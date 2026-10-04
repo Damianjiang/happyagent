@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 悬浮球背景：44dp 圆形，紫底半透 + 白边 -->
+<!-- 悬浮球背景兜底：44dp 圆形（真正颜色由服务按当前强调色在代码里画） -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="oval">
-    <solid android:color="#CC8B7EC8" />
+    <solid android:color="#CCE8A317" />
     <size android:width="44dp" android:height="44dp" />
     <stroke android:width="1dp" android:color="#44FFFFFF" />
 </shape>

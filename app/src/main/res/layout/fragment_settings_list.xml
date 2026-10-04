@@ -57,8 +57,9 @@
                 android:layout_height="wrap_content"
                 android:orientation="vertical" />
 
-            <!-- 工具与文件分组 -->
+            <!-- 工具与文件分组（入口已移除：文件浏览并入内置文件浏览器，不再从设置进） -->
             <TextView
+                android:id="@+id/tools_files_header"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:paddingLeft="20dp"
@@ -68,13 +69,15 @@
                 android:textSize="13sp"
                 android:textStyle="bold"
                 android:letterSpacing="0.06"
-                android:textColor="?attr/colorOnSurfaceVariant" />
+                android:textColor="?attr/colorOnSurfaceVariant"
+                android:visibility="gone" />
 
             <LinearLayout
                 android:id="@+id/tools_files_list"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical" />
+                android:orientation="vertical"
+                android:visibility="gone" />
         </LinearLayout>
     </ScrollView>
 

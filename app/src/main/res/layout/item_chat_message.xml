@@ -48,41 +48,81 @@
         </LinearLayout>
     </LinearLayout>
 
-    <!-- AI 消息：靠左，无头像纯文字（去掉装饰性元素，留白干净） -->
+    <!-- AI 消息：靠左，无头像纯文字（去掉装饰性元素，留白干净）；思考内容折叠卡在正文上方 -->
     <LinearLayout
         android:id="@+id/row_ai"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="top"
+        android:orientation="vertical"
         android:visibility="gone">
 
-        <TextView
-            android:id="@+id/bubble_ai"
-            android:layout_width="0dp"
+        <!-- 深度思考折叠卡：点头部展开/收起 -->
+        <LinearLayout
+            android:id="@+id/ai_think_wrap"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
             android:layout_marginStart="8dp"
-            android:layout_marginLeft="8dp"
-            android:paddingTop="2dp"
-            android:paddingRight="40dp"
             android:layout_marginEnd="40dp"
-            android:textSize="14sp"
-            android:lineSpacingExtra="3dp"
-            android:textColor="?attr/colorOnSurface" />
+            android:layout_marginBottom="4dp"
+            android:orientation="vertical"
+            android:background="@drawable/bg_chip"
+            android:padding="8dp"
+            android:visibility="gone">
 
-        <ImageView
-            android:id="@+id/bubble_ai_copy"
-            android:layout_width="28dp"
-            android:layout_height="28dp"
-            android:layout_gravity="top"
-            android:layout_marginTop="2dp"
-            android:padding="3dp"
-            android:src="@drawable/ic_copy"
-            android:contentDescription="复制"
-            app:tint="?attr/colorOnSurfaceVariant"
-            android:background="?android:attr/selectableItemBackgroundBorderless"
-            android:alpha="0.6" />
+            <TextView
+                android:id="@+id/ai_think_head"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="🧠 思考过程 ▸ 点击展开"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                android:textColor="?attr/colorOnSurfaceVariant"
+                android:background="?android:attr/selectableItemBackground" />
+
+            <TextView
+                android:id="@+id/ai_think_body"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:textSize="12sp"
+                android:lineSpacingExtra="2dp"
+                android:textColor="?attr/colorOnSurfaceVariant"
+                android:visibility="gone" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="top">
+
+            <TextView
+                android:id="@+id/bubble_ai"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="8dp"
+                android:layout_marginLeft="8dp"
+                android:paddingTop="2dp"
+                android:paddingRight="40dp"
+                android:layout_marginEnd="40dp"
+                android:textSize="14sp"
+                android:lineSpacingExtra="3dp"
+                android:textColor="?attr/colorOnSurface" />
+
+            <ImageView
+                android:id="@+id/bubble_ai_copy"
+                android:layout_width="28dp"
+                android:layout_height="28dp"
+                android:layout_gravity="top"
+                android:layout_marginTop="2dp"
+                android:padding="3dp"
+                android:src="@drawable/ic_copy"
+                android:contentDescription="复制"
+                app:tint="?attr/colorOnSurfaceVariant"
+                android:background="?android:attr/selectableItemBackgroundBorderless"
+                android:alpha="0.6" />
+        </LinearLayout>
     </LinearLayout>
 
     <!-- 工具步骤：居中小字灰色，极简 -->

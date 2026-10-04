@@ -59,8 +59,9 @@ public class SessionDetailActivity extends AppCompatActivity {
     private String model;
     private TextView workspaceLabel;
     private MaterialButton workspacePick;
-    // 顶栏右侧：模型切换按钮（点开模型列表）+ token 上下文用量环（点开明细）
+    // 顶栏右侧：模型切换按钮（点开模型列表）+ 思考档位 + token 上下文用量环（点开明细）
     private android.widget.TextView modelPill;
+    private android.widget.TextView thinkPill;
     private TokenRingView tokenRing;
 
     private String sessionId;
@@ -148,7 +149,7 @@ public class SessionDetailActivity extends AppCompatActivity {
         });
     }
 
-    // 顶栏右侧两个控件：[模型切换 ▾] [用量环]，加进 Toolbar 末尾（END 对齐）
+    // 顶栏右侧控件：[模型切换 ▾] [思考档位] [用量环]，加进 Toolbar 末尾（END 对齐）
     private void setupToolbarExtras() {
         int d = (int) getResources().getDisplayMetrics().density;
 
@@ -159,7 +160,7 @@ public class SessionDetailActivity extends AppCompatActivity {
         modelPill = new android.widget.TextView(this);
         modelPill.setTextSize(12);
         modelPill.setSingleLine(true);
-        modelPill.setMaxWidth(150 * d);
+        modelPill.setMaxWidth(110 * d);
         modelPill.setEllipsize(android.text.TextUtils.TruncateAt.END);
         modelPill.setPadding(10 * d, 5 * d, 10 * d, 5 * d);
         modelPill.setBackgroundResource(R.drawable.bg_chip);
@@ -167,6 +168,15 @@ public class SessionDetailActivity extends AppCompatActivity {
         modelPill.setText(model + " ▾");
         modelPill.setOnClickListener(v -> openModelPicker());
         endBox.addView(modelPill);
+
+        thinkPill = new android.widget.TextView(this);
+        thinkPill.setTextSize(12);
+        thinkPill.setSingleLine(true);
+        thinkPill.setPadding(8 * d, 5 * d, 8 * d, 5 * d);
+        thinkPill.setBackgroundResource(R.drawable.bg_chip);
+        thinkPill.setTextColor(androidx.core.content.ContextCompat.getColor(this, R.color.on_surface_variant));
+        thinkPill.setOnClickListener(v -> openThinkingPicker());
+        endBox.addView(thinkPill);
 
         tokenRing = new TokenRingView(this);
         endBox.addView(tokenRing, new android.widget.LinearLayout.LayoutParams(
@@ -180,19 +190,68 @@ public class SessionDetailActivity extends AppCompatActivity {
                         android.view.Gravity.END);
         lp.rightMargin = 10 * d;
         toolbar.addView(endBox, lp);
+        updateThinkPill();
         updateTokenRing();
     }
 
-    // 模型切换：弹列表（预设 + 已拉取），点选即写配置并刷新顶栏
+    // 深度思考档位胶囊：显示当前档（关/自动/低/中/高/最高）
+    private void updateThinkPill() {
+        if (thinkPill == null) return;
+        thinkPill.setText("思考:" + thinkingLabel(AgentBackend.get().getConfig().thinkingLevel()) + " ▾");
+    }
+
+    private String thinkingLabel(String level) {
+        if ("off".equals(level)) return "关";
+        if ("low".equals(level)) return "低";
+        if ("medium".equals(level)) return "中";
+        if ("high".equals(level)) return "高";
+        if ("max".equals(level)) return "最高";
+        return "自动";
+    }
+
+    // 思考档位选择：单选对话框，选中即写配置并刷新胶囊（三家 API 参数由引擎按档位注入）
+    private void openThinkingPicker() {
+        final String[] levels = {"off", "auto", "low", "medium", "high", "max"};
+        final String[] labels = {"关闭（不思考）", "自动（模型默认）", "低", "中", "高", "最高"};
+        String cur = AgentBackend.get().getConfig().thinkingLevel();
+        int idx = 1;
+        for (int i = 0; i < levels.length; i++) {
+            if (levels[i].equals(cur)) idx = i;
+        }
+        new androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("深度思考")
+                .setSingleChoiceItems(labels, idx, (dialog, which) -> {
+                    com.happyagent.mobile.model.Models.Config nc = AgentBackend.get().getConfig();
+                    com.happyagent.mobile.model.Models.Config upd = copyConfig(nc);
+                    upd.thinkingLevel = levels[which];
+                    AgentBackend.get().updateConfig(upd);
+                    updateThinkPill();
+                    dialog.dismiss();
+                    Toast.makeText(this, "思考级别：" + labels[which], Toast.LENGTH_SHORT).show();
+                })
+                .setNegativeButton("取消", null)
+                .show();
+    }
+
+    // 复制一份配置（改字段后整包写回，避免丢掉其他未暴露在构造器里的字段）
+    private static com.happyagent.mobile.model.Models.Config copyConfig(
+            com.happyagent.mobile.model.Models.Config nc) {
+        com.happyagent.mobile.model.Models.Config upd =
+                new com.happyagent.mobile.model.Models.Config(
+                        nc.agentName, nc.model, nc.temperature, nc.maxTokens,
+                        nc.autoCommit, nc.workspace, nc.getProvider(),
+                        nc.openaiKey, nc.openaiBaseUrl, nc.googleKey, nc.anthropicKey);
+        upd.maxSteps = nc.maxSteps;
+        upd.thinkingLevel = nc.thinkingLevel();
+        return upd;
+    }
+
+    // 模型切换：弹模型池单选列表，点行即写配置并刷新顶栏
     private void openModelPicker() {
-        ModelListDialog.show(this, model, picked -> {
-            com.happyagent.mobile.model.Models.Config nc = AgentBackend.get().getConfig();
+        ModelListDialog.showSingle(this, model, picked -> {
             com.happyagent.mobile.model.Models.Config upd =
-                    new com.happyagent.mobile.model.Models.Config(
-                            nc.agentName, picked, nc.temperature, nc.maxTokens,
-                            nc.autoCommit, nc.workspace, nc.getProvider(),
-                            nc.openaiKey, nc.openaiBaseUrl, nc.googleKey, nc.anthropicKey);
-            upd.maxSteps = nc.maxSteps;
+                    copyConfig(AgentBackend.get().getConfig());
+            upd.model = picked;
             AgentBackend.get().updateConfig(upd);
             model = picked;
             modelPill.setText(model + " ▾");
@@ -207,7 +266,8 @@ public class SessionDetailActivity extends AppCompatActivity {
         long window = st.getLastWindow();
         long in = st.getCumulativeInput();
         long out = st.getCumulativeOutput();
-        int limit = com.happyagent.mobile.data.ModelCatalog.contextLimitOf(model);
+        int limit = com.happyagent.mobile.data.ModelCatalog.effectiveContextLimit(
+                this, AgentBackend.get().getConfig().getProvider(), model);
         int pct = limit <= 0 ? 0 : (int) Math.min(100, window * 100 / limit);
         String msg = "上下文窗口：" + window + " / " + limit + " tokens（" + pct + "%）\n"
                 + "累计输入：" + in + "\n"
@@ -223,7 +283,8 @@ public class SessionDetailActivity extends AppCompatActivity {
     // 刷新环：窗口/上下文上限 → 百分比；色阶 主色→>75%警示→>90%错误
     private void updateTokenRing() {
         if (tokenRing == null) return;
-        int limit = com.happyagent.mobile.data.ModelCatalog.contextLimitOf(model);
+        int limit = com.happyagent.mobile.data.ModelCatalog.effectiveContextLimit(
+                this, AgentBackend.get().getConfig().getProvider(), model);
         long window = com.happyagent.mobile.data.UsageStats.get().getLastWindow();
         float pct = limit <= 0 ? 0f : window * 100f / limit;
         int color;
@@ -244,12 +305,12 @@ public class SessionDetailActivity extends AppCompatActivity {
         tokenRing.update(pct, color);
     }
 
+    // 选文件/图片：走内置文件浏览器，不再弹系统选择器
     private void pick(int req) {
-        android.content.Intent i = new android.content.Intent(android.content.Intent.ACTION_GET_CONTENT);
-        i.addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION);
-        i.setType(req == PICK_IMAGE ? "image/*" : "*/*");
-        startActivityForResult(android.content.Intent.createChooser(i,
-                req == PICK_IMAGE ? "选图片" : "选文件"), req);
+        android.content.Intent i = new android.content.Intent(this, FileBrowserActivity.class);
+        i.putExtra(FileBrowserActivity.EXTRA_MODE, "file");
+        if (req == PICK_IMAGE) i.putExtra(FileBrowserActivity.EXTRA_FILTER, "image");
+        startActivityForResult(i, req);
     }
 
     // 本会话工作区：显示当前沙箱目录，可导外部目录进来（SAF 拿不到裸 File，导入=真拷贝）
@@ -262,11 +323,75 @@ public class SessionDetailActivity extends AppCompatActivity {
         workspaceLabel.setText("内置沙箱 · " + last);
     }
 
-    // 选外部目录：SAF 选一个 tree，把它整个拷进本会话沙箱的 external/ 下
+    // 选外部目录：走内置文件浏览器的选目录模式（裸路径直接拷，不经 SAF）
     private void pickWorkspace() {
-        android.content.Intent i = new android.content.Intent(android.content.Intent.ACTION_OPEN_DOCUMENT_TREE);
-        i.addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        android.content.Intent i = new android.content.Intent(this, FileBrowserActivity.class);
+        i.putExtra(FileBrowserActivity.EXTRA_MODE, "dir");
         startActivityForResult(i, PICK_WORKSPACE);
+    }
+
+    // 把选中的外部目录（裸路径）拷进本会话沙箱的 external/（后台线程；限深度/数量防失控）
+    private void importDirFromPath(final String srcPath) {
+        final String rn = new java.io.File(srcPath).getName();
+        if (rn.isEmpty()) return;
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                int[] budget = new int[]{0};
+                int n = 0;
+                try {
+                    n = copyPathTree(new java.io.File(srcPath),
+                            new java.io.File(fileTools.getWorkspace(), "external"), 0, budget);
+                } catch (Exception ignored) {
+                }
+                final int count = n;
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        if (count > 0) {
+                            refreshWorkspaceBar();
+                            android.widget.Toast.makeText(SessionDetailActivity.this,
+                                    "已把「" + rn + "」的 " + count + " 个文件导入本会话工作区（external/）",
+                                    android.widget.Toast.LENGTH_LONG).show();
+                        } else {
+                            android.widget.Toast.makeText(SessionDetailActivity.this,
+                                    "该目录没可读文件（无权限或为空）",
+                                    android.widget.Toast.LENGTH_LONG).show();
+                        }
+                    }
+                });
+            }
+        }, "ws-import").start();
+    }
+
+    // 递归拷裸路径树；限深度 6、500 个文件防失控
+    private int copyPathTree(java.io.File src, java.io.File dest, int depth, int[] budget) {
+        if (depth > 6 || budget[0] >= 500) return 0;
+        int count = 0;
+        if (src.isDirectory()) {
+            java.io.File[] kids = src.listFiles();
+            if (kids == null) return 0;
+            for (java.io.File k : kids) {
+                if (budget[0] >= 500) break;
+                count += copyPathTree(k, new java.io.File(dest, k.getName()), depth + 1, budget);
+            }
+        } else if (src.isFile() && src.canRead()) {
+            try {
+                java.io.File parent = dest.getParentFile();
+                if (parent != null) parent.mkdirs();
+                java.io.InputStream in = new java.io.FileInputStream(src);
+                java.io.OutputStream out = new java.io.FileOutputStream(dest);
+                byte[] buf = new byte[8192];
+                int n;
+                while ((n = in.read(buf)) != -1) out.write(buf, 0, n);
+                out.close();
+                in.close();
+                budget[0]++;
+                count++;
+            } catch (Exception ignored) {
+            }
+        }
+        return count;
     }
 
     // 把选中的外部目录拷贝进本会话沙箱（后台线程，防卡 UI；只拷普通文件，限深度/数量防失控）
@@ -370,7 +495,26 @@ public class SessionDetailActivity extends AppCompatActivity {
     @Override
     protected void onActivityResult(int req, int res, android.content.Intent data) {
         super.onActivityResult(req, res, data);
-        if (res != RESULT_OK || data == null || data.getData() == null) return;
+        if (res != RESULT_OK || data == null) return;
+        // 内置文件浏览器的结果：绝对路径
+        String path = data.getStringExtra(FileBrowserActivity.EXTRA_PATH);
+        if (path != null && !path.isEmpty()) {
+            if (req == PICK_WORKSPACE) {
+                importDirFromPath(path);
+                return;
+            }
+            if (req == PICK_IMAGE || req == PICK_FILE) {
+                Attachment a = fileTools.saveAttachmentFromPath(path);
+                if (a == null) {
+                    Toast.makeText(this, "读取附件失败（文件不可读）", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                pending.add(a);
+                renderPending();
+                return;
+            }
+        }
+        if (data.getData() == null) return;
         if (req == PICK_WORKSPACE) {
             importWorkspace(data.getData());
             return;
@@ -449,8 +593,7 @@ public class SessionDetailActivity extends AppCompatActivity {
             micRecognizer = rec;
             micRecording = true;
             if (micBtn != null) {
-                micBtn.setColorFilter(androidx.core.content.ContextCompat.getColor(
-                        this, R.color.acc_default));
+                micBtn.setColorFilter(ThemeUtil.attrColor(this, com.google.android.material.R.attr.colorPrimary));
             }
             Toast.makeText(this, "正在听，说完自动填入…", Toast.LENGTH_SHORT).show();
         } catch (Exception e) {
@@ -587,6 +730,7 @@ public class SessionDetailActivity extends AppCompatActivity {
             model = cur;
             if (modelPill != null) modelPill.setText(model + " ▾");
         }
+        updateThinkPill();
         updateTokenRing();
         if (AgentBackend.get().isSessionRunning(sessionId)) startPolling();
     }
@@ -820,6 +964,32 @@ public class SessionDetailActivity extends AppCompatActivity {
             tv.setMovementMethod(android.text.method.LinkMovementMethod.getInstance());
         }
 
+        // 深度思考折叠卡：有内容显示头部，默认收起，点头展开正文
+        private void bindThinking(com.happyagent.mobile.model.Models.Message m, VH h) {
+            String t = m.thinking;
+            if (t == null || t.trim().isEmpty()) {
+                h.thinkWrap.setVisibility(View.GONE);
+                return;
+            }
+            h.thinkWrap.setVisibility(View.VISIBLE);
+            h.thinkBody.setText(t);
+            renderThinkState(h);
+            h.thinkHead.setOnClickListener(v -> {
+                h.thinkExpanded = !h.thinkExpanded;
+                renderThinkState(h);
+            });
+        }
+
+        private void renderThinkState(VH h) {
+            if (h.thinkExpanded) {
+                h.thinkHead.setText("🧠 思考过程 ▾ 点击收起");
+                h.thinkBody.setVisibility(View.VISIBLE);
+            } else {
+                h.thinkHead.setText("🧠 思考过程 ▸ 点击展开");
+                h.thinkBody.setVisibility(View.GONE);
+            }
+        }
+
         int count() {
             return items.size();
         }
@@ -853,6 +1023,7 @@ public class SessionDetailActivity extends AppCompatActivity {
         @Override
         public void onBindViewHolder(@NonNull VH h, int pos) {
             h.expanded = false;   // 每次绑新数据重置展开态（复用 VH 防残留）
+            h.thinkExpanded = false;
             Message m = items.get(pos);
             boolean isUser = m.role.equals("user");
             boolean isTool = m.role.equals("tool");
@@ -867,6 +1038,8 @@ public class SessionDetailActivity extends AppCompatActivity {
             } else if (isAi) {
                 // AI 回复走 Markdown 渲染（代码块/标题/列表/链接/粗体），非 Markdown 保持纯文本
                 applyMarkdown(m, h);
+                // 深度思考折叠卡：有思考内容才显示，点头部展开/收起
+                bindThinking(m, h);
                 // AI 回复可一键复制（引擎能答但 UI 没露出来的那块）
                 final String aiText = m.text;
                 h.aiBubbleCopy.setOnClickListener(v -> copyToClipboard(h.itemView.getContext(), aiText));
@@ -1000,6 +1173,10 @@ public class SessionDetailActivity extends AppCompatActivity {
             final View userRow, aiRow, toolRow;
             final LinearLayout userAttach;
             final android.widget.ImageView aiBubbleCopy, toolLineCopy, toolExpand;
+            // 深度思考折叠卡
+            final View thinkWrap;
+            final TextView thinkHead, thinkBody;
+            boolean thinkExpanded;
             // 工具行是否展开（ViewHolder 级；绑新行时重置为收起）
             boolean expanded;
 
@@ -1015,8 +1192,12 @@ public class SessionDetailActivity extends AppCompatActivity {
                 aiRow = v.findViewById(R.id.row_ai);
                 toolRow = v.findViewById(R.id.row_tool);
                 userAttach = v.findViewById(R.id.user_attachments);
+                thinkWrap = v.findViewById(R.id.ai_think_wrap);
+                thinkHead = v.findViewById(R.id.ai_think_head);
+                thinkBody = v.findViewById(R.id.ai_think_body);
                 // 绑定新行（可能是复用 ViewHolder）时重置为收起态
                 expanded = false;
+                thinkExpanded = false;
             }
         }
     }

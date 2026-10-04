@@ -90,20 +90,25 @@ public class ToolsFragment extends Fragment {
             h.category.setText(t.category);
             // 分类徽章按类上色：net=青 / sys=绿 / dev=强调色容器，哪类工具一眼可辨
             String cat = t.category == null ? "dev" : t.category;
+            android.content.Context catCtx = h.itemView.getContext();
             int fg, bg;
             if ("net".equals(cat)) {
-                fg = R.color.acc_teal_c_on; bg = R.color.acc_teal_c;
+                fg = androidx.core.content.ContextCompat.getColor(catCtx, R.color.acc_teal_c_on);
+                bg = androidx.core.content.ContextCompat.getColor(catCtx, R.color.acc_teal_c);
             } else if ("sys".equals(cat)) {
-                fg = R.color.status_done; bg = R.color.status_done_bg;
+                fg = androidx.core.content.ContextCompat.getColor(catCtx, R.color.status_done);
+                bg = androidx.core.content.ContextCompat.getColor(catCtx, R.color.status_done_bg);
             } else {
-                fg = R.color.acc_default_c_on; bg = R.color.acc_default_c;
+                // dev=跟随当前强调色（主题属性解析，换色即时生效）
+                fg = ThemeUtil.attrColor(catCtx, com.google.android.material.R.attr.colorOnPrimaryContainer);
+                bg = ThemeUtil.attrColor(catCtx, com.google.android.material.R.attr.colorPrimaryContainer);
             }
-            h.category.setTextColor(androidx.core.content.ContextCompat.getColor(h.itemView.getContext(), fg));
+            h.category.setTextColor(fg);
             // 圆角徽章：用 GradientDrawable 保持 bg_chip 的圆角（setBackgroundColor 会丢圆角）
             android.graphics.drawable.GradientDrawable pill = new android.graphics.drawable.GradientDrawable();
-            float radius = 8 * h.itemView.getContext().getResources().getDisplayMetrics().density;
+            float radius = 8 * catCtx.getResources().getDisplayMetrics().density;
             pill.setCornerRadii(new float[]{radius, radius, radius, radius, radius, radius, radius, radius});
-            pill.setColor(androidx.core.content.ContextCompat.getColor(h.itemView.getContext(), bg));
+            pill.setColor(bg);
             h.category.setBackground(pill);
             h.sw.setOnCheckedChangeListener(null);
             h.sw.setChecked(t.enabled);

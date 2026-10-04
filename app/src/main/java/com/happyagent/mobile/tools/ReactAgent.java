@@ -52,6 +52,19 @@ public final class ReactAgent {
     private String promptTags = "";
     // 任务最大步数：默认 10，AgentBackend 按 Prefs 覆写（老存档兼容，不进序列化）
     private int maxSteps = DEFAULT_MAX_STEPS;
+    // 本次任务累计的深度思考内容（跨步骤拼接；run() 开头清零，结束后由 AgentBackend 取走）
+    private volatile String lastThinking = "";
+
+    // 本次任务的思考内容（无思考/未开思考时为空串）
+    public String getLastThinking() {
+        return lastThinking == null ? "" : lastThinking;
+    }
+
+    private void noteThinking(String t) {
+        if (t == null || t.trim().isEmpty()) return;
+        if (!lastThinking.isEmpty()) lastThinking += "\n\n";
+        lastThinking += t.trim();
+    }
 
     public ReactAgent(Config cfg, FileTools ft, ShellExecutor se, SystemTools st, List<Message> trace) {
         this(cfg, ft, se, st, trace, new TaskControl(), null);
@@ -99,6 +112,7 @@ public final class ReactAgent {
 
     public String run(String task, List<Message> history, List<Attachment> attachments) throws Exception {
         this.currentImages = attachments == null ? new ArrayList<Attachment>() : attachments;
+        this.lastThinking = "";
         trace.add(new Message("system", "PLAN: " + task, System.currentTimeMillis()));
 
         if (!cfg.hasKey()) {
@@ -133,6 +147,9 @@ public final class ReactAgent {
                     }
                     JSONArray results = new JSONArray();
                     JSONObject asst = new JSONObject().put("role", "assistant").put("calls", calls);
+                    // Anthropic 思考块随 assistant step 携带，重建请求时原样带回（见 callAnthropic）
+                    JSONArray tb = r.optJSONArray("thinking_blocks");
+                    if (tb != null && tb.length() > 0) asst.put("thinking_blocks", tb);
                     transcript.add(asst);
                     int total = calls.length();
                     for (int i = 0; i < total; i++) {
@@ -326,7 +343,7 @@ public final class ReactAgent {
             arr.put(fn("file_read", "读取文本文件", schema("path", true)));
             arr.put(fn("file_write", "创建或覆盖文件", schema2("path", true, "content", true)));
             arr.put(fn("file_list", "列目录", schema("path", false)));
-            arr.put(fn("file_info", "文件信息", schema("path", false)));
+            arr.put(fn("file_info", "文件信息", schema("path", true)));
             arr.put(fn("file_exists", "检查文件/目录是否存在", schema("path", true)));
             arr.put(fn("file_move", "移动或重命名文件/目录", schema2("path", true, "to", true)));
             arr.put(fn("file_copy", "复制文件/目录", schema2("path", true, "to", true)));
@@ -337,10 +354,10 @@ public final class ReactAgent {
             arr.put(fn("file_append", "在文件末尾追加内容（文件不存在则新建）", schema2("path", true, "content", true)));
             arr.put(fn("file_delete", "删除文件/目录（工作区内，不可恢复，操作前确认）", schema("path", true)));
             arr.put(fn("file_mkdir", "新建目录（可多级）", schema("path", true)));
-            if (toolOn("tool.search")) {
-                arr.put(fn("file_find", "按名查找文件", schema2("path", false, "name", true)));
-                arr.put(fn("file_grep", "在文件里搜关键词", schema2("path", true, "keyword", true)));
-            }
+        }
+        if (toolOn("tool.search")) {
+            arr.put(fn("file_find", "按名查找文件", schema2("path", false, "name", true)));
+            arr.put(fn("file_grep", "在文件里搜关键词", schema2("path", true, "keyword", true)));
         }
         if (toolOn("tool.shell")) {
             arr.put(fn("shell_exec", "执行白名单命令", schema("command", true)));
@@ -498,11 +515,18 @@ public final class ReactAgent {
 
         JSONObject body = new JSONObject();
         body.put("model", cfg.model);
-        body.put("temperature", clampTemp(TEMPERATURE_FIXED, 2.0));
-        body.put("max_tokens", cfg.maxTokens);
+        // 推理模型（o1/o3/o4/gpt-5/codex 系）只认 max_completion_tokens 且拒绝 temperature，
+        // 传旧参数会 400；其余保持产品固定的 0.7 温度
+        if (isReasoningModel(cfg.model)) {
+            body.put("max_completion_tokens", cfg.maxTokens);
+        } else {
+            body.put("temperature", clampTemp(TEMPERATURE_FIXED, 2.0));
+            body.put("max_tokens", cfg.maxTokens);
+        }
         body.put("messages", msgs);
         body.put("tools", openAITools());
         body.put("tool_choice", "auto");
+        applyThinkingOpenAi(body);   // 深度思考级别按 host 注入
 
         String base = cfg.openaiBaseUrl.trim();
         while (base.endsWith("/")) base = base.substring(0, base.length() - 1);
@@ -513,6 +537,10 @@ public final class ReactAgent {
         JSONObject jo = new JSONObject(resp);
         recordUsageOpenAi(jo, body);
         JSONObject message = jo.getJSONArray("choices").getJSONObject(0).getJSONObject("message");
+        // 思考内容：reasoning_content / reasoning 字段（DeepSeek、OpenRouter 等）
+        String think = message.optString("reasoning_content", "");
+        if (think.isEmpty()) think = message.optString("reasoning", "");
+        noteThinking(think);
         JSONArray calls = message.optJSONArray("tool_calls");
         if (calls != null && calls.length() > 0) {
             JSONArray out = new JSONArray();
@@ -538,7 +566,7 @@ public final class ReactAgent {
             decls.put(decl("file_read", "读取文本文件", "path", new String[]{"path"}));
             decls.put(decl2("file_write", "创建或覆盖文件", "path", "content"));
             decls.put(decl("file_list", "列目录", "path", null));
-            decls.put(decl("file_info", "文件信息", "path", null));
+            decls.put(decl("file_info", "文件信息", "path", new String[]{"path"}));
             decls.put(decl("file_exists", "检查文件/目录是否存在", "path", new String[]{"path"}));
             decls.put(decl2("file_move", "移动或重命名文件/目录", "path", "to"));
             decls.put(decl2("file_copy", "复制文件/目录", "path", "to"));
@@ -548,10 +576,10 @@ public final class ReactAgent {
             decls.put(decl2("file_append", "在文件末尾追加内容（文件不存在则新建）", "path", "content"));
             decls.put(decl("file_delete", "删除文件/目录（工作区内，不可恢复）", "path", new String[]{"path"}));
             decls.put(decl("file_mkdir", "新建目录（可多级）", "path", new String[]{"path"}));
-            if (toolOn("tool.search")) {
-                decls.put(decl2("file_find", "按名查找文件", "name", "path"));
-                decls.put(decl2("file_grep", "在文件里搜关键词", "path", "keyword"));
-            }
+        }
+        if (toolOn("tool.search")) {
+            decls.put(decl2("file_find", "按名查找文件", "name", "path"));
+            decls.put(decl2("file_grep", "在文件里搜关键词", "path", "keyword"));
         }
         if (toolOn("tool.shell")) {
             decls.put(decl("shell_exec", "执行白名单命令", "command", new String[]{"command"}));
@@ -687,8 +715,8 @@ public final class ReactAgent {
                                         .put("response", new JSONObject().put("result", res.optString("result", "")))));
                     }
                 }
-                // Gemini REST 函数结果角色是 "function"
-                contents.put(new JSONObject().put("role", "function").put("parts", parts));
+                // Gemini REST：functionResponse 必须挂 role "user"（发 "function" 会 400 INVALID_ARGUMENT）
+                contents.put(new JSONObject().put("role", "user").put("parts", parts));
             }
         }
 
@@ -698,6 +726,7 @@ public final class ReactAgent {
         JSONObject gen = new JSONObject()
                 .put("temperature", clampTemp(TEMPERATURE_FIXED, 2.0))
                 .put("maxOutputTokens", cfg.maxTokens);
+        applyThinkingGoogle(gen);   // 深度思考 → thinkingConfig
         body.put("generationConfig", gen);
         body.put("tools", googleTools());
         body.put("systemInstruction", new JSONObject().put("parts",
@@ -722,6 +751,8 @@ public final class ReactAgent {
                     callsOut.put(new JSONObject().put("id", "c" + callCounter++)
                             .put("name", fc.optString("name", ""))
                             .put("args", fc.optJSONObject("args") == null ? new JSONObject() : fc.optJSONObject("args")));
+                } else if (p.optBoolean("thought", false)) {
+                    noteThinking(p.optString("text", ""));   // Gemini 思考片段
                 } else {
                     ans.append(p.optString("text", ""));
                 }
@@ -739,7 +770,7 @@ public final class ReactAgent {
             arr.put(declA("file_read", "读取文本文件", "path", true));
             arr.put(declA2("file_write", "创建或覆盖文件", "path", "content"));
             arr.put(declA("file_list", "列目录", "path", false));
-            arr.put(declA("file_info", "文件信息", "path", false));
+            arr.put(declA("file_info", "文件信息", "path", true));
             arr.put(declA("file_exists", "检查文件/目录是否存在", "path", true));
             arr.put(declA2("file_move", "移动或重命名文件/目录", "path", "to"));
             arr.put(declA2("file_copy", "复制文件/目录", "path", "to"));
@@ -749,10 +780,10 @@ public final class ReactAgent {
             arr.put(declA2("file_append", "在文件末尾追加内容（文件不存在则新建）", "path", "content"));
             arr.put(declA("file_delete", "删除文件/目录（工作区内，不可恢复）", "path", true));
             arr.put(declA("file_mkdir", "新建目录（可多级）", "path", true));
-            if (toolOn("tool.search")) {
-                arr.put(declA2("file_find", "按名查找文件", "name", "path"));
-                arr.put(declA2("file_grep", "在文件里搜关键词", "path", "keyword"));
-            }
+        }
+        if (toolOn("tool.search")) {
+            arr.put(declA2("file_find", "按名查找文件", "name", "path"));
+            arr.put(declA2("file_grep", "在文件里搜关键词", "path", "keyword"));
         }
         if (toolOn("tool.shell")) {
             arr.put(declA("shell_exec", "执行白名单命令", "command", true));
@@ -875,6 +906,14 @@ public final class ReactAgent {
             } else if ("assistant".equals(role)) {
                 JSONArray calls = step.optJSONArray("calls");
                 JSONArray content = new JSONArray();
+                // 思考开启时，续接 tool_use 的 assistant 消息必须原样带回 thinking 块（含 signature），
+                // 否则下一轮 400 "Expected thinking or redacted_thinking…"
+                JSONArray tb = step.optJSONArray("thinking_blocks");
+                if (tb != null) {
+                    for (int i = 0; i < tb.length(); i++) {
+                        content.put(tb.getJSONObject(i));
+                    }
+                }
                 if (calls != null) {
                     for (int i = 0; i < calls.length(); i++) {
                         JSONObject c = calls.getJSONObject(i);
@@ -904,7 +943,9 @@ public final class ReactAgent {
         JSONObject body = new JSONObject();
         body.put("model", cfg.model);
         body.put("max_tokens", cfg.maxTokens);
-        body.put("temperature", Math.min(1.0, TEMPERATURE_FIXED));
+        applyThinkingAnthropic(body);   // 深度思考 → thinking（enabled/disabled）
+        // 思考开启时 API 拒绝 temperature，只在未显式开思考时传
+        if (!thinkingEnabled()) body.put("temperature", Math.min(1.0, TEMPERATURE_FIXED));
         body.put("system", systemPrompt());
         body.put("messages", arr);
         body.put("tools", anthropicTools());
@@ -918,6 +959,7 @@ public final class ReactAgent {
         recordUsageAnthropic(jo, body);
         JSONArray blocks = jo.optJSONArray("content");
         JSONArray callsOut = new JSONArray();
+        JSONArray thinkOut = new JSONArray();
         StringBuilder ans = new StringBuilder();
         if (blocks != null) {
             for (int i = 0; i < blocks.length(); i++) {
@@ -926,6 +968,10 @@ public final class ReactAgent {
                     callsOut.put(new JSONObject().put("id", b.optString("id", "c" + callCounter++))
                             .put("name", b.optString("name", ""))
                             .put("args", b.optJSONObject("input") == null ? new JSONObject() : b.optJSONObject("input")));
+                } else if ("thinking".equals(b.optString("type"))) {
+                    noteThinking(b.optString("thinking", ""));   // Claude 思考块
+                    // 原样保留（含 signature），续接 tool_use 时回填，避免下一轮 400
+                    if (b.has("signature")) thinkOut.put(b);
                 } else if ("text".equals(b.optString("type"))) {
                     ans.append(b.optString("text", ""));
                 }
@@ -933,6 +979,7 @@ public final class ReactAgent {
         }
         JSONObject r = new JSONObject();
         if (callsOut.length() > 0) r.put("calls", callsOut);
+        if (thinkOut.length() > 0) r.put("thinking_blocks", thinkOut);
         r.put("answer", ans.toString());
         return r;
     }
@@ -963,19 +1010,40 @@ public final class ReactAgent {
         sb.append("5. 写代码 / 改文本 / 处理数据：先读，再用 file_edit 精确改；别把整个文件重写一遍。\n");
         sb.append("6. 工具返回错误时，读懂错误里给出的提示（它常附上可用文件清单/示例参数），改正后重试；同一处最多重试 2 次，仍失败就如实汇报卡在哪。\n");
         sb.append("   - 工具结果里若出现「未执行成功 / 缺参 / 未识别 / 请重写」这类提示，说明这次调用参数有问题：把参数补齐、改成正确格式后重新发起调用即可，不用向用户道歉或放弃。\n");
+        // 可用工具清单按开关裁剪：只列真正能调的，不把已停用的工具喂给模型
+        // （否则模型被提示词引导去调停用工具，反复吃"分组已停用"软错误烧光步数）
         sb.append("\n【可用工具】\n");
-        sb.append("文件：file_read 读 / file_write 整写 / file_edit 局部替换(old_text→new_text) / file_append 末尾追加 / "
-                + "file_delete 删除 / file_mkdir 新建目录 / "
-                + "file_list 列目录 / file_info 信息 / file_exists 存在性 / file_move 移动改名 / file_copy 复制 / "
-                + "file_zip 压缩 / file_unzip 解压 / file_find 按名找 / file_grep 搜关键词\n"
-                + "  - 删除是不可恢复的操作，只有用户明确要求删时才调 file_delete，删前可先 file_info 确认。\n");
-        sb.append("文本：text_base64_encode/decode、text_url_encode/decode、text_json_get(按点路径取字段)、text_upper/lower、text_stats、text_calc(四则运算 3+4*2 这种)\n");
-        sb.append("设备(只读)：system_device_info / system_battery / system_storage / system_network / system_clipboard_get / system_clipboard_set\n");
-        sb.append("GUI(需用户先在系统里开无障碍服务)：gui_dump(读当前屏幕元素) / gui_click(按文本点按钮) / gui_type(向可输入框输入)\n");
-        sb.append("  - 想做 GUI 操作前先 gui_dump 看屏幕上有什么，再按文本点/输；没开服务会返回提示，如实告诉用户即可，别硬点。\n");
-        sb.append("容器(proot 免 root Linux，需先在设置页一键部署)：shell_proot(容器里跑命令，如 apk add / python / git) / proot_status(查容器状态) / proot_setup(部署指引)\n");
-        sb.append("  - 跑 shell_proot 前先 proot_status 看是否就绪；未就绪就如实告诉用户去「设置→容器环境」一键部署，别假装能跑。容器里可装 python3/gcc 等，比白名单 shell_exec 强得多。\n");
-        sb.append("其它：shell_exec(白名单命令) / http_get(抓网页) / http_post(发POST请求可带JSON体) / time_now(当前时间)\n");
+        if (toolOn("tool.file")) {
+            sb.append("文件：file_read 读 / file_write 整写 / file_edit 局部替换(old_text→new_text) / file_append 末尾追加 / "
+                    + "file_delete 删除 / file_mkdir 新建目录 / "
+                    + "file_list 列目录 / file_info 信息 / file_exists 存在性 / file_move 移动改名 / file_copy 复制 / "
+                    + "file_zip 压缩 / file_unzip 解压\n"
+                    + "  - 删除是不可恢复的操作，只有用户明确要求删时才调 file_delete，删前可先 file_info 确认。\n");
+        }
+        if (toolOn("tool.search")) {
+            sb.append("查找：file_find 按名找 / file_grep 文件里搜关键词\n");
+        }
+        if (toolOn("tool.text")) {
+            sb.append("文本：text_base64_encode/decode、text_url_encode/decode、text_json_get(按点路径取字段)、text_upper/lower、text_stats、text_calc(四则运算 3+4*2 这种)\n");
+        }
+        if (toolOn("tool.system")) {
+            sb.append("设备(只读)：system_device_info / system_battery / system_storage / system_network / system_clipboard_get / system_clipboard_set\n");
+        }
+        if (toolOn("tool.gui")) {
+            sb.append("GUI(需用户先在系统里开无障碍服务)：gui_dump(读当前屏幕元素) / gui_click(按文本点按钮) / gui_type(向可输入框输入)\n");
+            sb.append("  - 想做 GUI 操作前先 gui_dump 看屏幕上有什么，再按文本点/输；没开服务会返回提示，如实告诉用户即可，别硬点。\n");
+        }
+        if (toolOn("tool.proot")) {
+            sb.append("容器(proot 免 root Linux，需先在设置页一键部署)：shell_proot(容器里跑命令，如 apk add / python / git) / proot_status(查容器状态) / proot_setup(部署指引)\n");
+            sb.append("  - 跑 shell_proot 前先 proot_status 看是否就绪；未就绪就如实告诉用户去「设置→容器环境」一键部署，别假装能跑。容器里可装 python3/gcc 等，比白名单 shell_exec 强得多。\n");
+        }
+        {
+            StringBuilder other = new StringBuilder("其它：");
+            if (toolOn("tool.shell")) other.append("shell_exec(白名单命令) ");
+            if (toolOn("tool.http")) other.append("http_get(抓网页) http_post(发POST请求可带JSON体) ");
+            other.append("time_now(当前时间)\n");
+            sb.append(other);
+        }
         sb.append("\n完成所有工具调用后，用两三句话总结做了什么即可，别把工具原始输出整段贴回来。");
         return sb.toString();
     }
@@ -1035,16 +1103,12 @@ public final class ReactAgent {
         }
     }
 
-    // LLM 请求带退避重试：前 3 次各等 1s，4-8 次各等 2s，最多 8 次后放弃；用户取消随时停。
-    // 确定性 4xx 直接抛出不重试；每次重试新建连接（HttpURLConnection 不可复用）。
-    private static final int MAX_RETRIES = 8;
+    // LLM 请求无限重试 + 递增退避：1s→2s→4s→8s→16s→30s 封顶，越等越久（短间隔高频重打会被上游当攻击），
+    // 直到成功、用户停止、或撞上确定性 4xx（Key 错/参数错直接停，不浪费时间）。每次重试新建连接。
     private String postRetry(String url, String body, String[][] headers) throws Exception {
         int fails = 0;
         while (true) {
             if (control.shouldStop()) throw new Exception("任务已停止");
-            if (fails >= MAX_RETRIES) {
-                throw new Exception("连接重试 " + MAX_RETRIES + " 次仍失败，请检查网络或 API Key");
-            }
             HttpURLConnection conn = null;
             try {
                 conn = connPost(url, body);
@@ -1067,9 +1131,10 @@ public final class ReactAgent {
                     throw e;
                 }
                 fails++;
-                long wait = (fails <= 3) ? 1000L : 2000L;
+                // 递增退避：2^(n-1) 秒，30 秒封顶
+                long wait = Math.min(1000L << Math.min(fails - 1, 5), 30000L);
                 trace.add(new Message("system", "连接失败，" + (wait / 1000)
-                        + " 秒后自动重试（第 " + fails + " 次）", System.currentTimeMillis()));
+                        + " 秒后自动重试（第 " + fails + " 次，持续递增等待）", System.currentTimeMillis()));
                 sleepCancellable(wait);
             }
         }
@@ -1308,12 +1373,30 @@ public final class ReactAgent {
                 {"proot_status", "proot_env", "container_status", "proot_check"},
                 {"proot_setup", "proot_install", "container_setup", "proot_deploy"},
         };
+        // 1) 标准名原样放行（旧版用顺序 contains 模糊匹配，短别名会吃掉靠后的
+        //    标准名：text_stats→file_info、system_clipboard_set→clipboard_get 等必现错映射）
         for (String[] group : aliasMap) {
-            for (String alias : group) {
-                if (t.equals(alias)) return group[0];
-                if (alias.length() >= 4 && t.contains(alias)) return group[0];
+            if (t.equals(group[0])) return t;
+        }
+        // 2) 别名精确匹配
+        for (String[] group : aliasMap) {
+            for (int i = 1; i < group.length; i++) {
+                if (t.equals(group[i])) return group[0];
             }
         }
+        // 3) 模糊兜底：仅当不是任何标准名时才做 contains，且取最长别名（消除顺序依赖）
+        String best = null;
+        int bestLen = 4;
+        for (String[] group : aliasMap) {
+            for (int i = 1; i < group.length; i++) {
+                String alias = group[i];
+                if (alias.length() >= bestLen && t.contains(alias) && alias.length() > bestLen) {
+                    bestLen = alias.length();
+                    best = group[0];
+                }
+            }
+        }
+        if (best != null) return best;
         return raw;
     }
 
@@ -1392,12 +1475,16 @@ public final class ReactAgent {
                     if (p.isEmpty()) return "缺 'path'。请在 " + fileTools.getWorkspace() + " 下指定文件（如 notes.txt），再重试 {path, content}。";
                     return fileTools.write(p, str(args, "content", "text"));
                 }
-                case "file_list":
-                    return fileTools.list(str(args, "path", "dir", "directory"));
+                case "file_list": {
+                    // path 可选：留空默认列工作区（resolveSafe("") 会抛，不能直接透传）
+                    String p = str(args, "path", "dir", "directory");
+                    return fileTools.list(p.isEmpty() ? fileTools.getWorkspace() : p);
+                }
                 case "file_find": {
                     String n = str(args, "name", "query", "keyword");
                     if (n.isEmpty()) return "缺 'name'。可用文件：\n" + fileTools.list(fileTools.getWorkspace());
-                    return fileTools.find(str(args, "path", "dir", "directory"), n);
+                    String fp = str(args, "path", "dir", "directory");
+                    return fileTools.find(fp.isEmpty() ? fileTools.getWorkspace() : fp, n);
                 }
                 case "file_grep": {
                     String k = str(args, "keyword", "query");
@@ -1406,8 +1493,12 @@ public final class ReactAgent {
                         return "需要 'path' 和 'keyword'。可用文件：\n" + fileTools.list(fileTools.getWorkspace());
                     return fileTools.grep(p, k);
                 }
-                case "file_info":
-                    return fileTools.info(str(args, "path", "file", "file_path"));
+                case "file_info": {
+                    String p = str(args, "path", "file", "file_path");
+                    if (p.isEmpty())
+                        return "缺 'path'。可用文件：\n" + fileTools.list(fileTools.getWorkspace());
+                    return fileTools.info(p);
+                }
                 case "file_exists":
                     return fileTools.exists(str(args, "path", "file", "file_path"));
                 case "file_move": {
@@ -1678,6 +1769,106 @@ public final class ReactAgent {
     // 温度越界收口：OpenAI/Gemini 只收 0~2.0，滑条走到 2000 也不会 400
     private static double clampTemp(double t, double cap) {
         return t < 0 ? 0 : (t > cap ? cap : t);
+    }
+
+    // 推理系模型识别：o1/o3/o4（含 openrouter 的 "vendor/o1" 形式）、gpt-5 系、codex 系。
+    // 这些模型只认 max_completion_tokens、拒绝 temperature（旧参数直接 400）。
+    private static boolean isReasoningModel(String model) {
+        if (model == null || model.isEmpty()) return false;
+        String s = model.toLowerCase(java.util.Locale.US);
+        if (s.startsWith("gpt-5") || s.contains("gpt-5-") || s.startsWith("codex-")) return true;
+        return java.util.regex.Pattern.compile("(^|[/])o[134]([-.]|$)").matcher(s).find();
+    }
+
+    // ==================== 深度思考级别（off/auto/low/medium/high/max） ====================
+
+    // 是否是"明确开启思考"的档位（off=关，auto=交给模型默认）
+    private boolean thinkingEnabled() {
+        String l = cfg.thinkingLevel();
+        return "low".equals(l) || "medium".equals(l) || "high".equals(l) || "max".equals(l);
+    }
+
+    // 思考预算 tokens：low/medium/high/max → 1024/4096/16384/32768
+    private int thinkingBudget() {
+        String l = cfg.thinkingLevel();
+        if ("low".equals(l)) return 1024;
+        if ("medium".equals(l)) return 4096;
+        if ("high".equals(l)) return 16384;
+        return 32768;
+    }
+
+    // OpenAI 兼容：按网关注入思考参数（各家协议不同，host 分流）
+    private void applyThinkingOpenAi(JSONObject body) throws Exception {
+        String level = cfg.thinkingLevel();
+        String host = "";
+        try {
+            host = new java.net.URL(cfg.openaiBaseUrl.trim()).getHost()
+                    .toLowerCase(java.util.Locale.ROOT);
+        } catch (Exception ignored) {}
+        if ("off".equals(level)) {
+            if (host.contains("openrouter")) body.put("reasoning", new JSONObject().put("enabled", false));
+            else if (host.contains("siliconflow")) body.put("enable_thinking", false);
+            else if (host.contains("moonshot") || host.contains("bigmodel")
+                    || host.contains("ark") || host.contains("deepseek")
+                    || host.contains("volces")) body.put("thinking", new JSONObject().put("type", "disabled"));
+            // 标准 OpenAI/兼容端点：非推理模型本就不思考，无需参数
+            return;
+        }
+        if ("auto".equals(level)) return;   // 交给模型默认
+        String effort = "max".equals(level) ? "high" : level;   // OpenAI 档位只有 low/medium/high
+        if (host.contains("openrouter")) {
+            body.put("reasoning", new JSONObject().put("effort", effort));
+        } else if (host.contains("siliconflow") || host.contains("aiping")) {
+            body.put("enable_thinking", true);
+        } else if (host.contains("moonshot")) {
+            body.put("thinking", new JSONObject().put("type", "enabled").put("keep", "all"));
+        } else if (host.contains("deepseek")) {
+            body.put("thinking", new JSONObject().put("type", "enabled"));
+            body.put("reasoning_effort", effort);
+        } else if (host.contains("bigmodel") || host.contains("ark") || host.contains("volces")) {
+            body.put("thinking", new JSONObject().put("type", "enabled"));
+        } else {
+            // OpenAI 官方 / DashScope / 通用兼容网关
+            body.put("reasoning_effort", effort);
+        }
+    }
+
+    // Gemini：thinkingConfig 放 generationConfig；Gemini 3 系走 thinkingLevel，2.5 系走 thinkingBudget
+    private void applyThinkingGoogle(JSONObject gen) throws Exception {
+        String level = cfg.thinkingLevel();
+        String m = cfg.model == null ? "" : cfg.model.toLowerCase(java.util.Locale.ROOT);
+        boolean gemini3 = m.contains("gemini-3");
+        if ("auto".equals(level)) {
+            gen.put("includeThoughts", true);
+            return;
+        }
+        JSONObject tc = new JSONObject();
+        if ("off".equals(level)) {
+            if (gemini3) tc.put("thinkingLevel", "minimal");
+            else if (m.contains("2.5-pro")) tc.put("thinkingBudget", 128);   // pro 不接受 0
+            else tc.put("thinkingBudget", 0);
+        } else {
+            if (gemini3) {
+                tc.put("thinkingLevel", "max".equals(level) ? "high" : level);
+            } else {
+                tc.put("thinkingBudget", thinkingBudget());
+                tc.put("includeThoughts", true);
+            }
+        }
+        gen.put("thinkingConfig", tc);
+    }
+
+    // Anthropic：thinking.type = disabled / enabled(budget_tokens)；auto 不传（模型自适应）
+    // 注意：思考开启时 API 不允许带 temperature，调用处负责不传
+    private void applyThinkingAnthropic(JSONObject body) throws Exception {
+        String level = cfg.thinkingLevel();
+        if ("off".equals(level)) {
+            body.put("thinking", new JSONObject().put("type", "disabled"));
+        } else if (thinkingEnabled()) {
+            body.put("thinking", new JSONObject()
+                    .put("type", "enabled")
+                    .put("budget_tokens", thinkingBudget()));
+        }
     }
 
     // 离线本地引擎：没 Key 不装懂语言，但内置的确定性小能力真实可用（计算/时间/设备/存储/文件清单）

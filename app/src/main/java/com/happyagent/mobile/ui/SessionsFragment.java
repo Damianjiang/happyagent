@@ -36,6 +36,10 @@ public class SessionsFragment extends Fragment {
     private View empty;
     private EditText searchBox;
     private SessionAdapter adapter;
+    // 新建会话防连点（旧版可无限连点 → 返回首页冒出一堆重复"新对话"）
+    private final java.util.concurrent.atomic.AtomicBoolean creating =
+            new java.util.concurrent.atomic.AtomicBoolean(false);
+    private com.google.android.material.button.MaterialButton newBtn;
     // 全量缓存（含搜索过滤后再喂 adapter；搜索只是"过滤"，不真删）
     private List<Session> allSessions = new ArrayList<Session>();
 
@@ -46,7 +50,7 @@ public class SessionsFragment extends Fragment {
         progress = v.findViewById(R.id.sessions_progress);
         empty = v.findViewById(R.id.sessions_empty);
         // 顶部"新对话"按钮（搜索栏下方，始终可见）
-        com.google.android.material.button.MaterialButton newBtn = v.findViewById(R.id.sessions_new);
+        newBtn = v.findViewById(R.id.sessions_new);
         if (newBtn != null) newBtn.setOnClickListener(view2 -> newSessionAndOpen());
         recycler.setLayoutManager(new LinearLayoutManager(getContext()));
         adapter = new SessionAdapter(new ArrayList<Session>());
@@ -96,16 +100,31 @@ public class SessionsFragment extends Fragment {
         load();
     }
 
-    // 空态"创建第一个会话"：后台创建 + 跳转（老安卓 6 不卡主线程）
+    // 新建会话 + 跳转：单飞防抖（只允许一个在飞）、建完立刻刷列表、
+    // Fragment 已离开则回滚孤儿会话（旧版三处缺陷叠加导致首页冒出一堆重复新对话）
     private void newSessionAndOpen() {
+        if (!creating.compareAndSet(false, true)) return;
+        if (newBtn != null) newBtn.setEnabled(false);
         new Thread(new Runnable() {
             @Override
             public void run() {
-                String id = AgentBackend.get().createSession("新对话", null);
-                requireActivity().runOnUiThread(new Runnable() {
+                final String id = AgentBackend.get().createSession("新对话", null);
+                android.app.Activity a = getActivity();   // 不在后台线程调 requireActivity()
+                if (a == null) {
+                    AgentBackend.get().deleteSession(id);  // 人已离开，回滚刚建的孤儿
+                    creating.set(false);
+                    return;
+                }
+                a.runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
-                        if (!isAdded()) return;
+                        creating.set(false);
+                        if (newBtn != null) newBtn.setEnabled(true);
+                        if (!isAdded()) {
+                            AgentBackend.get().deleteSession(id);   // 跳转前发现不在了，回滚
+                            return;
+                        }
+                        load();   // 建完立刻刷新，不再"隐身"攒一堆
                         Intent i = new Intent(requireContext(), SessionDetailActivity.class);
                         i.putExtra(SessionDetailActivity.EXTRA_SESSION_ID, id);
                         startActivity(i);

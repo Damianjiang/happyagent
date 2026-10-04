@@ -65,6 +65,8 @@ public final class Models {
         public final String text;
         public final long ts;
         public final List<Attachment> attachments;   // 老存档无该字段 → null
+        // 深度思考内容（assistant 消息用；老存档无该字段 → null，界面判空跳过）
+        public String thinking;
         // Markdown 渲染缓存（transient：Java 序列化跳过，只在本进程 RecyclerView 复用里省一次重算）
         public transient CharSequence md;
 
@@ -114,6 +116,8 @@ public final class Models {
         public int maxTokens = 4096;
         public boolean autoCommit = true;
         public String workspace = "~/workspace";
+        // 深度思考级别：off / auto / low / medium / high / max（老存档无该字段 → null，归一为 auto）
+        public String thinkingLevel = "auto";
 
         public String provider = PROVIDER_OPENAI;
         // 各供应商凭据，留空则降级本地模拟
@@ -182,6 +186,16 @@ public final class Models {
         // 最大步数归一：老存档反序列化为 0 时回默认 10；越界收 4~20
         public int normalizedMaxSteps() {
             return maxSteps >= 4 && maxSteps <= 20 ? maxSteps : 10;
+        }
+
+        // 思考级别归一：老存档无该字段 → null，非法值都回 auto
+        public String thinkingLevel() {
+            if ("off".equals(thinkingLevel) || "low".equals(thinkingLevel)
+                    || "medium".equals(thinkingLevel) || "high".equals(thinkingLevel)
+                    || "max".equals(thinkingLevel)) {
+                return thinkingLevel;
+            }
+            return "auto";
         }
 
         // 兼容旧调用点

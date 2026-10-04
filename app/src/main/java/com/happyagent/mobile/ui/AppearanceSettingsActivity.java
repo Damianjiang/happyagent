@@ -125,7 +125,8 @@ public class AppearanceSettingsActivity extends SectionSettingsActivity {
             if (currentAccent == index) return;
             currentAccent = index;
             prefs.putInt(Prefs.KEY_ACCENT, index);
-            recreate();
+            // 整栈重建：背后所有页面也立即换色，不是只变当前页（"切了没反应"的老毛病）
+            ThemeUtil.recreateAll();
         });
         return dot;
     }

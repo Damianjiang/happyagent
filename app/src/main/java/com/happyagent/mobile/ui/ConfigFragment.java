@@ -71,13 +71,12 @@ public class ConfigFragment extends Fragment {
             @Override public void afterTextChanged(Editable x) {}
         });
 
-        // 模型列表：预设 + 已拉取合成，带搜索与上下文标注；点选直接填入
+        // 模型列表：多选勾选导入真实拉取结果（示例预置绝不混入）
         v.findViewById(R.id.config_pick_model).setOnClickListener(vv ->
-                ModelListDialog.show(requireContext(),
-                        modelBox.getText().toString().trim(),
-                        picked -> modelBox.setText(picked)));
+                ModelListDialog.showImport(requireContext(),
+                        modelBox.getText().toString().trim(), this::onImportModels));
 
-        // 拉取上游真实模型：成功即持久化并弹出列表（不再是一排挤扁的小 chip）
+        // 拉取上游真实模型：成功即持久化并弹多选导入列表
         final Button fetchBtn = v.findViewById(R.id.config_fetch_models);
         final TextView modelsHint = v.findViewById(R.id.config_models_hint);
         fetchBtn.setOnClickListener(vv -> {
@@ -108,10 +107,10 @@ public class ConfigFragment extends Fragment {
                             if (ok && models != null && !models.isEmpty()) {
                                 ModelCatalog.saveFetched(requireContext(), provider, models);
                                 modelsHint.setVisibility(View.GONE);
-                                // 拉完直接弹列表，点一下就切模型
-                                ModelListDialog.show(requireContext(),
+                                // 拉完直接弹多选导入
+                                ModelListDialog.showImport(requireContext(),
                                         modelBox.getText().toString().trim(),
-                                        picked -> modelBox.setText(picked));
+                                        ConfigFragment.this::onImportModels);
                             } else {
                                 modelsHint.setText(ok ? "上游暂无可用模型" : "拉取失败：" + errMsg);
                             }
@@ -140,22 +139,77 @@ public class ConfigFragment extends Fragment {
                     googleKeyBox.getText().toString().trim(),
                     anthropicKeyBox.getText().toString().trim());
             nc.maxSteps = clampSteps(maxStepsBox.getText().toString());
+            nc.thinkingLevel = c.thinkingLevel();   // 保存不丢思考档位（档位在聊天页顶栏切）
             AgentBackend.get().updateConfig(nc);
             Toast.makeText(getContext(), "配置已保存", Toast.LENGTH_SHORT).show();
         });
         return v;
     }
 
-    // 上下文上限提示：随模型名实时更新
+    // 多选导入回调：存模型池 + 第一个设为当前模型
+    private void onImportModels(java.util.List<String> models) {
+        if (models == null || models.isEmpty()) return;
+        String provider = currentProvider();
+        ModelCatalog.savePool(requireContext(), provider, models);
+        modelBox.setText(models.get(0));
+        updateCtxHint();
+        Toast.makeText(getContext(), "已导入 " + models.size() + " 个模型", Toast.LENGTH_SHORT).show();
+    }
+
+    // ---- 上下文/能力自动识别：按名先显示，异步向上游实测替换 ----
+    private final android.os.Handler detectHandler =
+            new android.os.Handler(android.os.Looper.getMainLooper());
+    private Runnable detectTask;
+
     private void updateCtxHint() {
-        if (ctxHint == null || modelBox == null) return;
-        String m = modelBox.getText().toString().trim();
+        if (ctxHint == null || modelBox == null || !isAdded()) return;
+        final String m = modelBox.getText().toString().trim();
         if (m.isEmpty()) {
             ctxHint.setText("上下文上限：—（选中模型后自动识别）");
-        } else {
-            ctxHint.setText("上下文上限：" + ModelCatalog.contextLabel(m)
-                    + "（按模型自动识别）");
+            return;
         }
+        String caps = ModelCatalog.capsLabel(m);
+        renderCtxHint(m, ModelCatalog.contextLimitOf(m), "按名识别", caps);
+        // 延迟 600ms 再向上游实测（输入停顿才发，避免逐字符打接口）
+        if (detectTask != null) detectHandler.removeCallbacks(detectTask);
+        detectTask = () -> {
+            if (!isAdded() || modelBox == null) return;
+            String now = modelBox.getText().toString().trim();
+            if (!now.equals(m)) return;   // 输入又变了，作废
+            String provider = currentProvider();
+            String base, key;
+            if (Config.PROVIDER_GOOGLE.equals(provider)) {
+                base = "https://generativelanguage.googleapis.com";
+                key = googleKeyBox.getText().toString().trim();
+            } else if (Config.PROVIDER_ANTHROPIC.equals(provider)) {
+                base = "https://api.anthropic.com";
+                key = anthropicKeyBox.getText().toString().trim();
+            } else {
+                base = openaiUrlBox.getText().toString().trim();
+                key = openaiKeyBox.getText().toString().trim();
+            }
+            if (key.isEmpty()) return;
+            ModelCatalog.detectContext(requireContext(), provider, now, base, key, ctxNow -> {
+                if (!isAdded() || ctxNow <= 0) return;
+                String cap = ModelCatalog.capsLabel(now);
+                renderCtxHint(now, ctxNow, "上游实测", cap);
+            });
+        };
+        detectHandler.postDelayed(detectTask, 600);
+    }
+
+    private void renderCtxHint(String model, int tokens, String source, String caps) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("上下文上限：").append(ModelCatalog.tokensLabel(tokens))
+          .append("（").append(source).append("）");
+        if (!caps.isEmpty()) sb.append("\n能力：").append(caps);
+        ctxHint.setText(sb.toString());
+    }
+
+    @Override
+    public void onDestroyView() {
+        if (detectTask != null) detectHandler.removeCallbacks(detectTask);
+        super.onDestroyView();
     }
 
     // 分段按钮互斥：点一家 → 记 selProvider + 显对应凭据分组 + 选中态样式 + 同步模型默认值
@@ -178,11 +232,11 @@ public class ConfigFragment extends Fragment {
         }
     }
 
-    // 分段按钮选中态：选中=强调色容器底，未选=透明底+发丝描边
+    // 分段按钮选中态：选中=强调色容器底，未选=透明底+发丝描边（颜色走主题属性，换强调色即时生效）
     private void styleSeg(Button b, boolean on) {
         b.setBackgroundResource(on ? R.drawable.bg_seg_on : R.drawable.bg_seg_off);
         b.setTextColor(on
-                ? androidx.core.content.ContextCompat.getColor(requireContext(), R.color.acc_default_c_on)
+                ? ThemeUtil.attrColor(requireContext(), com.google.android.material.R.attr.colorOnPrimaryContainer)
                 : androidx.core.content.ContextCompat.getColor(requireContext(), R.color.on_surface_variant));
     }
 

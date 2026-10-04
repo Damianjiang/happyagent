@@ -28,18 +28,51 @@ body{
 header{
   display:flex;align-items:center;gap:10px;
   padding:10px 16px;background:var(--surface);
-  border-bottom:1px solid var(--line);z-index:10;
+  border-bottom:1px solid var(--line);z-index:20;
 }
 header .logo{
   width:32px;height:32px;border-radius:10px;background:var(--user);
   color:#fff;display:flex;align-items:center;justify-content:center;
   font-weight:700;font-size:16px;flex:0 0 auto;
 }
-header .titles{flex:1}
+header .titles{flex:1;min-width:0}
 header .title{font-weight:600;font-size:15px}
-header .sub{font-size:11px;color:var(--muted);margin-top:1px}
+header .sub{font-size:11px;color:var(--muted);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 header .dot{width:8px;height:8px;border-radius:50%;background:var(--done);flex:0 0 auto}
 header .dot.off{background:var(--muted)}
+header .hbtn{
+  border:1px solid var(--line);background:var(--surface);color:var(--text);
+  border-radius:8px;padding:6px 10px;font-size:12px;cursor:pointer;flex:0 0 auto;
+}
+header .hbtn:hover{background:var(--tool)}
+/* 会话面板 */
+#sessions{
+  display:none;position:absolute;top:0;left:0;right:0;z-index:30;
+  background:var(--surface);border-bottom:1px solid var(--line);
+  box-shadow:0 8px 24px rgba(0,0,0,.15);max-height:60vh;overflow-y:auto;
+}
+#sessions.open{display:block}
+#sessions .shead{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--line)}
+#sessions .shead .st{flex:1;font-size:13px;font-weight:600}
+#sessions .shead button{
+  border:1px solid var(--line);background:var(--surface);color:var(--text);
+  border-radius:8px;padding:5px 10px;font-size:12px;cursor:pointer;
+}
+#sessions .shead button:hover{background:var(--tool)}
+#sessions .item{
+  display:flex;align-items:center;gap:8px;padding:10px 14px;cursor:pointer;
+  border-bottom:1px solid var(--line);font-size:13px;
+}
+#sessions .item:hover{background:var(--tool)}
+#sessions .item.cur{background:var(--ai);font-weight:600}
+#sessions .item .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#sessions .item .sub2{font-size:10px;color:var(--muted);flex:0 0 auto}
+#sessions .item .ib{
+  border:none;background:transparent;color:var(--muted);cursor:pointer;
+  font-size:13px;padding:2px 5px;border-radius:6px;flex:0 0 auto;
+}
+#sessions .item .ib:hover{background:var(--line);color:var(--text)}
+#sessions .none{padding:16px;text-align:center;color:var(--muted);font-size:13px}
 /* 主区域 */
 main{flex:1;overflow-y:auto;padding:12px 16px}
 /* 消息 */
@@ -59,6 +92,16 @@ main{flex:1;overflow-y:auto;padding:12px 16px}
 .msg.tool .t-expand{font-size:10px;opacity:.5}
 .msg.tool.expanded .t-text{white-space:pre-wrap;word-break:break-word}
 .msg .meta{font-size:10px;opacity:.6;margin-top:5px}
+/* 深度思考折叠 */
+.think{background:var(--tool);border:1px solid var(--line);border-radius:8px;margin:4px 0;max-width:78%}
+.think summary{cursor:pointer;font-size:11px;color:var(--muted);padding:6px 10px;list-style:none;user-select:none}
+.think summary:before{content:'✻ ';opacity:.6}
+.think .tbody{padding:0 10px 8px;font-size:12px;color:var(--muted);line-height:1.6;white-space:pre-wrap;word-break:break-word}
+/* 失败提示 */
+.fail{
+  max-width:78%;margin:5px 0;padding:8px 14px;border-radius:12px;
+  background:rgba(192,57,43,.12);color:var(--error);font-size:13px;
+}
 /* 空态 */
 .empty{text-align:center;color:var(--muted);margin-top:20vh;font-size:14px;line-height:2}
 .empty .star{font-size:40px;display:block;margin-bottom:8px;opacity:.3}
@@ -80,6 +123,7 @@ main{flex:1;overflow-y:auto;padding:12px 16px}
   border-radius:8px;padding:4px 14px;font-size:12px;cursor:pointer;
 }
 #regen:hover{color:var(--accent);border-color:var(--accent)}
+#regen:disabled{opacity:.4;cursor:default}
 /* 底部 */
 footer{
   display:flex;align-items:flex-end;gap:8px;
@@ -112,8 +156,17 @@ footer{
     <div class="title">Happy Agent</div>
     <div class="sub" id="modelsub">端侧智能体 · Web</div>
   </div>
+  <button class="hbtn" id="btn-sessions">会话</button>
   <span class="dot" id="dot"></span>
 </header>
+<div id="sessions">
+  <div class="shead">
+    <span class="st">选择会话</span>
+    <button id="btn-new">＋ 新建</button>
+    <button id="btn-close-s">收起</button>
+  </div>
+  <div id="slist"></div>
+</div>
 <div id="conn">正在连接…</div>
 <main id="list">
   <div class="empty" id="empty"><span class="star">✦</span>在这里输入任务<br>支持 Markdown · 工具步骤 · 暂停/继续/取消</div>
@@ -132,10 +185,11 @@ footer{
 
 <script>
 var list=document.getElementById('list'),box=document.getElementById('box'),
-    send=document.getElementById('send'),empty=document.getElementById('empty'),
-    conn=document.getElementById('conn'),dot=document.getElementById('dot'),
-    controls=document.getElementById('controls'),regen=document.getElementById('regen');
-var sid='',pollTimer=null,lastUserMsg='';
+    send=document.getElementById('send'),conn=document.getElementById('conn'),
+    dot=document.getElementById('dot'),controls=document.getElementById('controls'),
+    regen=document.getElementById('regen'),slist=document.getElementById('slist'),
+    span=document.getElementById('sessions');
+var sid='',sessions=[],sending=false,lastUserMsg='',lastStatus=0;
 
 // 简易 Markdown → HTML（粗体、行内代码、代码块、链接）
 function md(src){
@@ -151,8 +205,16 @@ function md(src){
   return s;
 }
 
-function addMsg(role, text, extra){
-  empty.style.display='none';
+function showEmpty(){
+  var e=document.createElement('div');
+  e.className='empty';e.id='empty';
+  e.innerHTML='<span class="star">✦</span>在这里输入任务<br>支持 Markdown · 工具步骤 · 暂停/继续/取消';
+  list.appendChild(e);
+}
+function hideEmpty(){var e=document.getElementById('empty');if(e)e.style.display='none';}
+
+function addMsg(role,text,extra){
+  hideEmpty();
   var d=document.createElement('div');
   d.className='msg '+role;
   if(role==='ai'){d.innerHTML=md(text||'');}
@@ -163,8 +225,16 @@ function addMsg(role, text, extra){
   return d;
 }
 
+function addThink(text){
+  var d=document.createElement('details');
+  d.className='think';
+  d.innerHTML='<summary>深度思考</summary><div class="tbody"></div>';
+  d.querySelector('.tbody').textContent=text;
+  list.appendChild(d);
+}
+
 function addToolMsg(text){
-  empty.style.display='none';
+  hideEmpty();
   var d=document.createElement('div');
   d.className='msg tool';
   d.innerHTML='<span class="t-icon">⚙</span><span class="t-text"></span><span class="t-expand">▸</span>';
@@ -174,79 +244,178 @@ function addToolMsg(text){
   list.scrollTop=list.scrollHeight;
 }
 
-// 拉状态
-function refreshState(){
-  fetch('/api/state').then(function(r){return r.json();}).then(function(o){
-    sid=(o.sessions&&o.sessions.length)?o.sessions[0].id:'';
-    var key=o.keyConfigured?'':'（未配 Key）';
-    document.getElementById('modelsub').textContent=o.provider+' · '+o.model+' '+key;
-  }).catch(function(){});
+function addFail(text){
+  hideEmpty();
+  var d=document.createElement('div');
+  d.className='fail';d.textContent=text;
+  list.appendChild(d);
 }
 
-// 发任务
-function sendText(){
-  var p=box.value.trim();
-  if(!p)return;
-  lastUserMsg=p;
-  addMsg('user',p);
-  box.value='';autoGrow();
-  send.disabled=true;
-  regen.style.display='none';
-  var d=addMsg('ai','…');
-  fetch('/api/ask',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt:p,sessionId:sid})})
+// 整段从服务端历史渲染（工具步骤/思考随消息顺序还原，避免前端重复拼接）
+function renderChat(msgs){
+  list.innerHTML='';
+  if(!msgs||!msgs.length){showEmpty();regen.style.display='none';return;}
+  lastUserMsg='';lastStatus=0;
+  for(var i=0;i<msgs.length;i++){
+    var m=msgs[i];
+    if(m.role==='user'){lastUserMsg=m.text;addMsg('user',m.text);}
+    else if(m.role==='tool'){addToolMsg(m.text);}
+    else if(m.role==='assistant'){
+      if(m.thinking)addThink(m.thinking);
+      addMsg('ai',m.text);
+      lastStatus=2;
+    }
+    else if(m.role==='system'){addFail(m.text);}
+  }
+  regen.style.display=lastUserMsg?'block':'none';
+  list.scrollTop=list.scrollHeight;
+}
+
+function loadMessages(){
+  if(!sid){list.innerHTML='';showEmpty();return;}
+  fetch('/api/messages?sessionId='+encodeURIComponent(sid))
+    .then(function(r){if(!r.ok)throw 404;return r.json();})
+    .then(function(o){renderChat(o.messages);})
+    .catch(function(){list.innerHTML='';showEmpty();});
+}
+
+// ---- 会话管理 ----
+function renderSessions(){
+  if(!sessions.length){slist.innerHTML='<div class="none">暂无会话，发送第一条任务自动创建</div>';return;}
+  slist.innerHTML='';
+  sessions.forEach(function(s){
+    var d=document.createElement('div');
+    d.className='item'+(s.id===sid?' cur':'');
+    d.innerHTML='<span class="nm"></span><span class="sub2"></span>'
+      +'<button class="ib r" title="重命名">✎</button><button class="ib x" title="删除">✕</button>';
+    d.querySelector('.nm').textContent=s.title||'未命名';
+    var st=['运行中','完成','完成','失败'][s.status]||'';
+    d.querySelector('.sub2').textContent=st;
+    d.onclick=function(e){
+      if(e.target.classList.contains('r')||e.target.classList.contains('x'))return;
+      sid=s.id;renderSessions();loadMessages();span.classList.remove('open');
+    };
+    d.querySelector('.r').onclick=function(){
+      var t=prompt('重命名会话',s.title||'');
+      if(!t)return;
+      fetch('/api/sessions',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({action:'rename',id:s.id,title:t})})
+        .then(function(){s.title=t;renderSessions();});
+    };
+    d.querySelector('.x').onclick=function(e){
+      e.stopPropagation();
+      if(!confirm('删除会话「'+(s.title||'未命名')+'」？'))return;
+      fetch('/api/sessions',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({action:'delete',id:s.id})})
+        .then(function(){
+          sessions=sessions.filter(function(x){return x.id!==s.id;});
+          if(sid===s.id){sid=sessions.length?sessions[0].id:'';loadMessages();}
+          renderSessions();
+        });
+    };
+    slist.appendChild(d);
+  });
+}
+
+document.getElementById('btn-sessions').onclick=function(){span.classList.toggle('open');renderSessions();};
+document.getElementById('btn-close-s').onclick=function(){span.classList.remove('open');};
+document.getElementById('btn-new').onclick=function(){
+  fetch('/api/sessions',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({action:'create'})})
     .then(function(r){return r.json();})
     .then(function(o){
-      sid=o.sessionId||sid;
-      d.innerHTML=md(o.answer&&o.answer.length?o.answer:'（无内容）');
-      d.title=o.statusLabel||'';
-      // 显示工具步骤
-      if(o.tools&&o.tools.length){o.tools.forEach(function(t){addToolMsg(t);});}
-      list.scrollTop=list.scrollHeight;
-      if(o.status===2||o.status==='done'){regen.style.display='block';}
-      refreshState();
-    })
-    .catch(function(e){d.textContent='请求失败：'+e;})
-    .then(function(){send.disabled=false;});
-}
-
-// 任务控制
-document.getElementById('btn-pause').onclick=function(){fetch('/api/control',{method:'POST',body:JSON.stringify({action:'pause'})}).then(function(){updateControls();});};
-document.getElementById('btn-resume').onclick=function(){fetch('/api/control',{method:'POST',body:JSON.stringify({action:'resume'})}).then(function(){updateControls();});};
-document.getElementById('btn-cancel').onclick=function(){fetch('/api/control',{method:'POST',body:JSON.stringify({action:'cancel'})}).then(function(){controls.style.display='none';});};
-
-// 轮询任务状态
-function startPoll(){
-  if(pollTimer)return;
-  pollTimer=setInterval(function(){
-    fetch('/api/running').then(function(r){return r.json();}).then(function(o){
-      if(o.running){
-        controls.style.display='flex';
-        document.getElementById('ctrl-status').textContent=o.paused?'已暂停':'运行中 · '+o.steps+' 步';
-        document.getElementById('btn-pause').style.display=o.paused?'none':'';
-        document.getElementById('btn-resume').style.display=o.paused?'':'none';
-      } else {
-        controls.style.display='none';
-        clearInterval(pollTimer);pollTimer=null;
-      }
-    }).catch(function(){});
-  },1000);
-}
-
-// 重新生成
-regen.onclick=function(){
-  regen.style.display='none';
-  if(!lastUserMsg)return;
-  var d=addMsg('ai','…');
-  fetch('/api/ask',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt:lastUserMsg,sessionId:sid,regenerate:true})})
-    .then(function(r){return r.json();}).then(function(o){
-      sid=o.sessionId||sid;
-      d.innerHTML=md(o.answer&&o.answer.length?o.answer:'（无内容）');
-      if(o.tools&&o.tools.length){o.tools.forEach(function(t){addToolMsg(t);});}
-      list.scrollTop=list.scrollHeight;
-      if(o.status===2||o.status==='done')regen.style.display='block';
-      refreshState();
+      sessions.unshift({id:o.sessionId,title:o.title,status:0});
+      sid=o.sessionId;renderSessions();loadMessages();
+      span.classList.remove('open');
     });
 };
+
+// 拉状态：模型信息 + 会话列表
+function refreshState(){
+  return fetch('/api/state').then(function(r){return r.json();}).then(function(o){
+    sessions=o.sessions||[];
+    var key=o.keyConfigured?'':'（未配 Key）';
+    document.getElementById('modelsub').textContent=o.provider+' · '+o.model+' '+key;
+    if(!sid&&sessions.length)sid=sessions[0].id;
+    renderSessions();
+    return sid;
+  }).catch(function(){return sid;});
+}
+
+// ---- 发送 / 重新生成（统一入口，发送期间锁死防连点双跑）----
+function doAsk(payload,onDone){
+  if(sending)return;
+  sending=true;send.disabled=true;regen.disabled=true;
+  fetch('/api/ask',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})
+    .then(function(r){
+      return r.json().then(function(o){return {ok:r.ok,o:o};});
+    })
+    .then(function(res){
+      var o=res.o;
+      if(!res.ok){
+        if(res.o.error==='task running')addFail('已有任务在运行，请等它结束或先取消。');
+        else if(res.o.error==='nothing to regenerate')addFail('没有可重新生成的内容。');
+        else addFail('请求失败：'+(res.o.error||res.status));
+        return;
+      }
+      sid=o.sessionId||sid;
+      // 整段回读服务端历史渲染：工具步骤/思考/失败消息一次到位，杜绝重复与错位
+      return loadMessages().then(function(){
+        if(o.status===3)addFail('任务失败'+(o.statusLabel?'（'+o.statusLabel+'）':''));
+        if(typeof onDone==='function')onDone(o);
+      });
+    })
+    .catch(function(e){addFail('网络错误：'+e);})
+    .then(function(){
+      sending=false;send.disabled=false;regen.disabled=false;
+      refreshState();pollOnce();
+    });
+}
+
+function sendText(){
+  var p=box.value.trim();
+  if(!p||sending)return;
+  box.value='';autoGrow();
+  hideEmpty();
+  addMsg('user',p);
+  var ph=addMsg('ai','… 正在运行');
+  doAsk({prompt:p,sessionId:sid},function(o){
+    ph.remove();  // 交给 loadMessages 全量重渲染
+    list.scrollTop=list.scrollHeight;
+  });
+}
+
+regen.onclick=function(){
+  if(sending||!lastUserMsg||!sid)return;
+  doAsk({prompt:lastUserMsg,sessionId:sid,regenerate:true});
+};
+
+// 任务控制（必带 sessionId，服务端对不上回 409，杜绝控错任务）
+function ctrl(action){
+  fetch('/api/control',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({action:action,sessionId:sid})})
+    .then(function(){pollOnce();})
+    .catch(function(){});
+}
+document.getElementById('btn-pause').onclick=function(){ctrl('pause');};
+document.getElementById('btn-resume').onclick=function(){ctrl('resume');};
+document.getElementById('btn-cancel').onclick=function(){ctrl('cancel');};
+
+// 轮询：常驻，页面开着就一直转（旧版任务一结束就停轮询，任务从客户端启动就看不到）
+function pollOnce(){
+  fetch('/api/running').then(function(r){return r.json();}).then(function(o){
+    // 只有"当前会话"的任务才显示控制条，防止看到别的任务的步骤
+    var mine=o.running&&o.sessionId&&o.sessionId===sid;
+    if(mine){
+      controls.style.display='flex';
+      document.getElementById('ctrl-status').textContent=o.paused?'已暂停':'运行中 · '+o.steps+' 步';
+      document.getElementById('btn-pause').style.display=o.paused?'none':'';
+      document.getElementById('btn-resume').style.display=o.paused?'':'none';
+    } else {
+      controls.style.display='none';
+    }
+  }).catch(function(){controls.style.display='none';});
+}
 
 // UI
 function autoGrow(){box.style.height='auto';box.style.height=Math.min(box.scrollHeight,120)+'px';}
@@ -254,20 +423,24 @@ send.onclick=sendText;
 box.addEventListener('input',autoGrow);
 box.addEventListener('keydown',function(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendText();}});
 
-// 连接探测
+// 连接探测（失败自动重试）
 function probe(){
   fetch('/api/ipinfo').then(function(r){return r.json();}).then(function(o){
     var lan=o.lan?'内网 '+o.lan+':'+o.port:'';
     var pub=o.public?' · 外网 '+o.public+':'+o.port:'';
     conn.textContent='服务运行中'+(lan+pub);
     dot.classList.remove('off');
-    startPoll();
   }).catch(function(){
-    conn.textContent='无法连接 Happy Agent Web 服务';
+    conn.textContent='无法连接 Happy Agent Web 服务，5 秒后重试…';
     dot.classList.add('off');
+    setTimeout(probe,5000);
   });
 }
-refreshState();probe();
+
+refreshState().then(function(){loadMessages();});
+probe();
+pollOnce();
+setInterval(pollOnce,1500);
 </script>
 </body>
 </html>
