@@ -59,6 +59,9 @@ public class SessionDetailActivity extends AppCompatActivity {
     private String model;
     private TextView workspaceLabel;
     private MaterialButton workspacePick;
+    // 顶栏右侧：模型切换按钮（点开模型列表）+ token 上下文用量环（点开明细）
+    private android.widget.TextView modelPill;
+    private TokenRingView tokenRing;
 
     private String sessionId;
     private ChatAdapter adapter;
@@ -122,10 +125,10 @@ public class SessionDetailActivity extends AppCompatActivity {
             return;
         }
 
-        // 模型名放到顶栏副标题，卡片区保持干净
+        // 会话标题放顶栏；右侧放模型切换按钮 + token 用量环（副标题不再重复模型名）
         toolbar.setTitle(s.title);
-        toolbar.setSubtitle("模型: " + model);
         toolbar.setNavigationOnClickListener(v -> finish());
+        setupToolbarExtras();
 
         adapter = new ChatAdapter();
         layoutMgr = new LinearLayoutManager(this);
@@ -143,6 +146,102 @@ public class SessionDetailActivity extends AppCompatActivity {
             send();
             return true;
         });
+    }
+
+    // 顶栏右侧两个控件：[模型切换 ▾] [用量环]，加进 Toolbar 末尾（END 对齐）
+    private void setupToolbarExtras() {
+        int d = (int) getResources().getDisplayMetrics().density;
+
+        android.widget.LinearLayout endBox = new android.widget.LinearLayout(this);
+        endBox.setOrientation(android.widget.LinearLayout.HORIZONTAL);
+        endBox.setGravity(android.view.Gravity.CENTER_VERTICAL);
+
+        modelPill = new android.widget.TextView(this);
+        modelPill.setTextSize(12);
+        modelPill.setSingleLine(true);
+        modelPill.setMaxWidth(150 * d);
+        modelPill.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        modelPill.setPadding(10 * d, 5 * d, 10 * d, 5 * d);
+        modelPill.setBackgroundResource(R.drawable.bg_chip);
+        modelPill.setTextColor(androidx.core.content.ContextCompat.getColor(this, R.color.on_surface));
+        modelPill.setText(model + " ▾");
+        modelPill.setOnClickListener(v -> openModelPicker());
+        endBox.addView(modelPill);
+
+        tokenRing = new TokenRingView(this);
+        endBox.addView(tokenRing, new android.widget.LinearLayout.LayoutParams(
+                34 * d, 34 * d));
+        tokenRing.setOnClickListener(v -> showUsageDialog());
+
+        androidx.appcompat.widget.Toolbar.LayoutParams lp =
+                new androidx.appcompat.widget.Toolbar.LayoutParams(
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                        android.view.Gravity.END);
+        lp.rightMargin = 10 * d;
+        toolbar.addView(endBox, lp);
+        updateTokenRing();
+    }
+
+    // 模型切换：弹列表（预设 + 已拉取），点选即写配置并刷新顶栏
+    private void openModelPicker() {
+        ModelListDialog.show(this, model, picked -> {
+            com.happyagent.mobile.model.Models.Config nc = AgentBackend.get().getConfig();
+            com.happyagent.mobile.model.Models.Config upd =
+                    new com.happyagent.mobile.model.Models.Config(
+                            nc.agentName, picked, nc.temperature, nc.maxTokens,
+                            nc.autoCommit, nc.workspace, nc.getProvider(),
+                            nc.openaiKey, nc.openaiBaseUrl, nc.googleKey, nc.anthropicKey);
+            upd.maxSteps = nc.maxSteps;
+            AgentBackend.get().updateConfig(upd);
+            model = picked;
+            modelPill.setText(model + " ▾");
+            updateTokenRing();
+            Toast.makeText(this, "已切换模型：" + picked, Toast.LENGTH_SHORT).show();
+        });
+    }
+
+    // 用量明细：上下文窗口/上限 + 累计输入输出（数据来自响应 usage，无则估算）
+    private void showUsageDialog() {
+        com.happyagent.mobile.data.UsageStats st = com.happyagent.mobile.data.UsageStats.get();
+        long window = st.getLastWindow();
+        long in = st.getCumulativeInput();
+        long out = st.getCumulativeOutput();
+        int limit = com.happyagent.mobile.data.ModelCatalog.contextLimitOf(model);
+        int pct = limit <= 0 ? 0 : (int) Math.min(100, window * 100 / limit);
+        String msg = "上下文窗口：" + window + " / " + limit + " tokens（" + pct + "%）\n"
+                + "累计输入：" + in + "\n"
+                + "累计输出：" + out + "\n"
+                + "总计：" + (in + out);
+        new androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("Token 用量")
+                .setMessage(msg)
+                .setPositiveButton("知道了", null)
+                .show();
+    }
+
+    // 刷新环：窗口/上下文上限 → 百分比；色阶 主色→>75%警示→>90%错误
+    private void updateTokenRing() {
+        if (tokenRing == null) return;
+        int limit = com.happyagent.mobile.data.ModelCatalog.contextLimitOf(model);
+        long window = com.happyagent.mobile.data.UsageStats.get().getLastWindow();
+        float pct = limit <= 0 ? 0f : window * 100f / limit;
+        int color;
+        if (pct > 90f) {
+            color = androidx.core.content.ContextCompat.getColor(this, R.color.status_failed);
+        } else if (pct > 75f) {
+            color = androidx.core.content.ContextCompat.getColor(this, R.color.acc_amber);
+        } else {
+            android.util.TypedValue tv = new android.util.TypedValue();
+            if (getTheme().resolveAttribute(com.google.android.material.R.attr.colorPrimary, tv, true)
+                    && tv.resourceId != 0) {
+                color = androidx.core.content.ContextCompat.getColor(this, tv.resourceId);
+            } else {
+                color = tv.data != 0 ? tv.data
+                        : androidx.core.content.ContextCompat.getColor(this, R.color.on_surface);
+            }
+        }
+        tokenRing.update(pct, color);
     }
 
     private void pick(int req) {
@@ -479,10 +578,16 @@ public class SessionDetailActivity extends AppCompatActivity {
         return BitmapFactory.decodeFile(path, o);
     }
 
-    // 回来时若后台仍有本会话任务在跑，重新挂上轮询
+    // 回来时：后台仍有本会话任务在跑就重挂轮询；模型可能在设置页被改过，胶囊跟上
     @Override
     protected void onResume() {
         super.onResume();
+        String cur = AgentBackend.get().getConfig().model;
+        if (cur != null && !cur.equals(model)) {
+            model = cur;
+            if (modelPill != null) modelPill.setText(model + " ▾");
+        }
+        updateTokenRing();
         if (AgentBackend.get().isSessionRunning(sessionId)) startPolling();
     }
 
@@ -537,6 +642,7 @@ public class SessionDetailActivity extends AppCompatActivity {
         AgentBackend backend = AgentBackend.get();
         if (anyRunning()) {
             updateControls();
+            updateTokenRing();   // 每跳一次顺手刷新用量环（每步 LLM 调用都会入账 token）
             // 实时增量：把比已显示多的工具步骤立即 append，不必等任务跑完
             List<Message> live = backend.peekRunningToolSteps();
             if (live.size() > liveToolCount) {
@@ -568,6 +674,7 @@ public class SessionDetailActivity extends AppCompatActivity {
         pollTask = null;
         sendBtn.setEnabled(true);
         updateControls();
+        updateTokenRing();   // 任务结束也刷一次（最终用量入账）
         // 任务成功后显示"重新生成"按钮
         com.google.android.material.button.MaterialButton regenBtn = findViewById(R.id.detail_regen);
         if (regenBtn != null && s != null && s.status == 2) {

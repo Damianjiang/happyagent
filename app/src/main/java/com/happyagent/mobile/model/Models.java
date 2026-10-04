@@ -110,7 +110,7 @@ public final class Models {
 
         public String agentName = "Happy-Agent";
         public String model = "gpt-4o-mini";
-        public int temperature = 0;      // 百分制，0~2000
+        public int temperature = 70;     // 百分制；已固定默认 0.7（引擎不吃旧存档值），仅诊断页展示用
         public int maxTokens = 4096;
         public boolean autoCommit = true;
         public String workspace = "~/workspace";

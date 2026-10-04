@@ -1,14 +1,14 @@
 package com.happyagent.mobile.ui;
 
-import android.graphics.Color;
 import android.os.Bundle;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
-import android.widget.SeekBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -17,27 +17,25 @@ import androidx.fragment.app.Fragment;
 
 import com.happyagent.mobile.R;
 import com.happyagent.mobile.data.AgentBackend;
+import com.happyagent.mobile.data.ModelCatalog;
 import com.happyagent.mobile.model.Models.Config;
 
-// 运行配置页：供应商（分段互斥单选）、模型、温度、token、最大步数 + 各家 API Key / Base URL
+// 模型接入页：供应商分段单选 + 各家 Key/BaseURL + 模型（列表点选 / 拉取上游）+ 步数，
+// 保存按钮固定整页最底部；温度不开放（固定走默认值）。模型列表带上下文上限自动识别。
 public class ConfigFragment extends Fragment {
 
     private EditText modelBox, agentBox, maxTokensBox;
     private EditText openaiKeyBox, openaiUrlBox, googleKeyBox, anthropicKeyBox;
     private Button providerOpenai, providerGoogle, providerAnthropic;
     private View openaiGroup, googleGroup, anthropicGroup;
-    private SeekBar tempBar;
-    private TextView tempLabel;
     private EditText maxStepsBox;
-    private java.util.List<String> fetchedModels = new java.util.ArrayList<String>();
-    // 供应商当前选中（分段按钮自管互斥，避免 3 个 RadioButton 无组导致多选）
+    private TextView ctxHint;
+    // 供应商当前选中（分段按钮自管互斥）
     private String selProvider = Config.PROVIDER_OPENAI;
-    private View root;
 
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle s) {
         View v = inflater.inflate(R.layout.fragment_config, container, false);
-        root = v;
         modelBox = v.findViewById(R.id.config_model);
         agentBox = v.findViewById(R.id.config_agent);
         maxTokensBox = v.findViewById(R.id.config_max_tokens);
@@ -52,8 +50,7 @@ public class ConfigFragment extends Fragment {
         openaiGroup = v.findViewById(R.id.config_provider_openai_group);
         googleGroup = v.findViewById(R.id.config_provider_google_group);
         anthropicGroup = v.findViewById(R.id.config_provider_anthropic_group);
-        tempBar = v.findViewById(R.id.config_temp);
-        tempLabel = v.findViewById(R.id.config_temp_label);
+        ctxHint = v.findViewById(R.id.config_ctx_hint);
         Button saveBtn = v.findViewById(R.id.config_save);
 
         final Config c = AgentBackend.get().getConfig();
@@ -65,22 +62,24 @@ public class ConfigFragment extends Fragment {
         openaiUrlBox.setText(c.openaiBaseUrl);
         googleKeyBox.setText(c.googleKey);
         anthropicKeyBox.setText(c.anthropicKey);
+        updateCtxHint();
 
-        tempBar.setMax(2000);
-        tempBar.setProgress(c.temperature);
-        tempLabel.setText("温度: " + (c.temperature / 100.0));
-        tempBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-            @Override
-            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                tempLabel.setText("温度: " + (progress / 100.0));
-            }
-            @Override public void onStartTrackingTouch(SeekBar seekBar) {}
-            @Override public void onStopTrackingTouch(SeekBar seekBar) {}
+        // 模型名一变，上下文上限提示跟着变（自动识别）
+        modelBox.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence x, int a, int b, int cc) {}
+            @Override public void onTextChanged(CharSequence x, int a, int b, int cc) { updateCtxHint(); }
+            @Override public void afterTextChanged(Editable x) {}
         });
 
-        // 拉取上游真实模型列表：真调供应商 /models，铺成可点 chip；失败诚实提示，不编造
-        TextView modelsHint = v.findViewById(R.id.config_models_hint);
+        // 模型列表：预设 + 已拉取合成，带搜索与上下文标注；点选直接填入
+        v.findViewById(R.id.config_pick_model).setOnClickListener(vv ->
+                ModelListDialog.show(requireContext(),
+                        modelBox.getText().toString().trim(),
+                        picked -> modelBox.setText(picked)));
+
+        // 拉取上游真实模型：成功即持久化并弹出列表（不再是一排挤扁的小 chip）
         final Button fetchBtn = v.findViewById(R.id.config_fetch_models);
+        final TextView modelsHint = v.findViewById(R.id.config_models_hint);
         fetchBtn.setOnClickListener(vv -> {
             final String provider = currentProvider();
             String base;
@@ -100,16 +99,19 @@ public class ConfigFragment extends Fragment {
             fetchBtn.setText("拉取中…");
             modelsHint.setVisibility(View.VISIBLE);
             modelsHint.setText("正在从供应商拉取模型列表…");
-            com.happyagent.mobile.data.ModelCatalog.fetch(requireContext(), provider, base, key,
-                    new com.happyagent.mobile.data.ModelCatalog.Callback() {
+            ModelCatalog.fetch(requireContext(), provider, base, key,
+                    new ModelCatalog.Callback() {
                         @Override
                         public void onResult(boolean ok, String errMsg, java.util.List<String> models) {
                             fetchBtn.setEnabled(true);
-                            fetchBtn.setText("拉取模型列表");
+                            fetchBtn.setText("拉取上游模型");
                             if (ok && models != null && !models.isEmpty()) {
-                                fillFetchedChips(v, models);
-                                modelsHint.setText("已拉取 " + models.size() + " 个上游模型，点 chip 填入");
-                                fillModelChips(v, provider);   // 保留常用 + 追加上游
+                                ModelCatalog.saveFetched(requireContext(), provider, models);
+                                modelsHint.setVisibility(View.GONE);
+                                // 拉完直接弹列表，点一下就切模型
+                                ModelListDialog.show(requireContext(),
+                                        modelBox.getText().toString().trim(),
+                                        picked -> modelBox.setText(picked));
                             } else {
                                 modelsHint.setText(ok ? "上游暂无可用模型" : "拉取失败：" + errMsg);
                             }
@@ -117,19 +119,18 @@ public class ConfigFragment extends Fragment {
                     });
         });
 
-        // 三家分段按钮互斥单选（自管状态，避免 3 个 RadioButton 无组导致多选）
+        // 三家分段按钮互斥单选
         providerOpenai.setOnClickListener(vv -> pickProvider(Config.PROVIDER_OPENAI));
         providerGoogle.setOnClickListener(vv -> pickProvider(Config.PROVIDER_GOOGLE));
         providerAnthropic.setOnClickListener(vv -> pickProvider(Config.PROVIDER_ANTHROPIC));
         pickProvider(c.getProvider());
 
+        // 保存固定在页面最底部，改完所有项一点全存；温度走默认值不再开放
         saveBtn.setOnClickListener(vv -> {
-            // workspace/autoCommit 没有可编辑 UI（引擎用固定沙箱根、App 无 git），
-            // 保存时沿用已加载配置的原值，不做会误导人的假编辑器，也不丢老数据
             Config nc = new Config(
                     agentBox.getText().toString().trim(),
                     modelBox.getText().toString().trim(),
-                    tempBar.getProgress(),
+                    70,   // 温度固定默认 0.7，引擎也按固定值发，不再开放调节
                     parseIntSafe(maxTokensBox.getText().toString(), 4096),
                     c.autoCommit,
                     c.workspace,
@@ -143,6 +144,18 @@ public class ConfigFragment extends Fragment {
             Toast.makeText(getContext(), "配置已保存", Toast.LENGTH_SHORT).show();
         });
         return v;
+    }
+
+    // 上下文上限提示：随模型名实时更新
+    private void updateCtxHint() {
+        if (ctxHint == null || modelBox == null) return;
+        String m = modelBox.getText().toString().trim();
+        if (m.isEmpty()) {
+            ctxHint.setText("上下文上限：—（选中模型后自动识别）");
+        } else {
+            ctxHint.setText("上下文上限：" + ModelCatalog.contextLabel(m)
+                    + "（按模型自动识别）");
+        }
     }
 
     // 分段按钮互斥：点一家 → 记 selProvider + 显对应凭据分组 + 选中态样式 + 同步模型默认值
@@ -163,66 +176,14 @@ public class ConfigFragment extends Fragment {
                 break;
             }
         }
-        fillModelChips(root, p);
     }
 
-    // 分段按钮选中态：选中=强调色容器底，未选=透明底+发丝描边；颜色跟主题强调色 overlay 走
+    // 分段按钮选中态：选中=强调色容器底，未选=透明底+发丝描边
     private void styleSeg(Button b, boolean on) {
         b.setBackgroundResource(on ? R.drawable.bg_seg_on : R.drawable.bg_seg_off);
         b.setTextColor(on
                 ? androidx.core.content.ContextCompat.getColor(requireContext(), R.color.acc_default_c_on)
                 : androidx.core.content.ContextCompat.getColor(requireContext(), R.color.on_surface_variant));
-    }
-
-    // 按供应商铺一排常用模型 chip，点一下填入模型框；模型框仍支持手输自定义
-    private void fillModelChips(View root, String provider) {
-        LinearLayout chips = root.findViewById(R.id.config_model_chips);
-        chips.removeAllViews();
-        String[] models = modelsFor(provider);
-        for (String m : models) {
-            chips.addView(makeChip(root, m));
-        }
-        // 追加拉取到的上游模型（去重），让真实列表也可点
-        java.util.LinkedHashSet<String> seen = new java.util.LinkedHashSet<String>();
-        for (String m : models) seen.add(m);
-        if (fetchedModels != null) {
-            for (String m : fetchedModels) {
-                if (seen.add(m)) chips.addView(makeChip(root, m));
-            }
-        }
-    }
-
-    // 上游拉取成功：整批存进 fetchedModels，并把常用 + 上游一起铺出来
-    private void fillFetchedChips(View root, java.util.List<String> models) {
-        fetchedModels = new java.util.ArrayList<String>(models);
-        fillModelChips(root, currentProvider());
-    }
-
-    private TextView makeChip(View root, String model) {
-        TextView chip = new TextView(root.getContext());
-        chip.setText(model);
-        chip.setTextSize(13);
-        int pad = (int) (14 * root.getContext().getResources().getDisplayMetrics().density);
-        int gap = (int) (6 * root.getContext().getResources().getDisplayMetrics().density);
-        chip.setPadding(pad, gap, pad, gap);
-        chip.setBackgroundResource(R.drawable.bg_chip);
-        chip.setTextColor(root.getContext().getResources().getColor(R.color.on_surface_variant));
-        chip.setOnClickListener(vv -> modelBox.setText(model));
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        lp.rightMargin = gap;
-        chip.setLayoutParams(lp);
-        return chip;
-    }
-
-    private String[] modelsFor(String provider) {
-        if (Config.PROVIDER_GOOGLE.equals(provider)) {
-            return new String[]{"gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-pro"};
-        }
-        if (Config.PROVIDER_ANTHROPIC.equals(provider)) {
-            return new String[]{"claude-haiku-4-5", "claude-sonnet-4-6", "claude-opus-4-1"};
-        }
-        return new String[]{"gpt-4o-mini", "gpt-4o", "gpt-4.1-mini", "o4-mini"};
     }
 
     private String defaultModelFor(String provider) {

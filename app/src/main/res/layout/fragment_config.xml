@@ -197,16 +197,6 @@
                         android:textColor="?attr/colorOnSurface" />
                 </LinearLayout>
 
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/config_save"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="18dp"
-                    android:paddingTop="14dp"
-                    android:paddingBottom="14dp"
-                    android:text="@string/save"
-                    android:textStyle="bold"
-                    style="@style/Widget.App.Button" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
@@ -245,29 +235,39 @@
                     android:hint="gpt-4o-mini / gemini-2.5-flash / claude-haiku-4-5"
                     android:textColor="?attr/colorOnSurface" />
 
+                <TextView
+                    android:id="@+id/config_ctx_hint"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:text="上下文上限：—（选中模型后自动识别）"
+                    android:textSize="12sp"
+                    android:textColor="?attr/colorOnSurfaceVariant" />
+
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
-                    android:orientation="horizontal"
-                    android:gravity="center_vertical">
+                    android:orientation="horizontal">
 
-                    <TextView
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/config_pick_model"
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:text="快速选 / 拉取上游模型"
-                        android:textSize="12sp"
-                        android:textColor="?attr/colorOnSurfaceVariant" />
+                        android:layout_marginEnd="6dp"
+                        android:text="模型列表"
+                        android:textSize="13sp"
+                        style="@style/Widget.App.Button.Tonal" />
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/config_fetch_models"
-                        android:layout_width="wrap_content"
+                        android:layout_width="0dp"
                         android:layout_height="wrap_content"
-                        android:text="拉取模型列表"
-                        android:textSize="12sp"
-                        android:insetTop="0dp"
-                        android:insetBottom="0dp"
+                        android:layout_weight="1"
+                        android:layout_marginStart="6dp"
+                        android:text="拉取上游模型"
+                        android:textSize="13sp"
                         style="@style/Widget.App.Button.Outline" />
                 </LinearLayout>
 
@@ -276,23 +276,9 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="4dp"
-                    android:text="点 chip 填入模型框；也可手动输入自定义模型名"
                     android:textSize="11sp"
                     android:textColor="?attr/colorOnSurfaceVariant"
                     android:visibility="gone" />
-
-                <HorizontalScrollView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:scrollbars="none">
-
-                    <LinearLayout
-                        android:id="@+id/config_model_chips"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal" />
-                </HorizontalScrollView>
 
                 <TextView
                     android:layout_width="wrap_content"
@@ -316,29 +302,6 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="14dp"
-                    android:text="@string/temperature"
-                    style="@style/SectionHeader" />
-
-                <TextView
-                    android:id="@+id/config_temp_label"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:textSize="12sp"
-                    android:textColor="?attr/colorOnSurfaceVariant" />
-
-                <SeekBar
-                    android:id="@+id/config_temp"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="6dp"
-                    android:max="2000"
-                    android:progress="0" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="12dp"
                     android:text="@string/max_tokens"
                     style="@style/SectionHeader" />
 
@@ -381,6 +344,18 @@
                     android:textColor="?attr/colorOnSurface" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
+
+        <!-- 保存固定在整页最底部：所有项改完一点保存 -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/config_save"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:paddingTop="14dp"
+            android:paddingBottom="14dp"
+            android:text="保存全部配置"
+            android:textStyle="bold"
+            style="@style/Widget.App.Button" />
 
     </LinearLayout>
 </ScrollView>

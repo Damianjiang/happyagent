@@ -30,6 +30,8 @@ public final class ReactAgent {
     private static final int MAX_TOOL_RESULT = 8000;
     // 单张图 base64 前原始字节上限（约 4MB 原始 → base64 后 ~5.3MB）。老机多图同发不至于把堆撑爆。
     private static final int MAX_IMAGE_BYTES = 4 * 1024 * 1024;
+    // 采样温度固定走默认（不开放调节，也不吃历史存档里的旧值），三家统一 0.7
+    private static final double TEMPERATURE_FIXED = 0.7;
 
     private final Config cfg;
     private final FileTools fileTools;
@@ -197,6 +199,46 @@ public final class ReactAgent {
                 + s.substring(s.length() - tail);
     }
 
+    // token 用量入账：优先读响应 usage（标准三家都有），没有就按请求体估算，
+    // 供聊天页环形进度显示上下文窗口与累计用量
+    private void recordUsageOpenAi(JSONObject respJson, JSONObject reqBody) {
+        JSONObject u = respJson.optJSONObject("usage");
+        if (u != null && u.has("prompt_tokens")) {
+            com.happyagent.mobile.data.UsageStats.get().record(
+                    u.optLong("prompt_tokens", 0), u.optLong("completion_tokens", 0));
+        } else {
+            estimateUsage(reqBody, respJson);
+        }
+    }
+
+    private void recordUsageAnthropic(JSONObject respJson, JSONObject reqBody) {
+        JSONObject u = respJson.optJSONObject("usage");
+        if (u != null && u.has("input_tokens")) {
+            com.happyagent.mobile.data.UsageStats.get().record(
+                    u.optLong("input_tokens", 0), u.optLong("output_tokens", 0));
+        } else {
+            estimateUsage(reqBody, respJson);
+        }
+    }
+
+    private void recordUsageGoogle(JSONObject respJson, JSONObject reqBody) {
+        JSONObject u = respJson.optJSONObject("usageMetadata");
+        if (u != null && u.has("promptTokenCount")) {
+            com.happyagent.mobile.data.UsageStats.get().record(
+                    u.optLong("promptTokenCount", 0), u.optLong("candidatesTokenCount", 0));
+        } else {
+            estimateUsage(reqBody, respJson);
+        }
+    }
+
+    private void estimateUsage(JSONObject reqBody, JSONObject respJson) {
+        long in = com.happyagent.mobile.data.UsageStats.estimateTokens(
+                reqBody == null ? null : reqBody.toString());
+        long out = com.happyagent.mobile.data.UsageStats.estimateTokens(
+                respJson == null ? null : respJson.toString());
+        com.happyagent.mobile.data.UsageStats.get().record(in, out);
+    }
+
     private JSONArray imagePayloads() throws Exception {
         JSONArray imgs = new JSONArray();
         for (Attachment a : currentImages) {
@@ -231,7 +273,7 @@ public final class ReactAgent {
                     .put("role", "user")
                     .put("parts", new JSONArray().put(new JSONObject().put("text", userText)))));
             body.put("generationConfig", new JSONObject()
-                    .put("temperature", clampTemp(cfg.temperature / 100.0, 2.0))
+                    .put("temperature", clampTemp(TEMPERATURE_FIXED, 2.0))
                     .put("maxOutputTokens", 4096));
             String url = "https://generativelanguage.googleapis.com/v1beta/models/"
                     + cfg.model + ":generateContent";
@@ -263,7 +305,7 @@ public final class ReactAgent {
         // OpenAI 兼容
         JSONObject body = new JSONObject();
         body.put("model", cfg.model);
-        body.put("temperature", clampTemp(cfg.temperature / 100.0, 2.0));
+        body.put("temperature", clampTemp(TEMPERATURE_FIXED, 2.0));
         body.put("max_tokens", 4096);
         body.put("messages", new JSONArray()
                 .put(new JSONObject().put("role", "system")
@@ -456,7 +498,7 @@ public final class ReactAgent {
 
         JSONObject body = new JSONObject();
         body.put("model", cfg.model);
-        body.put("temperature", clampTemp(cfg.temperature / 100.0, 2.0));
+        body.put("temperature", clampTemp(TEMPERATURE_FIXED, 2.0));
         body.put("max_tokens", cfg.maxTokens);
         body.put("messages", msgs);
         body.put("tools", openAITools());
@@ -469,6 +511,7 @@ public final class ReactAgent {
                 {"Authorization", "Bearer " + cfg.apiKey().trim()}
         });
         JSONObject jo = new JSONObject(resp);
+        recordUsageOpenAi(jo, body);
         JSONObject message = jo.getJSONArray("choices").getJSONObject(0).getJSONObject("message");
         JSONArray calls = message.optJSONArray("tool_calls");
         if (calls != null && calls.length() > 0) {
@@ -653,7 +696,7 @@ public final class ReactAgent {
         body.put("contents", contents);
         // 采样参数放 generationConfig，顶层不生效
         JSONObject gen = new JSONObject()
-                .put("temperature", clampTemp(cfg.temperature / 100.0, 2.0))
+                .put("temperature", clampTemp(TEMPERATURE_FIXED, 2.0))
                 .put("maxOutputTokens", cfg.maxTokens);
         body.put("generationConfig", gen);
         body.put("tools", googleTools());
@@ -666,6 +709,7 @@ public final class ReactAgent {
                 {"x-goog-api-key", cfg.apiKey().trim()}
         });
         JSONObject jo = new JSONObject(resp);
+        recordUsageGoogle(jo, body);
         JSONArray cand = jo.optJSONArray("candidates");
         JSONArray callsOut = new JSONArray();
         StringBuilder ans = new StringBuilder();
@@ -860,7 +904,7 @@ public final class ReactAgent {
         JSONObject body = new JSONObject();
         body.put("model", cfg.model);
         body.put("max_tokens", cfg.maxTokens);
-        body.put("temperature", Math.min(1.0, cfg.temperature / 100.0));
+        body.put("temperature", Math.min(1.0, TEMPERATURE_FIXED));
         body.put("system", systemPrompt());
         body.put("messages", arr);
         body.put("tools", anthropicTools());
@@ -871,6 +915,7 @@ public final class ReactAgent {
                 {"anthropic-version", "2023-06-01"}
         });
         JSONObject jo = new JSONObject(resp);
+        recordUsageAnthropic(jo, body);
         JSONArray blocks = jo.optJSONArray("content");
         JSONArray callsOut = new JSONArray();
         StringBuilder ans = new StringBuilder();
