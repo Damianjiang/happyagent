@@ -90,7 +90,7 @@ public class FileEditorActivity extends AppCompatActivity {
                         loading.setVisibility(View.GONE);
                         editor.setText(result);
                         loaded = true;
-                        if (!new java.io.File(p).exists() && p != null) {
+                        if (p != null && !new java.io.File(p).exists()) {
                             status.setText("新文件（保存后创建）");
                         } else {
                             status.setText("");

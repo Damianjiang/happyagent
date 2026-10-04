@@ -104,10 +104,15 @@ public final class FileTools {
     public String readContent(String path) {
         File f = resolveSafe(path);
         if (!f.exists() || f.isDirectory()) return "";
+        // 限 5MB 防大文件 OOM（老设备 2GB RAM 也不撑爆）
+        long len = f.length();
+        if (len > 5 * 1024 * 1024) {
+            return "[文件过大（" + (len / 1024 / 1024) + "MB），请用终端查看]";
+        }
         try {
-            byte[] data = new byte[(int) f.length()];
+            byte[] data = new byte[(int) len];
             FileInputStream in = new FileInputStream(f);
-            int read = in.read(data, 0, (int) f.length());
+            int read = in.read(data, 0, (int) len);
             in.close();
             if (read < 0) return "";
             return new String(data, 0, read, StandardCharsets.UTF_8);
@@ -158,14 +163,23 @@ public final class FileTools {
             throw new SecurityException("empty path");
         }
         File abs;
-        if (p.startsWith("/") || p.startsWith("\\")) {
-            abs = new File(p).getAbsoluteFile();
-        } else {
-            // 相对路径：拼到 workspace 根下
-            abs = new File(sandboxRoot, p).getAbsoluteFile();
+        try {
+            if (p.startsWith("/") || p.startsWith("\\")) {
+                abs = new File(p).getCanonicalFile();
+            } else {
+                // 相对路径：拼到 workspace 根下（用 Canonical 解析符号链接，堵绕过）
+                abs = new File(sandboxRoot, p).getCanonicalFile();
+            }
+        } catch (Exception e) {
+            throw new SecurityException("cannot resolve path: " + path);
         }
-        String root = sandboxRoot.getAbsolutePath();
-        String target = abs.getAbsolutePath();
+        String root;
+        try {
+            root = sandboxRoot.getCanonicalPath();
+        } catch (Exception e) {
+            root = sandboxRoot.getAbsolutePath();
+        }
+        String target = abs.getPath();
         if (!target.equals(root) && !target.startsWith(root + File.separator)) {
             throw new SecurityException("path out of workspace: " + path);
         }
@@ -221,6 +235,10 @@ public final class FileTools {
             return "not found: " + path + "\n可用文件：\n" + list(getWorkspace());
         }
         if (f.isDirectory()) return "是目录，不是文件：" + f.getName();
+        // 限 10MB 防大文件 OOM
+        if (f.length() > 10 * 1024 * 1024) {
+            return "文件过大（" + (f.length() / 1024 / 1024) + "MB），不支持编辑。请用终端操作。";
+        }
         String src;
         try {
             StringBuilder sb = new StringBuilder();
@@ -412,6 +430,10 @@ public final class FileTools {
     public String grep(String path, String keyword) {
         File f = resolveSafe(path);
         if (!f.exists()) return "not found: " + path;
+        // 限 5MB 防大文件全读 OOM
+        if (f.length() > 5 * 1024 * 1024) {
+            return "文件过大（" + (f.length() / 1024 / 1024) + "MB），不支持搜索。请缩小范围或直接用终端 grep。";
+        }
         List<String> out = new ArrayList<String>();
         try {
             BufferedReader r = new BufferedReader(new InputStreamReader(

@@ -954,10 +954,17 @@ public final class ReactAgent {
             os.close();
             int code = conn.getResponseCode();
             InputStream is = (code >= 200 && code < 300) ? conn.getInputStream() : conn.getErrorStream();
+            if (is == null) throw new HttpError(code, "empty response body");
+            // 限 2MB 防恶意/异常响应撑爆内存
+            final int MAX_RESP = 2 * 1024 * 1024;
             ByteArrayOutputStream bo = new ByteArrayOutputStream();
             byte[] buf = new byte[8192];
-            int n;
-            while ((n = is.read(buf)) != -1) bo.write(buf, 0, n);
+            int n, total = 0;
+            while ((n = is.read(buf)) != -1) {
+                bo.write(buf, 0, n);
+                total += n;
+                if (total > MAX_RESP) break;
+            }
             is.close();
             conn.disconnect();
             String resp = new String(bo.toByteArray(), StandardCharsets.UTF_8);
@@ -983,12 +990,16 @@ public final class ReactAgent {
         }
     }
 
-    // LLM 请求带退避重试：前 3 次失败各等 1s，之后每次等 2s，循环到成功；用户取消才停。
+    // LLM 请求带退避重试：前 3 次各等 1s，4-8 次各等 2s，最多 8 次后放弃；用户取消随时停。
     // 确定性 4xx 直接抛出不重试；每次重试新建连接（HttpURLConnection 不可复用）。
+    private static final int MAX_RETRIES = 8;
     private String postRetry(String url, String body, String[][] headers) throws Exception {
         int fails = 0;
         while (true) {
             if (control.shouldStop()) throw new Exception("任务已停止");
+            if (fails >= MAX_RETRIES) {
+                throw new Exception("连接重试 " + MAX_RETRIES + " 次仍失败，请检查网络或 API Key");
+            }
             HttpURLConnection conn = null;
             try {
                 conn = connPost(url, body);

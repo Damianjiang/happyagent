@@ -186,11 +186,14 @@ public class WebUiService extends Service {
                 }
             }
             byte[] body = new byte[0];
+            // 限 1MB 防恶意/误操作撑爆内存（老设备 512MB RAM 也撑得住）
+            final int MAX_BODY = 1024 * 1024;
             if (contentLength > 0) {
-                body = new byte[contentLength];
+                int len = Math.min(contentLength, MAX_BODY);
+                body = new byte[len];
                 int off = 0;
-                while (off < contentLength) {
-                    int r = bin.read(body, off, contentLength - off);
+                while (off < len) {
+                    int r = bin.read(body, off, len - off);
                     if (r < 0) break;
                     off += r;
                 }

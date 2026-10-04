@@ -74,6 +74,17 @@ public class SettingsListFragment extends Fragment {
                 "版本 · 说明",
                 iv -> AboutDialog.show(ctx)));
 
+        // 版本号（动态取，点击跳 GitHub 仓库）
+        String ver = AboutDialog.versionOf(ctx);
+        feature.addView(row(ctx, R.drawable.ic_gear, C_CYAN, "v" + ver,
+                "点击跳转 GitHub 仓库",
+                iv -> {
+                    android.content.Intent bi = new android.content.Intent(
+                            android.content.Intent.ACTION_VIEW,
+                            android.net.Uri.parse("https://github.com/Damianjiang/happyagent"));
+                    ctx.startActivity(bi);
+                }));
+
         // 工具与文件组（原底部 tab，现收进设置列表）
         tools.addView(row(ctx, R.drawable.ic_nav_tools, C_TEAL, "工具 / 插件",
                 "行内开关即时生效，点卡片看说明",

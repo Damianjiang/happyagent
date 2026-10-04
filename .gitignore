@@ -14,6 +14,9 @@ gradle/agenz-release.keystore
 captures/
 .cxx/
 
+# 项目内备份（回滚用，不入库）
+.backup_*/
+
 # 发布产物不入库：APK 和更新日志只作为 GitHub Release 资产/正文，不进代码仓库
 *.apk
 *.idsig
